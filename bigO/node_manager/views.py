@@ -1,7 +1,6 @@
 import logging
 import tomllib
 
-from django.shortcuts import render
 from django.template import Context, Template
 from rest_framework import serializers, status
 from rest_framework.response import Response

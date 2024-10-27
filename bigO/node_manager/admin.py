@@ -30,10 +30,10 @@ class CustomConfigTemplateModelAdmin(admin.ModelAdmin):
     pass
 
 
-
 @admin.register(models.EasyTierNetwork)
 class EasyTierNetworkModelAdmin(admin.ModelAdmin):
     pass
+
 
 class EasyTierNodeListenerInline(admin.StackedInline):
     extra = 1

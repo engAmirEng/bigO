@@ -1,12 +1,21 @@
 instance_name = "{{ easytier_node_obj }}"
+
+{% if ipv4 %}
+ipv4 = "{{ ipv4 }}"
+{% endif %}
+
 listeners = [
 {% for i in easytier_node_obj.node_nodelisteners.all %}
     "{{ i.protocol }}://0.0.0.0:{{ i.port }}",
 {% endfor %}
 ]
 
-peer = [
-{% for i in easytier_node_obj.node_nodepeers.all %}
-    "{{ i.peer_listener.protocol }}://0.0.0.0:{{ i.peer_listener.port }}",
+{% if external_node %}
+external-node = "{{ external_node }}"
+{% endif %}
+
+peers = [
+{% for i in peers %}
+    "{{ i }}",
 {% endfor %}
 ]
