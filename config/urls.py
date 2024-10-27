@@ -1,25 +1,22 @@
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView, TokenVerifyView
 
-from django.conf import settings
-from django.conf.urls.static import static
-from django.contrib import admin
-from django.urls import include, path
-
 import bigO.telegram_bot.urls
 from bigO.graphql.schema import schema
 from bigO.graphql.views import GraphQLView
 from bigO.utils.decorators import csrf_exempt
+from django.conf import settings
+from django.conf.urls.static import static
+from django.contrib import admin
+from django.urls import include, path
 
 urlpatterns = [
     # Django Admin, use {% url 'admin:index' %}
     path(settings.ADMIN_URL, admin.site.urls),
     # Telegram webhook handler
     path("", include(bigO.telegram_bot.urls)),
-
     # local apps
     path("node-manager/", include("bigO.node_manager.urls")),
-
     # Graphql url
     path("graphql/", csrf_exempt(GraphQLView.as_view(graphiql=settings.GRAPHIQL, schema=schema))),
     # REST API base url

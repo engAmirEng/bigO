@@ -1,17 +1,28 @@
-from bigO.node_manager.permissions import HasNodeAPIKey
-from bigO.node_manager.serializer import NodeInfoSerializer
+import logging
+import tomllib
+
+from django.shortcuts import render
 from django.template import Context, Template
 from rest_framework import serializers, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from . import models
+from .permissions import HasNodeAPIKey
 
-class NodeSyncMeAPIView(APIView):
-    class InputSerializer(serializers.Serializer):
-        info = NodeInfoSerializer()
+logger = logging.getLogger(__name__)
 
+
+class ConfigSerializer(serializers.Serializer):
+    id = serializers.CharField()
+    raw_content = serializers.CharField()
+
+
+class NodeBaseSyncAPIView(APIView):
     class OutputSerializer(serializers.Serializer):
-        nginx_config = serializers.CharField()
+        nginx_configs = ConfigSerializer(many=True, required=False)
+        easytier_configs = ConfigSerializer(many=True, required=False)
+        gost_configs = ConfigSerializer(many=True, required=False)
 
     permission_classes = [HasNodeAPIKey]
 
@@ -29,10 +40,28 @@ class NodeSyncMeAPIView(APIView):
         else:
             raise NotImplementedError
 
-        if node_obj.nginx_config_template:
-            nginx_config = Template(node_obj.nginx_config_template.template).render(Context({"node_obj": node_obj}))
-        else:
-            nginx_config = None
+        nginx_configs = []
+        cct_qs = models.CustomConfigTemplate.objects.filter(nodecustomconfigtemplates__node=node_obj)
+        for i in cct_qs:
+            if i.type == models.CustomConfigTemplate.TypeChoices.NGINX:
+                raw_content = Template(i.template).render(Context({"node_obj": node_obj}))
+                nginx_configs.append({"id": f"custom_{i.id}", "raw_content": raw_content})
+            else:
+                logger.info(f"CustomConfigTemplate type {i.type} is not implemented.")
 
-        response_serializer = self.OutputSerializer({"nginx_config": nginx_config})
+        easytier_configs = []
+        etn_qs = models.EasyTierNode.objects.filter(node=node_obj)
+        for i in etn_qs:
+            raw_content = i.get_toml_config()
+            try:
+                tomllib.loads(raw_content)
+            except tomllib.TOMLDecodeError as e:
+                logger.critical(f"toml parsing {i} failed: {str(e)}")
+                continue
+
+            easytier_configs.append({"id": f"easytier_{i.id}", "raw_content": i.get_toml_config()})
+
+        response_serializer = self.OutputSerializer(
+            {"nginx_configs": nginx_configs, "easytier_configs": easytier_configs}
+        )
         return Response(response_serializer.data, status=status.HTTP_200_OK)

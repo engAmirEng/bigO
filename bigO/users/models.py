@@ -4,12 +4,11 @@ import string
 from polymorphic.managers import PolymorphicManager
 from polymorphic.models import PolymorphicModel
 
+from bigO.utils.models import TimeStampedModel
 from django.contrib.auth.models import AbstractUser
 from django.contrib.auth.models import UserManager as BaseUserManager
 from django.db import models
 from django.utils.translation import gettext_lazy as _
-
-from bigO.utils.models import TimeStampedModel
 
 
 class UserManager(PolymorphicManager, BaseUserManager):

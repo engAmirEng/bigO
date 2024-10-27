@@ -113,6 +113,7 @@ THIRD_PARTY_APPS = clean_ellipsis(
         "drf_spectacular",
         "graphene_django",
         "graphql_jwt.refresh_token",
+        "netfields",
         "rest_framework",
         "rest_framework_api_key",
         "rest_framework_simplejwt",

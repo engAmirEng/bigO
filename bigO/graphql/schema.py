@@ -1,9 +1,8 @@
 import graphene
-from django.conf import settings
-from graphene_django.debug import DjangoDebug
-
 from bigO.users.schema import Mutation as UsersMutation
 from bigO.users.schema import Query as UsersQuery
+from django.conf import settings
+from graphene_django.debug import DjangoDebug
 
 
 class Query(UsersQuery, graphene.ObjectType):

@@ -5,12 +5,11 @@ from asgiref.sync import sync_to_async
 
 from aiogram import Dispatcher
 from aiogram.types import InputFile, Update
+from bigO.utils.decorators import require_http_methods
 from django.conf import settings
 from django.http import HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404
 from rest_framework import status
-
-from bigO.utils.decorators import require_http_methods
 
 from . import models
 
