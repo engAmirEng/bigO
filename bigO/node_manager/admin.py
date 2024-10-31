@@ -10,9 +10,14 @@ class NodePublicIPInline(admin.StackedInline):
     model = models.NodePublicIP
 
 
+class NodeInnerProgramInline(admin.StackedInline):
+    extra = 1
+    model = models.NodeInnerProgram
+
+
 @admin.register(models.Node)
 class NodeModelAdmin(admin.ModelAdmin):
-    inlines = [NodePublicIPInline]
+    inlines = [NodePublicIPInline, NodeInnerProgramInline]
 
 
 @admin.register(models.NodeAPIKey)
@@ -56,7 +61,7 @@ class EasyTierNodeModelForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if self.instance and self.instance.pk:
-            self.fields["toml_config"].initial = self.instance.get_toml_config()
+            self.fields["toml_config"].initial = self.instance.get_toml_config_content()
         else:
             self.fields["toml_config"].widget = forms.HiddenInput()
 
@@ -68,4 +73,42 @@ class EasyTierNodeModelAdmin(admin.ModelAdmin):
 
     @admin.display()
     def toml_config_display(self, obj):
-        return obj.get_toml_config()
+        return obj.get_toml_config_content()
+
+
+class ProgramBinaryModelForm(forms.ModelForm):
+    class Meta:
+        model = models.ProgramBinary
+        exclude = ["hash"]
+
+    def clean(self):
+        cleaned_data = super().clean()
+        file = cleaned_data.get(models.ProgramBinary.file.field.name)
+        if file:
+            file_data = file.read()
+            file_hash = models.ProgramBinary.gen_hash(file_data)
+            qs = models.ProgramBinary.objects.filter(hash=file_hash)
+            if self.instance and self.instance.pk:
+                qs = qs.exclude(id=self.instance.id)
+            if qs.exists():
+                self.add_error(models.ProgramBinary.file.field.name, f"file already exists, {file_hash}")
+            else:
+                cleaned_data["file_hash"] = file_hash
+
+        return cleaned_data
+
+
+@admin.register(models.ProgramBinary)
+class ProgramBinaryModelAdmin(admin.ModelAdmin):
+    form = ProgramBinaryModelForm
+    readonly_fields = ["hash"]
+
+    def save_model(self, request, obj, form, change):
+        if file_hash := form.cleaned_data.get("file_hash"):
+            obj.hash = file_hash
+        super().save_model(request, obj, form, change)
+
+
+@admin.register(models.NodeInnerProgram)
+class NodeInnerProgramModelAdmin(admin.ModelAdmin):
+    pass

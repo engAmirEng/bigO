@@ -1,7 +1,10 @@
 import logging
 import tomllib
 
-from django.template import Context, Template
+from django.contrib.auth.mixins import UserPassesTestMixin
+from django.core.exceptions import PermissionDenied
+from django.http import FileResponse, JsonResponse
+from django.views import View
 from rest_framework import serializers, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -12,16 +15,30 @@ from .permissions import HasNodeAPIKey
 logger = logging.getLogger(__name__)
 
 
+class ProgramSerializer(serializers.Serializer):
+    outer_binary_identifier = serializers.CharField(required=False)
+    inner_binary_path = serializers.CharField(required=False)
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        if isinstance(instance, models.ProgramBinary):
+            ret["outer_binary_identifier"] = instance.hash
+        elif isinstance(instance, models.NodeInnerProgram):
+            ret["inner_binary_path"] = instance.path
+        return ret
+
+
 class ConfigSerializer(serializers.Serializer):
     id = serializers.CharField()
-    raw_content = serializers.CharField()
+    program = ProgramSerializer()
+    run_opts = serializers.CharField(required=True)
+    configfile_content = serializers.CharField()
+    hash = serializers.CharField()
 
 
 class NodeBaseSyncAPIView(APIView):
     class OutputSerializer(serializers.Serializer):
-        nginx_configs = ConfigSerializer(many=True, required=False)
-        easytier_configs = ConfigSerializer(many=True, required=False)
-        gost_configs = ConfigSerializer(many=True, required=False)
+        configs = ConfigSerializer(many=True, required=False)
 
     permission_classes = [HasNodeAPIKey]
 
@@ -39,28 +56,66 @@ class NodeBaseSyncAPIView(APIView):
         else:
             raise NotImplementedError
 
-        nginx_configs = []
-        cct_qs = models.CustomConfigTemplate.objects.filter(nodecustomconfigtemplates__node=node_obj)
-        for i in cct_qs:
-            if i.type == models.CustomConfigTemplate.TypeChoices.NGINX:
-                raw_content = Template(i.template).render(Context({"node_obj": node_obj}))
-                nginx_configs.append({"id": f"custom_{i.id}", "raw_content": raw_content})
-            else:
-                logger.info(f"CustomConfigTemplate type {i.type} is not implemented.")
+        configs = []
+        for i in node_obj.node_customconfigtemplates.all():
+            program = i.get_program()
+            if program is None:
+                logger.critical(f"no program found for {i}")
+                continue
+            configs.append(
+                ConfigSerializer(
+                    {
+                        "id": f"custom_{i.config_template.type}_{i.id}",
+                        "program": ProgramSerializer(program).data,
+                        "run_opts": i.get_run_opts(),
+                        "configfile_content": i.get_config_content(),
+                        "hash": i.gen_hash(),
+                    }
+                ).data
+            )
 
-        easytier_configs = []
         etn_qs = models.EasyTierNode.objects.filter(node=node_obj)
         for i in etn_qs:
-            raw_content = i.get_toml_config()
+            configfile_content = i.get_toml_config_content()
             try:
-                tomllib.loads(raw_content)
+                tomllib.loads(configfile_content)
             except tomllib.TOMLDecodeError as e:
                 logger.critical(f"toml parsing {i} failed: {str(e)}")
                 continue
+            program = i.get_program()
+            if program is None:
+                logger.critical(f"no program found for {i}")
+                continue
 
-            easytier_configs.append({"id": f"easytier_{i.id}", "raw_content": i.get_toml_config()})
+            configs.append(
+                ConfigSerializer(
+                    {
+                        "id": f"easytier_{i.id}",
+                        "program": ProgramSerializer(program).data,
+                        "run_opts": i.get_run_opts(),
+                        "configfile_content": i.get_toml_config_content(),
+                        "hash": i.get_hash(),
+                    }
+                ).data
+            )
 
-        response_serializer = self.OutputSerializer(
-            {"nginx_configs": nginx_configs, "easytier_configs": easytier_configs}
-        )
-        return Response(response_serializer.data, status=status.HTTP_200_OK)
+        return Response(self.OutputSerializer({"configs": configs}).data, status=status.HTTP_200_OK)
+
+
+class NodeProgramBinaryContentByHashAPIView(UserPassesTestMixin, View):
+    def test_func(self):
+        perm = HasNodeAPIKey()
+        has_perm = perm.has_permission(request=self.request, view=None)
+        if not has_perm:
+            return False
+        self.node = perm.api_key.node
+        return True
+
+    def handle_no_permission(self):
+        raise PermissionDenied("which node are you?")
+
+    def get(self, request, hash: str):
+        obj = models.ProgramBinary.objects.filter(hash=hash).first()
+        if obj is None:
+            return JsonResponse({}, status=status.HTTP_404_NOT_FOUND)
+        return FileResponse(obj.file)
