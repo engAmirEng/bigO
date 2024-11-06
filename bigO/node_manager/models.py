@@ -278,8 +278,8 @@ class EasyTierNode(TimeStampedModel):
             peers.append(peer)
 
         proxy_networks = []
-        if self.node.container_spec and self.node.container_spec.ip:
-            proxy_networks.append(str(self.node.container_spec.ip))
+        if self.node.container_spec and self.node.container_spec.ipv4:
+            proxy_networks.append(str(self.node.container_spec.ipv4))
 
         context = {
             "easytier_node_obj": self,
