@@ -48,6 +48,9 @@ class NodePublicIP(TimeStampedModel):
     node = models.ForeignKey(Node, on_delete=models.CASCADE, related_name="node_nodepublicips")
     ip = models.ForeignKey(PublicIP, on_delete=models.CASCADE, related_name="ip_nodepublicips")
 
+    class Meta:
+        constraints = [UniqueConstraint(fields=("ip", "node"), name="unique_node_ip")]
+
 
 class ProgramTypeChoices(models.TextChoices):
     GOST = "gost"
