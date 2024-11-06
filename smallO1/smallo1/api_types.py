@@ -2,7 +2,7 @@ from typing import List, Optional
 import pydantic
 
 
-class ProgranResponse(pydantic.BaseModel):
+class ProgramResponse(pydantic.BaseModel):
     outer_binary_identifier: Optional[str] = None
     inner_binary_path: Optional[str] = None
 
@@ -15,7 +15,7 @@ class ProgranResponse(pydantic.BaseModel):
 
 class ConfigResponse(pydantic.BaseModel):
     id: str
-    program: ProgranResponse
+    program: ProgramResponse
     run_opts: str
     configfile_content: str
     hash: str
