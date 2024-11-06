@@ -9,7 +9,7 @@ from rest_framework import serializers, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from . import models
+from . import models, services
 from .permissions import HasNodeAPIKey
 
 logger = logging.getLogger(__name__)
@@ -36,7 +36,14 @@ class ConfigSerializer(serializers.Serializer):
     hash = serializers.CharField()
 
 
+class MetricSerializer(serializers.Serializer):
+    ip_a = serializers.CharField()
+
+
 class NodeBaseSyncAPIView(APIView):
+    class InputSerializer(serializers.Serializer):
+        metrics = MetricSerializer(required=False)
+
     class OutputSerializer(serializers.Serializer):
         configs = ConfigSerializer(many=True, required=False)
 
@@ -55,6 +62,10 @@ class NodeBaseSyncAPIView(APIView):
                 break
         else:
             raise NotImplementedError
+
+        input_ser = self.InputSerializer(data=request.data)
+        input_ser.is_valid(raise_exception=True)
+        services.node_spec_create(node=node_obj, ip_a=input_ser["ip_a"])
 
         configs = []
         for i in node_obj.node_customconfigtemplates.all():

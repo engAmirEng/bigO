@@ -101,6 +101,7 @@ LOCAL_APPS = [
     "bigO.core",
     "bigO.node_manager",
     "bigO.users",
+    "bigO.utils",
 ]
 THIRD_PARTY_APPS = clean_ellipsis(
     [

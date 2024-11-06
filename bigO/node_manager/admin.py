@@ -15,6 +15,11 @@ class NodeInnerProgramInline(admin.StackedInline):
     model = models.NodeInnerProgram
 
 
+@admin.register(models.ContainerSpec)
+class ContainerSpecModelAdmin(admin.ModelAdmin):
+    pass
+
+
 @admin.register(models.Node)
 class NodeModelAdmin(admin.ModelAdmin):
     inlines = [NodePublicIPInline, NodeInnerProgramInline]

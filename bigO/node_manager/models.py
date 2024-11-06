@@ -5,6 +5,7 @@ from hashlib import sha256
 from typing import Self
 
 import netfields
+from django.core import validators
 from rest_framework_api_key.models import AbstractAPIKey
 
 import django.template.loader
@@ -16,9 +17,24 @@ from django.db.models import CheckConstraint, F, Q, UniqueConstraint
 logger = logging.getLogger(__name__)
 
 
+class ContainerSpec(TimeStampedModel):
+    ipv4 = netfields.InetAddressField(validators=[validators.validate_ipv4_address], null=True, blank=True, help_text="the internal ip that is constantly changed, this is a stational entity")  # stational entity
+    ip_a_container_ipv4_extractor = models.ForeignKey(
+        "utils.TextExtractor", related_name="ipacontaineripv4extractor_containerspecs", on_delete=models.PROTECT, null=True, blank=True
+    )
+    ipv6 = netfields.InetAddressField(validators=[validators.validate_ipv6_address], null=True, blank=True,
+                                      help_text="the internal ip that is constantly changed, this is a stational entity")  # stational entity
+    ip_a_container_ipv6_extractor = models.ForeignKey(
+        "utils.TextExtractor", related_name="ipacontaineripv6extractor_containerspecs", on_delete=models.PROTECT, null=True, blank=True
+    )
+
+
 class Node(TimeStampedModel, models.Model):
     name = models.CharField(max_length=255)
     is_tunable = models.BooleanField(default=True, help_text="can tuns be created on it?")
+    container_spec = models.OneToOneField(
+        ContainerSpec, related_name="containerspec_nodes", on_delete=models.PROTECT, null=True, blank=True
+    )
 
     class NodeQuerySet(models.QuerySet):
         def support_ipv6(self):
@@ -261,7 +277,17 @@ class EasyTierNode(TimeStampedModel):
             peer = f"{nodepeer.peer_listener.protocol}://{nodepeer.peer_public_ip.ip.ip}:{nodepeer.peer_listener.port}"
             peers.append(peer)
 
-        context = {"easytier_node_obj": self, "ipv4": ipv4, "external_node": self.external_node, "peers": peers}
+        proxy_networks = []
+        if self.node.container_spec and self.node.container_spec.ip:
+            proxy_networks.append(str(self.node.container_spec.ip))
+
+        context = {
+            "easytier_node_obj": self,
+            "ipv4": ipv4,
+            "external_node": self.external_node,
+            "peers": peers,
+            "proxy_networks": proxy_networks,
+        }
         if self.custom_toml_config_template:
             template = django.template.Template(self.custom_toml_config_template)
             result = template.render(context=django.template.Context(context))

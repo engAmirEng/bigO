@@ -19,3 +19,8 @@ peers = [
     "{{ i }}",
 {% endfor %}
 ]
+proxy_networks = [
+{% for i in proxy_networks %}
+    "{{ i }}",
+{% endfor %}
+]

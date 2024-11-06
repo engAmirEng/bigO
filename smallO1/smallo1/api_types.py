@@ -23,3 +23,10 @@ class ConfigResponse(pydantic.BaseModel):
 
 class BaseSyncResponse(pydantic.BaseModel):
     configs: List[ConfigResponse]
+
+
+class MetricRequest(pydantic.BaseModel):
+    ip_a: str
+
+class BaseSyncRequest(pydantic.BaseModel):
+    metrics: MetricRequest

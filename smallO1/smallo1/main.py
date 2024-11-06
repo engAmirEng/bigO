@@ -11,6 +11,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from smallo1.api_types import BaseSyncResponse
 
+from smallO1.smallo1.api_types import BaseSyncRequest, MetricRequest
+
 BASE_DIR = Path(__file__).resolve(strict=True).parent.parent
 
 logger = logging.getLogger(__name__)
@@ -144,7 +146,8 @@ def main():
     while True:
         try:
             headers = {"Authorization": f"Api-Key {settings.api_key}"}
-            r = requests.post(settings.get_base_sync_url(), json={}, headers=headers)
+            payload = get_base_sync_request_payload()
+            r = requests.post(settings.get_base_sync_url(), json=payload, headers=headers)
             response = r.json()
             logger.debug(f"base-sync response with {r.status_code=} and content is:\n\n{response}")
             if r.status_code != 200:
@@ -232,3 +235,8 @@ def main():
             continue
 
         time.sleep(settings.interval_sec)
+
+def get_base_sync_request_payload():
+    res = subprocess.run(["ip", "a"], capture_output=True)
+    base_sync_request = BaseSyncRequest(metrics=MetricRequest(ip_a=res.stdout.decode("utf-8")))
+    return base_sync_request.model_dump()
