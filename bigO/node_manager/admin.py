@@ -34,6 +34,20 @@ class NodeAPIKeyModelAdmin(APIKeyModelAdmin):
 class PublicIPModelAdmin(admin.ModelAdmin):
     pass
 
+
+class ProgramVersionInline(admin.StackedInline):
+    extra = 1
+    model = models.ProgramVersion
+
+
+@admin.register(models.Program)
+class ProgramModelAdmin(admin.ModelAdmin):
+    inlines = [ProgramVersionInline]
+
+@admin.register(models.ProgramVersion)
+class ProgramVersionModelAdmin(admin.ModelAdmin):
+    pass
+
 class NodeCustomConfigTemplateInline(admin.StackedInline):
     extra = 1
     model = models.NodeCustomConfigTemplate

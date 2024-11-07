@@ -73,10 +73,27 @@ class NodePublicIP(TimeStampedModel):
         constraints = [UniqueConstraint(fields=("ip", "node"), name="unique_node_ip")]
 
 
+class Program(TimeStampedModel):
+    name = models.CharField(max_length=127, unique=True)
+
+
+class ProgramVersion(TimeStampedModel):
+    program = models.ForeignKey(
+        Program, on_delete=models.CASCADE, related_name="program_programversion"
+    )
+    version = models.CharField(max_length=63)
+
+    class Meta:
+        constraints = [
+            UniqueConstraint(fields=("program", "version"), name="unique_program_version")
+        ]
+
+
+
 class CustomConfigTemplate(TimeStampedModel, models.Model):
     name = models.CharField(max_length=255)
     program_version = models.ForeignKey(
-        "ProgramVersion",
+        ProgramVersion,
         on_delete=models.PROTECT,
         related_name="programversion_customconfigtemplates",
     )
@@ -139,7 +156,7 @@ class EasyTierNetwork(TimeStampedModel):
     network_name = models.CharField(max_length=255, unique=True)
     network_secret = models.CharField(max_length=255)
     ip_range = netfields.CidrAddressField()
-    program_version = models.ForeignKey("ProgramVersion", on_delete=models.PROTECT, related_name="programversion_easytiernetworks")
+    program_version = models.ForeignKey(ProgramVersion, on_delete=models.PROTECT, related_name="programversion_easytiernetworks")
 
     def clean(self):
         if self.ip_range:
@@ -338,22 +355,6 @@ class GostClientNode(TimeStampedModel):
         on_delete=models.CASCADE,
         related_name="gostservers",
     )
-
-
-class Program(TimeStampedModel):
-    name = models.CharField(max_length=127, unique=True)
-
-
-class ProgramVersion(TimeStampedModel):
-    program = models.ForeignKey(
-        Program, on_delete=models.CASCADE, related_name="program_programversion"
-    )
-    version = models.CharField(max_length=63)
-
-    class Meta:
-        constraints = [
-            UniqueConstraint(fields=("program", "version"), name="unique_program_version")
-        ]
 
 class ProgramBinary(TimeStampedModel):
     program_version = models.ForeignKey(
