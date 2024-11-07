@@ -29,12 +29,17 @@ class ContainerSpec(TimeStampedModel):
     )
 
 
+class SystemArchitectureTextChoices(models.TextChoices):
+    AMD64 = "amd64"
+
+
 class Node(TimeStampedModel, models.Model):
     name = models.CharField(max_length=255)
     is_tunable = models.BooleanField(default=True, help_text="can tuns be created on it?")
     container_spec = models.OneToOneField(
         ContainerSpec, related_name="containerspec_nodes", on_delete=models.PROTECT, null=True, blank=True
     )
+    architecture = models.CharField(max_length=63, choices=SystemArchitectureTextChoices.choices)
 
     class NodeQuerySet(models.QuerySet):
         def support_ipv6(self):
@@ -68,34 +73,15 @@ class NodePublicIP(TimeStampedModel):
         constraints = [UniqueConstraint(fields=("ip", "node"), name="unique_node_ip")]
 
 
-class ProgramTypeChoices(models.TextChoices):
-    GOST = "gost"
-    EASYTIER = "easytier"
-    NGINX = "nginx"
-
-
 class CustomConfigTemplate(TimeStampedModel, models.Model):
     name = models.CharField(max_length=255)
-    type = models.CharField(max_length=15, choices=ProgramTypeChoices.choices)
-    custom_type = models.ForeignKey(
-        "CustomProgramType",
-        on_delete=models.CASCADE,
-        related_name="customtype_customconfigtemplates",
-        null=True,
-        blank=True,
+    program_version = models.ForeignKey(
+        "ProgramVersion",
+        on_delete=models.PROTECT,
+        related_name="programversion_customconfigtemplates",
     )
-    template = models.TextField(null=True, blank=True)
-    run_opts_template = models.TextField()
-
-    class Meta:
-        constraints = [
-            CheckConstraint(
-                check=Q(
-                    Q(custom_type__isnull=False, type__isnull=True) | Q(custom_type__isnull=True, type__isnull=False)
-                ),
-                name="type_or_custom_type_config",
-            )
-        ]
+    template = models.TextField(null=True, blank=True, help_text="{node_obj}")
+    run_opts_template = models.TextField(help_text="{node_obj, configfile_path_placeholder}")
 
 
 class NodeCustomConfigTemplate(TimeStampedModel):
@@ -153,6 +139,7 @@ class EasyTierNetwork(TimeStampedModel):
     network_name = models.CharField(max_length=255, unique=True)
     network_secret = models.CharField(max_length=255)
     ip_range = netfields.CidrAddressField()
+    program_version = models.ForeignKey("ProgramVersion", on_delete=models.PROTECT, related_name="programversion_easytiernetworks")
 
     def clean(self):
         if self.ip_range:
@@ -193,9 +180,12 @@ class EasyTierNode(TimeStampedModel):
     objects = EasyTierNodeQuerySet.as_manager()
 
     def get_program(self) -> NodeInnerProgram | ProgramBinary | None:
-        res = self.node.node_nodeinnerbinary.filter(type=ProgramTypeChoices.EASYTIER).first()
+        """
+        returns the appropriate program with priority of NodeInnerProgram and then ProgramBinary
+        """
+        res = self.node.node_nodeinnerbinary.filter(program_version=self.network.program_version).first()
         if res is None:
-            res = ProgramBinary.objects.filter(type=ProgramTypeChoices.EASYTIER, is_active=True).first()
+            res = ProgramBinary.objects.filter(program_version=self.network.program_version, architecture=self.node.architecture).first()
         return res
 
     def get_hash(self):
@@ -350,43 +340,36 @@ class GostClientNode(TimeStampedModel):
     )
 
 
-class CustomProgramType(TimeStampedModel):
+class Program(TimeStampedModel):
     name = models.CharField(max_length=127, unique=True)
 
 
-class ProgramBinary(TimeStampedModel):
-    type = models.CharField(max_length=15, choices=ProgramTypeChoices.choices, null=True, blank=True)
-    custom_type = models.ForeignKey(
-        CustomProgramType, on_delete=models.CASCADE, related_name="customtype_programbinaries", null=True, blank=True
+class ProgramVersion(TimeStampedModel):
+    program = models.ForeignKey(
+        Program, on_delete=models.CASCADE, related_name="program_programversion"
     )
     version = models.CharField(max_length=63)
-    file = models.FileField(upload_to="protected/")
-    hash = models.CharField(max_length=64, blank=False, db_index=True)
-    is_active = models.BooleanField(default=False)
 
     class Meta:
         constraints = [
-            UniqueConstraint(fields=("version", "type"), condition=Q(type__isnull=False), name="unique_version_type"),
-            UniqueConstraint(
-                fields=("version", "custom_type"),
-                condition=Q(custom_type__isnull=False),
-                name="unique_version_custom_type",
-            ),
-            CheckConstraint(
-                check=Q(
-                    Q(custom_type__isnull=False, type__isnull=True) | Q(custom_type__isnull=True, type__isnull=False)
-                ),
-                name="type_or_custom_type",
-            ),
+            UniqueConstraint(fields=("program", "version"), name="unique_program_version")
         ]
 
-    def clean(self):
-        if self.is_active:
-            qs = ProgramBinary.objects.filter(type=self.type)
-            if self.pk:
-                qs = qs.exclude(id=self.id)
-            if count := qs.count():
-                raise ValidationError(f"{count} active {self.get_type_display()} already exists.")
+class ProgramBinary(TimeStampedModel):
+    program_version = models.ForeignKey(
+        ProgramVersion, on_delete=models.CASCADE, related_name="programversion_programbinaries"
+    )
+    architecture = models.CharField(max_length=63, choices=SystemArchitectureTextChoices.choices)
+    file = models.FileField(upload_to="protected/")
+    hash = models.CharField(max_length=64, blank=False, db_index=True)
+
+    class Meta:
+        constraints = [
+            UniqueConstraint(
+                fields=("architecture", "program_version"),
+                name="unique_architecture_programversion",
+            ),
+        ]
 
     def set_hash(self):
         binary_data = self.file.read()
@@ -400,34 +383,20 @@ class ProgramBinary(TimeStampedModel):
 class NodeInnerProgram(TimeStampedModel):
     node = models.ForeignKey(Node, on_delete=models.CASCADE, related_name="node_nodeinnerbinary")
     path = models.CharField(max_length=255, null=True, blank=True)
-    custom_type = models.ForeignKey(
-        CustomProgramType, on_delete=models.CASCADE, related_name="customtype_nodeinnerprograms", null=True, blank=True
+    program_version = models.ForeignKey(
+        ProgramVersion, on_delete=models.CASCADE, related_name="programversion_nodeinnerprograms"
     )
-    type = models.CharField(max_length=15, choices=ProgramTypeChoices.choices, null=True, blank=True)
 
     class Meta:
         constraints = [
             UniqueConstraint(
                 fields=("path", "node"),
-                name="unique_path_node",
+                name="node_path_taken",
                 violation_error_message="this path is already taken on the node.",
             ),
             UniqueConstraint(
-                fields=("type", "node"),
-                condition=Q(type__isnull=False),
-                name="unique_type_node",
+                fields=("program_version", "node"),
+                name="innerprogram_unique_programversion_node",
                 violation_error_message="this kind of program is already defined for this node node.",
-            ),
-            UniqueConstraint(
-                fields=("custom_type", "node"),
-                condition=Q(custom_type__isnull=False),
-                name="unique_custom_type_node",
-                violation_error_message="this kind of program is already defined for this node node.",
-            ),
-            CheckConstraint(
-                check=Q(
-                    Q(custom_type__isnull=False, type__isnull=True) | Q(custom_type__isnull=True, type__isnull=False)
-                ),
-                name="type_or_custom_type_inner",
             ),
         ]

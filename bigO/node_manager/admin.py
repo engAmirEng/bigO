@@ -34,10 +34,13 @@ class NodeAPIKeyModelAdmin(APIKeyModelAdmin):
 class PublicIPModelAdmin(admin.ModelAdmin):
     pass
 
+class NodeCustomConfigTemplateInline(admin.StackedInline):
+    extra = 1
+    model = models.NodeCustomConfigTemplate
 
 @admin.register(models.CustomConfigTemplate)
 class CustomConfigTemplateModelAdmin(admin.ModelAdmin):
-    pass
+    inlines = [NodeCustomConfigTemplateInline]
 
 
 @admin.register(models.EasyTierNetwork)
