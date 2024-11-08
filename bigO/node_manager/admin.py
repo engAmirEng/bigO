@@ -44,13 +44,16 @@ class ProgramVersionInline(admin.StackedInline):
 class ProgramModelAdmin(admin.ModelAdmin):
     inlines = [ProgramVersionInline]
 
+
 @admin.register(models.ProgramVersion)
 class ProgramVersionModelAdmin(admin.ModelAdmin):
     pass
 
+
 class NodeCustomConfigTemplateInline(admin.StackedInline):
     extra = 1
     model = models.NodeCustomConfigTemplate
+
 
 @admin.register(models.CustomConfigTemplate)
 class CustomConfigTemplateModelAdmin(admin.ModelAdmin):

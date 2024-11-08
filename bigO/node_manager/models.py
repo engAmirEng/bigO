@@ -5,27 +5,44 @@ from hashlib import sha256
 from typing import Self
 
 import netfields
-from django.core import validators
 from rest_framework_api_key.models import AbstractAPIKey
 
 import django.template.loader
 from bigO.utils.models import TimeStampedModel
+from django.core import validators
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
-from django.db.models import CheckConstraint, F, Q, UniqueConstraint
+from django.db.models import F, Q, UniqueConstraint
 
 logger = logging.getLogger(__name__)
 
 
 class ContainerSpec(TimeStampedModel):
-    ipv4 = netfields.InetAddressField(validators=[validators.validate_ipv4_address], null=True, blank=True, help_text="the internal ip that is constantly changed, this is a stational entity")  # stational entity
+    ipv4 = netfields.InetAddressField(
+        validators=[validators.validate_ipv4_address],
+        null=True,
+        blank=True,
+        help_text="the internal ip that is constantly changed, this is a stational entity",
+    )  # stational entity
     ip_a_container_ipv4_extractor = models.ForeignKey(
-        "utils.TextExtractor", related_name="ipacontaineripv4extractor_containerspecs", on_delete=models.PROTECT, null=True, blank=True
+        "utils.TextExtractor",
+        related_name="ipacontaineripv4extractor_containerspecs",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
     )
-    ipv6 = netfields.InetAddressField(validators=[validators.validate_ipv6_address], null=True, blank=True,
-                                      help_text="the internal ip that is constantly changed, this is a stational entity")  # stational entity
+    ipv6 = netfields.InetAddressField(
+        validators=[validators.validate_ipv6_address],
+        null=True,
+        blank=True,
+        help_text="the internal ip that is constantly changed, this is a stational entity",
+    )  # stational entity
     ip_a_container_ipv6_extractor = models.ForeignKey(
-        "utils.TextExtractor", related_name="ipacontaineripv6extractor_containerspecs", on_delete=models.PROTECT, null=True, blank=True
+        "utils.TextExtractor",
+        related_name="ipacontaineripv6extractor_containerspecs",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
     )
 
 
@@ -78,16 +95,11 @@ class Program(TimeStampedModel):
 
 
 class ProgramVersion(TimeStampedModel):
-    program = models.ForeignKey(
-        Program, on_delete=models.CASCADE, related_name="program_programversion"
-    )
+    program = models.ForeignKey(Program, on_delete=models.CASCADE, related_name="program_programversion")
     version = models.CharField(max_length=63)
 
     class Meta:
-        constraints = [
-            UniqueConstraint(fields=("program", "version"), name="unique_program_version")
-        ]
-
+        constraints = [UniqueConstraint(fields=("program", "version"), name="unique_program_version")]
 
 
 class CustomConfigTemplate(TimeStampedModel, models.Model):
@@ -156,7 +168,9 @@ class EasyTierNetwork(TimeStampedModel):
     network_name = models.CharField(max_length=255, unique=True)
     network_secret = models.CharField(max_length=255)
     ip_range = netfields.CidrAddressField()
-    program_version = models.ForeignKey(ProgramVersion, on_delete=models.PROTECT, related_name="programversion_easytiernetworks")
+    program_version = models.ForeignKey(
+        ProgramVersion, on_delete=models.PROTECT, related_name="programversion_easytiernetworks"
+    )
 
     def clean(self):
         if self.ip_range:
@@ -202,7 +216,9 @@ class EasyTierNode(TimeStampedModel):
         """
         res = self.node.node_nodeinnerbinary.filter(program_version=self.network.program_version).first()
         if res is None:
-            res = ProgramBinary.objects.filter(program_version=self.network.program_version, architecture=self.node.architecture).first()
+            res = ProgramBinary.objects.filter(
+                program_version=self.network.program_version, architecture=self.node.architecture
+            ).first()
         return res
 
     def get_hash(self):
@@ -355,6 +371,7 @@ class GostClientNode(TimeStampedModel):
         on_delete=models.CASCADE,
         related_name="gostservers",
     )
+
 
 class ProgramBinary(TimeStampedModel):
     program_version = models.ForeignKey(

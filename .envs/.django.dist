@@ -65,3 +65,16 @@ CELERY_BROKER_URL=redis://127.0.0.1:6379/0
 # Flower
 CELERY_FLOWER_USER=debug
 CELERY_FLOWER_PASSWORD=debug
+
+# Logging
+# ------------------------------------------------------------------------------
+# {bool, default to false}
+#LOKI_LOGGING=
+# {url, required if LOKI_LOGGING}
+#LOKI_PUSH_ENDPOINT=
+# {str, required if LOKI_LOGGING}
+#LOKI_USERNAME=
+# {str, required if LOKI_LOGGING}
+#LOKI_PASSWORD=
+# {json, required if LOKI_LOGGING}
+LOKI_BASE_LABELS="'{'app': 'bigO'}'"

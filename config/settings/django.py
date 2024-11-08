@@ -1,8 +1,12 @@
+import atexit
 import os
+import queue
+from logging.handlers import QueueListener
 
 import environ
 
 import django.core.exceptions
+from bigO.utils.logging import BasicLokiHandler
 from django.utils.translation import gettext_lazy as __
 
 from ._setup import APPS_DIR, BASE_DIR, PLUGGABLE_FUNCS, clean_ellipsis, log_ignore_modules
@@ -285,3 +289,29 @@ LOGGING = {
     },
     "root": {"level": "INFO", "handlers": ["console", "file"]},
 }
+
+if env.bool("LOKI_LOGGING", default=False):
+    # Define the log queue
+    loki_log_queue = queue.Queue(-1)  # Use an unlimited queue size
+
+    # Set up the Loki handler
+    loki_handler = BasicLokiHandler(
+        url=env.url("LOKI_PUSH_ENDPOINT").geturl(),
+        labels=env.json("LOKI_BASE_LABELS"),
+        username=env.str("LOKI_USERNAME"),
+        password=env.str("LOKI_PASSWORD"),
+    )
+
+    # Set up the QueueListener
+    listener = QueueListener(loki_log_queue, loki_handler)
+    listener.start()  # Start the listener in a background thread
+
+    # Register the listener to stop on shutdown
+    atexit.register(listener.stop)
+
+    LOGGING["handlers"]["loki_handler"] = {
+        "level": "WARNING",
+        "class": "logging.handlers.QueueHandler",
+        "queue": loki_log_queue,
+    }
+    LOGGING["root"]["handlers"].append("loki_handler")
