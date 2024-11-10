@@ -29,7 +29,7 @@ class Settings(BaseSettings):
         working_dir_val = values["working_dir"]
         path = Path(working_dir_val)
         if not path.is_absolute():
-            raise ValueError("specify an absolute path")
+            raise ValueError("specify an absolute path for working_dir")
         path.mkdir(parents=True, exist_ok=True)
         return values
 

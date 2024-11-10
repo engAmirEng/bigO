@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Union
 import pydantic
 
 
@@ -17,7 +17,7 @@ class ConfigResponse(pydantic.BaseModel):
     id: str
     program: ProgramResponse
     run_opts: str
-    configfile_content: str
+    configfile_content: Union[str, None]
     hash: str
 
 
