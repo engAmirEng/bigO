@@ -9,9 +9,7 @@ import pydantic
 import requests
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from smallo1.api_types import BaseSyncResponse
-
-from smallO1.smallo1.api_types import BaseSyncRequest, MetricRequest
+from smallo1.api_types import BaseSyncResponse, BaseSyncRequest, MetricRequest
 
 BASE_DIR = Path(__file__).resolve(strict=True).parent.parent
 
