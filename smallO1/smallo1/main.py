@@ -54,11 +54,11 @@ class Settings(BaseSettings):
         return res
 
     def get_base_sync_url(self):
-        return urllib.parse.urljoin(str(settings.server_base_url), "node-manager/node/base-sync/")
+        return urllib.parse.urljoin(str(self.server_base_url), "node-manager/node/base-sync/")
 
     def get_binary_content_url(self, hash: str):
         return urllib.parse.urljoin(
-            str(settings.server_base_url), f"node-manager/node/program-binary/hash/{hash}/content/"
+            str(self.server_base_url), f"node-manager/node/program-binary/hash/{hash}/content/"
         )
 
     def get_configfile_path_placeholder(self):
