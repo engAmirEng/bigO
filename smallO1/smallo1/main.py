@@ -186,14 +186,14 @@ def main(settings: Settings):
                 else:
                     entry_command = rf"{binary_path} {config.run_opts}"
                 new_supervisor_config += f"""
-                \n
-                # config_hash={config.hash}
-                [program:{config.id}]
-                command={entry_command}
-                autostart=true
-                autorestart=true
-                priority=10
-                """
+\n
+# config_hash={config.hash}
+[program:{config.id}]
+command={entry_command}
+autostart=true
+autorestart=true
+priority=10
+"""
             with open(supervisor_config_path, encoding="utf8") as f:
                 current = f.read()
             if current == new_supervisor_config:
