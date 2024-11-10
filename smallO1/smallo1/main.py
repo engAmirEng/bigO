@@ -143,13 +143,13 @@ def main(settings: Settings):
             headers = {"Authorization": f"Api-Key {settings.api_key}"}
             payload = get_base_sync_request_payload()
             r = requests.post(settings.get_base_sync_url(), json=payload, headers=headers)
-            response = r.json()
-            logger.debug(f"base-sync response with {r.status_code=} and content is:\n\n{response}")
             if r.status_code != 200:
                 next_try_in = settings.interval_sec * 0.3
-                logger.warning(f"base-sync returned {r.status_code=}, {next_try_in=}")
+                logger.warning(f"base-sync returned {r.status_code=}, {next_try_in=} and the content is \n{r.content}")
                 time.sleep(next_try_in)
                 continue
+            response = r.json()
+            logger.debug(f"base-sync response with {r.status_code=} and content is:\n\n{response}")
 
             response = BaseSyncResponse(**response)
             new_supervisor_config = ""
