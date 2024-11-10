@@ -1,3 +1,4 @@
+import argparse
 import logging
 import os
 import subprocess
@@ -7,37 +8,33 @@ from pathlib import Path
 
 import pydantic
 import requests
+from dotenv import load_dotenv
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .api_types import BaseSyncResponse, BaseSyncRequest, MetricRequest
 
-BASE_DIR = Path(__file__).resolve(strict=True).parent.parent
 
 logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=(".env", os.path.join(BASE_DIR, ".env")), env_file_encoding="utf-8")
-
     interval_sec: int
     api_key: str
     server_base_url: pydantic.HttpUrl
-    working_dir: str = "./workdir"
+    working_dir: str
     full_control_supervisord: bool
 
     @pydantic.model_validator(mode="before")
     def check_working_dir(cls, values):
-        working_dir_val = values.get("working_dir", "./workdir")
+        working_dir_val = values["working_dir"]
         path = Path(working_dir_val)
         if not path.is_absolute():
-            path = BASE_DIR / path
+            raise ValueError("specify an absolute path")
         path.mkdir(parents=True, exist_ok=True)
         return values
 
     def get_working_dir(self) -> Path:
         path = Path(self.working_dir)
-        if not path.is_absolute():
-            path = BASE_DIR / path
         path.mkdir(parents=True, exist_ok=True)
         return path
 
@@ -237,5 +234,20 @@ def get_base_sync_request_payload():
     return base_sync_request.model_dump()
 
 def cli():
+    parser = argparse.ArgumentParser(description="CLI for my_package")
+    parser.add_argument(
+        "--env-file",
+        type=str,
+        default=None,
+        help="Path to the .env file to load settings from"
+    )
+    args = parser.parse_args()
+
+    env_file_path = Path(args.env_file).resolve() if args.env_file else None
+    if env_file_path is None:
+        env_file_path = Path(os.getcwd()).joinpath(".env")
+
+    load_dotenv(env_file_path, override=True)
+
     settings = Settings()
     main(settings=settings)
