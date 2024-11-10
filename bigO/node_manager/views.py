@@ -32,7 +32,7 @@ class ConfigSerializer(serializers.Serializer):
     id = serializers.CharField()
     program = ProgramSerializer()
     run_opts = serializers.CharField(required=True)
-    configfile_content = serializers.CharField()
+    configfile_content = serializers.CharField(allow_null=True)
     hash = serializers.CharField()
 
 
@@ -65,7 +65,8 @@ class NodeBaseSyncAPIView(APIView):
 
         input_ser = self.InputSerializer(data=request.data)
         input_ser.is_valid(raise_exception=True)
-        services.node_spec_create(node=node_obj, ip_a=input_ser["ip_a"])
+        input_data = input_ser.data
+        services.node_spec_create(node=node_obj, ip_a=input_data["metrics"]["ip_a"])
 
         configs = []
         for i in node_obj.node_customconfigtemplates.all():
@@ -76,11 +77,11 @@ class NodeBaseSyncAPIView(APIView):
             configs.append(
                 ConfigSerializer(
                     {
-                        "id": f"custom_{i.config_template.type}_{i.id}",
+                        "id": f"custom_{i.config_template.id}_{i.id}",
                         "program": ProgramSerializer(program).data,
                         "run_opts": i.get_run_opts(),
                         "configfile_content": i.get_config_content(),
-                        "hash": i.gen_hash(),
+                        "hash": i.get_hash(),
                     }
                 ).data
             )

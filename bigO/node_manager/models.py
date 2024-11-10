@@ -130,14 +130,11 @@ class NodeCustomConfigTemplate(TimeStampedModel):
         constraints = [UniqueConstraint(fields=("node", "config_template"), name="unique_node_config_template")]
 
     def get_program(self) -> NodeInnerProgram | ProgramBinary | None:
-        res = self.node.node_nodeinnerbinary.filter(
-            Q(Q(custom_type=F("config_template__custom_type")) | (Q(type=F("config_template__type"))))
-        ).first()
+        res = self.node.node_nodeinnerbinary.filter(program_version=self.config_template.program_version).first()
         if res is None:
             res = ProgramBinary.objects.filter(
-                Q(Q(custom_type=F("config_template__custom_type")) | (Q(type=F("config_template__type"))))
-                & Q(is_active=True)
-            )
+                program_version=self.config_template.program_version, architecture=self.node.architecture
+            ).first()
         return res
 
     def get_config_content(self) -> str | None:
@@ -154,7 +151,7 @@ class NodeCustomConfigTemplate(TimeStampedModel):
         result = template.render(context=django.template.Context(context))
         return result
 
-    def get_hash(self):
+    def get_hash(self) -> str:
         influential = ""
         influential += self.get_run_opts()
         if config_content := self.get_config_content():
@@ -164,7 +161,7 @@ class NodeCustomConfigTemplate(TimeStampedModel):
             influential += program.hash
         elif isinstance(program, NodeInnerProgram):
             influential += program.path
-        return sha256(influential.encode("utf-8"))
+        return sha256(influential.encode("utf-8")).hexdigest()
 
 
 class EasyTierNetwork(TimeStampedModel):
@@ -224,7 +221,7 @@ class EasyTierNode(TimeStampedModel):
             ).first()
         return res
 
-    def get_hash(self):
+    def get_hash(self) -> str:
         influential = ""
         influential += self.get_run_opts()
         if config_content := self.get_toml_config_content():
@@ -394,10 +391,10 @@ class ProgramBinary(TimeStampedModel):
 
     def set_hash(self):
         binary_data = self.file.read()
-        self.hash = self.gen_hash(binary_data)
+        self.hash = self.get_hash(binary_data)
 
     @staticmethod
-    def gen_hash(file: bytes):
+    def get_hash(file: bytes):
         return sha256(file).hexdigest()
 
 

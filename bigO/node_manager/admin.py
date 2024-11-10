@@ -111,7 +111,7 @@ class ProgramBinaryModelForm(forms.ModelForm):
         file = cleaned_data.get(models.ProgramBinary.file.field.name)
         if file:
             file_data = file.read()
-            file_hash = models.ProgramBinary.gen_hash(file_data)
+            file_hash = models.ProgramBinary.get_hash(file_data)
             qs = models.ProgramBinary.objects.filter(hash=file_hash)
             if self.instance and self.instance.pk:
                 qs = qs.exclude(id=self.instance.id)
