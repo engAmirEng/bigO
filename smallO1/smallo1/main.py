@@ -27,7 +27,7 @@ class Settings(BaseSettings):
 
     @pydantic.model_validator(mode="before")
     def check_working_dir(cls, values):
-        working_dir_val = values["working_dir"]
+        working_dir_val = values.get("working_dir", "./workdir")
         path = Path(working_dir_val)
         if not path.is_absolute():
             path = BASE_DIR / path
