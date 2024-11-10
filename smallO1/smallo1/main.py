@@ -176,7 +176,15 @@ def main(settings: Settings):
                     if not conf_path.is_file():
                         with open(conf_path, "wb") as f:
                             f.write(configfile_content.encode("utf-8"))
-                entry_command = rf"{binary_path} \{config.run_opts.replace(settings.get_configfile_path_placeholder(), str(conf_path))}"
+                else:
+                    conf_path = None
+                    if settings.get_configfile_path_placeholder() in config.run_opts:
+                        logger.critical(f"run_opts contains reference to config file while there is no config file, {config.id=}")
+
+                if conf_path is not None:
+                    entry_command = rf"{binary_path} {config.run_opts.replace(settings.get_configfile_path_placeholder(), str(conf_path))}"
+                else:
+                    entry_command = rf"{binary_path} {config.run_opts}"
                 new_supervisor_config += f"""
                 \n
                 # config_hash={config.hash}
