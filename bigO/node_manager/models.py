@@ -8,6 +8,8 @@ import netfields
 from rest_framework_api_key.models import AbstractAPIKey
 
 import django.template.loader
+from taggit.managers import TaggableManager
+
 from bigO.utils.models import TimeStampedModel
 from django.core import validators
 from django.core.exceptions import ValidationError
@@ -111,6 +113,7 @@ class CustomConfigTemplate(TimeStampedModel, models.Model):
     )
     template = models.TextField(null=True, blank=True, help_text="{node_obj}")
     run_opts_template = models.TextField(help_text="{node_obj, configfile_path_placeholder}")
+    tags = TaggableManager(related_name="tag_customconfigtemplates", blank=True)
 
 
 class NodeCustomConfigTemplate(TimeStampedModel):

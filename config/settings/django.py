@@ -111,6 +111,7 @@ THIRD_PARTY_APPS = clean_ellipsis(
     [
         "axes",
         "corsheaders",
+        "taggit",
         "debug_toolbar" if PLUGGABLE_FUNCS.DEBUG_TOOLBAR else ...,
         "django_celery_beat",
         "django_celery_results",
