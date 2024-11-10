@@ -110,11 +110,6 @@ files = {str(subconfig_path)}
         return res
 
 
-settings = Settings()
-
-logging.basicConfig(filename=settings.get_logs_dir().joinpath("debug.log"), level=logging.DEBUG)
-
-
 def is_supervisor_running():
     result = subprocess.run(["supervisorctl", "status"], capture_output=True)
     if ".sock no such file" in str(result.stdout):
@@ -123,7 +118,9 @@ def is_supervisor_running():
         return True
 
 
-def main():
+def main(settings: Settings):
+    logging.basicConfig(filename=settings.get_logs_dir().joinpath("debug.log"), level=logging.DEBUG)
+
     working_dir = settings.get_working_dir()
     supervisor_config_path = settings.get_supervisor_dir().joinpath("supervisor.conf")
     supervisor_config_path.touch()
@@ -238,3 +235,7 @@ def get_base_sync_request_payload():
     res = subprocess.run(["ip", "a"], capture_output=True)
     base_sync_request = BaseSyncRequest(metrics=MetricRequest(ip_a=res.stdout.decode("utf-8")))
     return base_sync_request.model_dump()
+
+def cli():
+    settings = Settings()
+    main(settings=settings)
