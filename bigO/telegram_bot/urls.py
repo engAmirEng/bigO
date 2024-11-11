@@ -1,7 +1,7 @@
 from bigO.telegram_bot import dispatchers
 from bigO.telegram_bot.webhook import get_webhook_view
 from bigO.utils.decorators import csrf_exempt
-from django.conf import settings
+from . import settings
 from django.urls import path
 
 urlpatterns = [

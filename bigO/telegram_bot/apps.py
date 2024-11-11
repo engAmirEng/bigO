@@ -1,5 +1,4 @@
 from django.apps import AppConfig
-from django.conf import settings
 from django.utils.module_loading import import_string
 
 
@@ -7,6 +6,7 @@ class UsersConfig(AppConfig):
     name = "bigO.telegram_bot"
 
     def ready(self):
+        from . import settings
         from . import dispatchers
 
         for middleware_path in settings.TELEGRAM_MIDDLEWARE:
