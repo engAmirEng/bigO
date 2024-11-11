@@ -298,7 +298,7 @@ class EasyTierNode(TimeStampedModel):
         for i in new_nodepeers:
             i.save()
         for nodepeer in node_peers:
-            peer = f"{nodepeer.peer_listener.protocol}://{nodepeer.peer_public_ip.ip.ip}:{nodepeer.peer_listener.port}"
+            peer = f"{nodepeer.peer_listener.protocol}://{nodepeer.peer_public_ip.ip.ip.ip}:{nodepeer.peer_listener.port}"
             peers.append(peer)
 
         proxy_networks = []
