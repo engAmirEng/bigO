@@ -198,7 +198,7 @@ class EasyTierNode(TimeStampedModel):
     ipv4 = netfields.InetAddressField(
         null=True, blank=True, help_text="this is a stational entity"
     )  # stational entity
-    mtu = models.PositiveSmallIntegerField(null=True)
+    mtu = models.PositiveSmallIntegerField(null=True, blank=True)
     custom_toml_config_template = models.TextField(null=True, blank=True)
     custom_run_opts_template = models.TextField(null=True, blank=True)
 
