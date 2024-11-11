@@ -24,3 +24,7 @@ proxy_networks = [
     "{{ i }}",
 {% endfor %}
 ]
+
+{% if mtu %}
+mtu = {{ mtu }}
+{% endif %}
