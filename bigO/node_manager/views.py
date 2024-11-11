@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class ProgramSerializer(serializers.Serializer):
+    program_version_id = serializers.CharField(required=True)
     outer_binary_identifier = serializers.CharField(required=False)
     inner_binary_path = serializers.CharField(required=False)
 
@@ -81,6 +82,7 @@ class NodeBaseSyncAPIView(APIView):
                         "program": ProgramSerializer(program).data,
                         "run_opts": i.get_run_opts(),
                         "configfile_content": i.get_config_content(),
+                        "config_file_ext": i.config_template.config_file_ext,
                         "hash": i.get_hash(),
                     }
                 ).data
@@ -102,7 +104,7 @@ class NodeBaseSyncAPIView(APIView):
             configs.append(
                 ConfigSerializer(
                     {
-                        "id": f"easytier_{i.id}",
+                        "id": f"eati_{i.id}",
                         "program": ProgramSerializer(program).data,
                         "run_opts": i.get_run_opts(),
                         "configfile_content": i.get_toml_config_content(),

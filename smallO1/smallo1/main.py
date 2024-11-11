@@ -9,10 +9,9 @@ from pathlib import Path
 import pydantic
 import requests
 from dotenv import load_dotenv
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings
 
-from .api_types import BaseSyncResponse, BaseSyncRequest, MetricRequest
-
+from .api_types import BaseSyncRequest, BaseSyncResponse, MetricRequest
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +117,6 @@ def is_supervisor_running():
 def main(settings: Settings):
     logging.basicConfig(filename=settings.get_logs_dir().joinpath("debug.log"), level=logging.DEBUG)
 
-    working_dir = settings.get_working_dir()
     supervisor_config_path = settings.get_supervisor_dir().joinpath("supervisor.conf")
     supervisor_config_path.touch()
     if not is_supervisor_running():
@@ -154,39 +152,47 @@ def main(settings: Settings):
                 if config.program.inner_binary_path:
                     binary_path = Path(config.program.inner_binary_path)
                     if not binary_path.is_file():
-                        logger.critical(f"{binary_path=} is not a valid file")
+                        logger.critical(f"inner {binary_path=} is not a valid file")
                         continue
                 elif outer_binary_identifier := config.program.outer_binary_identifier:
-                    expected_bin_dir = working_dir.joinpath("bin", outer_binary_identifier)
-                    if expected_bin_dir.is_file():
-                        binary_path = expected_bin_dir
+                    expected_bin_path = settings.get_bin_dir().joinpath(
+                        f"{config.program.program_version_id}_{outer_binary_identifier[:6]}"
+                    )
+                    if expected_bin_path.is_file():
+                        binary_path = expected_bin_path
                     else:
                         headers = {"Authorization": f"Api-Key {settings.api_key}"}
                         r = requests.get(
                             settings.get_binary_content_url(outer_binary_identifier), json={}, headers=headers
                         )
                         file_bin = r.content
-                        binary_path = settings.get_bin_dir().joinpath(outer_binary_identifier)
-                        with open(binary_path, "wb") as f:
+                        with open(expected_bin_path, "wb") as f:
                             f.write(file_bin)
-                        os.chmod(binary_path, 0o755)
+                        os.chmod(expected_bin_path, 0o755)
+                        binary_path = expected_bin_path
                 if configfile_content := config.configfile_content:
                     conf_dir = settings.get_conf_dir()
-                    conf_path = conf_dir.joinpath(config.hash)
+                    conf_path = conf_dir.joinpath(f"{config.id}_{config.hash[:6]}")
+                    if config.config_file_ext:
+                        conf_path += config.config_file_ext
                     if not conf_path.is_file():
                         with open(conf_path, "wb") as f:
                             f.write(configfile_content.encode("utf-8"))
                 else:
                     conf_path = None
                     if settings.get_configfile_path_placeholder() in config.run_opts:
-                        logger.critical(f"run_opts contains reference to config file while there is no config file, {config.id=}")
+                        logger.critical(
+                            f"run_opts contains reference to config file while there is no config file, {config.id=}"
+                        )
 
                 if conf_path is not None:
-                    entry_command = rf"{binary_path} {config.run_opts.replace(settings.get_configfile_path_placeholder(), str(conf_path))}"
+                    run_opts = config.run_opts.replace(settings.get_configfile_path_placeholder(), str(conf_path))
                 else:
-                    entry_command = rf"{binary_path} {config.run_opts}"
+                    run_opts = config.run_opts
+                entry_command = f"{binary_path} {run_opts}"
+
                 new_supervisor_config += f"""
-\n
+
 # config_hash={config.hash}
 [program:{config.id}]
 command={entry_command}
@@ -236,19 +242,16 @@ priority=10
 
         time.sleep(settings.interval_sec)
 
+
 def get_base_sync_request_payload():
     res = subprocess.run(["ip", "a"], capture_output=True)
     base_sync_request = BaseSyncRequest(metrics=MetricRequest(ip_a=res.stdout.decode("utf-8")))
     return base_sync_request.model_dump()
 
+
 def cli():
     parser = argparse.ArgumentParser(description="CLI for my_package")
-    parser.add_argument(
-        "--env-file",
-        type=str,
-        default=None,
-        help="Path to the .env file to load settings from"
-    )
+    parser.add_argument("--env-file", type=str, default=None, help="Path to the .env file to load settings from")
     args = parser.parse_args()
 
     env_file_path = Path(args.env_file).resolve() if args.env_file else None

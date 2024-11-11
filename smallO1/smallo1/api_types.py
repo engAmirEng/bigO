@@ -3,6 +3,7 @@ import pydantic
 
 
 class ProgramResponse(pydantic.BaseModel):
+    program_version_id: str
     outer_binary_identifier: Optional[str] = None
     inner_binary_path: Optional[str] = None
 
@@ -18,6 +19,7 @@ class ConfigResponse(pydantic.BaseModel):
     program: ProgramResponse
     run_opts: str
     configfile_content: Union[str, None]
+    config_file_ext: Union[str, None]
     hash: str
 
 

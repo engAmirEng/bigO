@@ -6,10 +6,9 @@ from typing import Self
 
 import netfields
 from rest_framework_api_key.models import AbstractAPIKey
-
-import django.template.loader
 from taggit.managers import TaggableManager
 
+import django.template.loader
 from bigO.utils.models import TimeStampedModel
 from django.core import validators
 from django.core.exceptions import ValidationError
@@ -112,6 +111,7 @@ class CustomConfigTemplate(TimeStampedModel, models.Model):
         related_name="programversion_customconfigtemplates",
     )
     template = models.TextField(null=True, blank=True, help_text="{node_obj}")
+    config_file_ext = models.CharField(null=True, blank=True)
     run_opts_template = models.TextField(help_text="{node_obj, configfile_path_placeholder}")
     tags = TaggableManager(related_name="tag_customconfigtemplates", blank=True)
 

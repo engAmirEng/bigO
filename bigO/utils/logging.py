@@ -20,7 +20,11 @@ class BasicLokiHandler(logging.Handler):
         # Format the log entry as a Loki-compatible payload
         log_entry = self.format(record)
         timestamp = int(datetime.utcnow().timestamp() * 1e9)  # Nanoseconds
-        payload = {"streams": [{"stream": {**self.labels, "level": record.levelname}, "values": [[str(timestamp), log_entry]]}]}
+        payload = {
+            "streams": [
+                {"stream": {**self.labels, "level": record.levelname}, "values": [[str(timestamp), log_entry]]}
+            ]
+        }
         headers = {"Content-Type": "application/json"}
 
         try:
