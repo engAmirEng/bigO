@@ -19,7 +19,6 @@ env = environ.Env(**defaults)
 DEBUG = env.bool("DJANGO_DEBUG", False)
 SECRET_KEY = env.str("DJANGO_SECRET_KEY")
 ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=["localhost", "0.0.0.0", "127.0.0.1"])
-ALLOWED_HOSTS.extend([f".{i}" for i in env.list("TELEGRAM_WEBHOOK_FLYING_DOMAINS")])
 CSRF_TRUSTED_ORIGINS = env.list(
     "DJANGO_CSRF_TRUSTED_ORIGINS",
     default=["http://localhost", "http://0.0.0.0", "http://127.0.0.1"],

@@ -23,11 +23,6 @@ services:
     extra_hosts:
       - 'host-gateway:host-gateway'
 
-  telegrampoll:
-    <<: *django
-    image: televi1_production_telegrampoll
-    command: /start-telegrampoll
-
   redis:
     image: redis:6
 
