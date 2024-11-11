@@ -34,6 +34,7 @@ class ConfigSerializer(serializers.Serializer):
     program = ProgramSerializer()
     run_opts = serializers.CharField(required=True)
     configfile_content = serializers.CharField(allow_null=True)
+    config_file_ext = serializers.CharField(allow_null=True)
     hash = serializers.CharField()
 
 
