@@ -1,11 +1,10 @@
 FROM python:3.11-slim-bullseye
 
 RUN --mount=type=cache,target=var/cache/apt/archives apt-get update && apt-get install --no-install-recommends -y \
-    # the main dependency
     supervisor \
     # handy dependencies
     nginx \
-    openssh \
+    openssh-server \
     openssh-client \
     sshpass \
     # dependencies for building Python packages
