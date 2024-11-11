@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
-    interval_sec: int
+    interval_sec: int = 10
     api_key: str
     server_base_url: pydantic.HttpUrl
     working_dir: str
@@ -139,7 +139,7 @@ def main(settings: Settings):
             payload = get_base_sync_request_payload()
             r = requests.post(settings.get_base_sync_url(), json=payload, headers=headers)
             if r.status_code != 200:
-                next_try_in = settings.interval_sec * 0.3
+                next_try_in = settings.interval_sec
                 logger.warning(f"base-sync returned {r.status_code=}, {next_try_in=} and the content is \n{r.content}")
                 time.sleep(next_try_in)
                 continue
@@ -235,7 +235,7 @@ priority=10
                     logging.info("supervisor updated")
 
         except Exception as e:
-            next_try_in = settings.interval_sec * 0.3
+            next_try_in = settings.interval_sec
             logger.error(e, f"{next_try_in=}")
             time.sleep(next_try_in)
             continue
@@ -258,7 +258,9 @@ def cli():
     if env_file_path is None:
         env_file_path = Path(os.getcwd()).joinpath(".env")
 
-    load_dotenv(env_file_path, override=True)
+    any_env_set = load_dotenv(env_file_path, override=True)
+    if not any_env_set:
+        logger.debug("dotenv did not load any envs")
 
     settings = Settings()
     main(settings=settings)

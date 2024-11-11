@@ -1,11 +1,17 @@
 FROM python:3.11-slim-bullseye
 
 RUN --mount=type=cache,target=var/cache/apt/archives apt-get update && apt-get install --no-install-recommends -y \
-  supervisor \
-  # dependencies for building Python packages
-  build-essential \
-  # handy tolls
-  wget
+    # the main dependency
+    supervisor \
+    # handy dependencies
+    nginx \
+    openssh \
+    openssh-client \
+    sshpass \
+    # dependencies for building Python packages
+    build-essential \
+    # handy tolls
+    wget
 
 WORKDIR /app/dependencies
 COPY . .
@@ -14,5 +20,6 @@ WORKDIR /app
 RUN rm -rf /app/dependencies
 
 ENV working_dir=/app
+ENV full_control_supervisord=True
 
 CMD ["small-o1"]
