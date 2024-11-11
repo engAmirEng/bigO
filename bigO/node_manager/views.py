@@ -108,6 +108,7 @@ class NodeBaseSyncAPIView(APIView):
                         "program": ProgramSerializer(program).data,
                         "run_opts": i.get_run_opts(),
                         "configfile_content": i.get_toml_config_content(),
+                        "config_file_ext": None,
                         "hash": i.get_hash(),
                     }
                 ).data
