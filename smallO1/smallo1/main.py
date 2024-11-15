@@ -4,6 +4,7 @@ import os
 import subprocess
 import time
 import urllib.parse
+from hashlib import sha256
 from pathlib import Path
 
 import pydantic
@@ -137,14 +138,16 @@ def main(settings: Settings):
         try:
             headers = {"Authorization": f"Api-Key {settings.api_key}"}
             payload = get_base_sync_request_payload()
-            r = requests.post(settings.get_base_sync_url(), json=payload, headers=headers)
+            base_sync_url = settings.get_base_sync_url()
+            logger.debug(f"requesting {base_sync_url}")
+            r = requests.post(base_sync_url, json=payload, headers=headers)
             if r.status_code != 200:
                 next_try_in = settings.interval_sec
                 logger.warning(f"base-sync returned {r.status_code=}, {next_try_in=} and the content is \n{r.content}")
                 time.sleep(next_try_in)
                 continue
             response = r.json()
-            logger.debug(f"base-sync response with {r.status_code=} and content is:\n\n{response}")
+            logger.debug(f"base-sync respond with {r.status_code=} and content is:\n\n{response}")
 
             response = BaseSyncResponse(**response)
             new_supervisor_config = ""
@@ -155,21 +158,22 @@ def main(settings: Settings):
                         logger.critical(f"inner {binary_path=} is not a valid file")
                         continue
                 elif outer_binary_identifier := config.program.outer_binary_identifier:
-                    expected_bin_path = settings.get_bin_dir().joinpath(
+                    binary_path = settings.get_bin_dir().joinpath(
                         f"{config.program.program_version_id}_{outer_binary_identifier[:6]}"
                     )
-                    if expected_bin_path.is_file():
-                        binary_path = expected_bin_path
-                    else:
-                        headers = {"Authorization": f"Api-Key {settings.api_key}"}
-                        r = requests.get(
-                            settings.get_binary_content_url(outer_binary_identifier), json={}, headers=headers
-                        )
-                        file_bin = r.content
-                        with open(expected_bin_path, "wb") as f:
-                            f.write(file_bin)
-                        os.chmod(expected_bin_path, 0o755)
-                        binary_path = expected_bin_path
+                    if not binary_path.is_file():
+                        try:
+                            download_outerbinary(
+                                binary_content_url=settings.get_binary_content_url(outer_binary_identifier),
+                                save_to=binary_path,
+                                identifier=outer_binary_identifier,
+                                api_key=settings.api_key,
+                            )
+                        except ContentDownloadError as e:
+                            logger.critical(f"could not download {outer_binary_identifier} for {config.id=}")
+                            continue
+                else:
+                    raise NotImplementedError
                 if configfile_content := config.configfile_content:
                     conf_dir = settings.get_conf_dir()
                     conf_path = conf_dir.joinpath(f"{config.id}_{config.hash[:6]}")
@@ -247,6 +251,34 @@ def get_base_sync_request_payload():
     res = subprocess.run(["ip", "a"], capture_output=True)
     base_sync_request = BaseSyncRequest(metrics=MetricRequest(ip_a=res.stdout.decode("utf-8")))
     return base_sync_request.model_dump()
+
+
+class ContentDownloadError(Exception):
+    pass
+
+
+def download_outerbinary(*, binary_content_url: str, save_to: Path, identifier: str, api_key: str):
+    retry_limit = 3
+    headers = {"Authorization": f"Api-Key {api_key}"}
+    retry_count = 0
+    for i in range(retry_limit):
+        retry_count += 1
+        r = requests.get(binary_content_url, json={}, headers=headers)
+        if r.status_code == 200:
+            file_bin = r.content
+            if sha256(file_bin).hexdigest() != identifier:
+                logger.debug(f"sha missmatch happened for {identifier=}")
+                continue
+            logger.debug(f"successfully downloaded {identifier=}")
+            break
+        else:
+            logger.warning(f"binary-content returned {r.status_code=}, and the content is \n{r.text[:50]}")
+    else:
+        raise ContentDownloadError()
+
+    with open(save_to, "wb") as f:
+        f.write(file_bin)
+    os.chmod(save_to, 0o755)
 
 
 def cli():
