@@ -65,6 +65,9 @@ class Node(TimeStampedModel, models.Model):
 
     objects = NodeQuerySet.as_manager()
 
+    def __str__(self):
+        return f"{self.pk}-{self.name}"
+
     def get_support_ipv6(self):
         return Node.objects.filter(id=self.id).support_ipv6().exists()
 
@@ -82,6 +85,9 @@ class PublicIP(TimeStampedModel):
     ip = netfields.InetAddressField(unique=True)
     is_cdn = models.BooleanField(default=False)
 
+    def __str__(self):
+        return f"{self.pk}-{self.ip.ip}"
+
 
 class NodePublicIP(TimeStampedModel):
     node = models.ForeignKey(Node, on_delete=models.CASCADE, related_name="node_nodepublicips")
@@ -90,9 +96,15 @@ class NodePublicIP(TimeStampedModel):
     class Meta:
         constraints = [UniqueConstraint(fields=("ip", "node"), name="unique_node_ip")]
 
+    def __str__(self):
+        return f"{self.pk}-{self.node}|{self.ip}"
+
 
 class Program(TimeStampedModel):
     name = models.CharField(max_length=127, unique=True)
+
+    def __str__(self):
+        return f"{self.pk}-{self.name}"
 
 
 class ProgramVersion(TimeStampedModel):
@@ -101,6 +113,9 @@ class ProgramVersion(TimeStampedModel):
 
     class Meta:
         constraints = [UniqueConstraint(fields=("program", "version"), name="unique_program_version")]
+
+    def __str__(self):
+        return f"{self.pk}-{self.program} ({self.version})"
 
 
 class CustomConfigTemplate(TimeStampedModel, models.Model):
@@ -114,6 +129,9 @@ class CustomConfigTemplate(TimeStampedModel, models.Model):
     config_file_ext = models.CharField(null=True, blank=True)
     run_opts_template = models.TextField(help_text="{node_obj, configfile_path_placeholder}")
     tags = TaggableManager(related_name="tag_customconfigtemplates", blank=True)
+
+    def __str__(self):
+        return f"{self.pk}-{self.name}"
 
 
 class NodeCustomConfigTemplate(TimeStampedModel):
@@ -163,6 +181,9 @@ class NodeCustomConfigTemplate(TimeStampedModel):
             influential += program.path
         return sha256(influential.encode("utf-8")).hexdigest()
 
+    def __str__(self):
+        return f"{self.pk}-{self.node}|{self.config_template}"
+
 
 class EasyTierNetwork(TimeStampedModel):
     network_name = models.CharField(max_length=255, unique=True)
@@ -171,6 +192,9 @@ class EasyTierNetwork(TimeStampedModel):
     program_version = models.ForeignKey(
         ProgramVersion, on_delete=models.PROTECT, related_name="programversion_easytiernetworks"
     )
+
+    def __str__(self):
+        return f"{self.pk}-{self.network_name}"
 
     def clean(self):
         if self.ip_range:
@@ -210,6 +234,9 @@ class EasyTierNode(TimeStampedModel):
             return self.ann_can_create_tun().filter(can_create_tun=True)
 
     objects = EasyTierNodeQuerySet.as_manager()
+
+    def __str__(self):
+        return f"{self.pk}-{self.node}|{self.network}"
 
     def get_program(self) -> NodeInnerProgram | ProgramBinary | None:
         """
@@ -333,6 +360,9 @@ class EasyTierNodeListener(TimeStampedModel):
     protocol = models.CharField(max_length=15, choices=ProtocolChoices.choices)
     port = models.PositiveSmallIntegerField()  # stational entity
 
+    def __str__(self):
+        return f"{self.pk}-{self.node}({self.protocol}:{self.port})"
+
 
 class EasyTierNodePeer(TimeStampedModel):
     """this is the stational entity and not persisted"""
@@ -391,6 +421,9 @@ class ProgramBinary(TimeStampedModel):
             ),
         ]
 
+    def __str__(self):
+        return f"{self.pk}-{self.program_version}({self.architecture})"
+
     def set_hash(self):
         binary_data = self.file.read()
         self.hash = self.get_hash(binary_data)
@@ -420,3 +453,6 @@ class NodeInnerProgram(TimeStampedModel):
                 violation_error_message="this kind of program is already defined for this node node.",
             ),
         ]
+
+    def __str__(self):
+        return f"{self.pk}-{self.node}|{self.program_version}"
