@@ -176,9 +176,10 @@ def main(settings: Settings):
                     raise NotImplementedError
                 if configfile_content := config.configfile_content:
                     conf_dir = settings.get_conf_dir()
-                    conf_path = conf_dir.joinpath(f"{config.id}_{config.hash[:6]}")
+                    conf_file_name = f"{config.id}_{config.hash[:6]}"
                     if config.config_file_ext:
-                        conf_path += config.config_file_ext
+                        conf_file_name += config.config_file_ext
+                    conf_path = conf_dir.joinpath(conf_file_name)
                     if not conf_path.is_file():
                         with open(conf_path, "wb") as f:
                             f.write(configfile_content.encode("utf-8"))
