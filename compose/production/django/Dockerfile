@@ -94,6 +94,7 @@ COPY --chown=django:django . ${APP_HOME}
 RUN chown django:django ${APP_HOME}
 
 USER django
+mkdir ${APP_HOME}/media
 
 RUN DATABASE_URL="" \
   DJANGO_SECRET_KEY="just-in-case" \
