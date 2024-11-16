@@ -1,6 +1,4 @@
-instance-name = "{{ easytier_node_obj }}"
-network-name = "{{ easytier_node_obj.network.network_name }}"
-network-secret = "{{ easytier_node_obj.network.network_secret }}"
+instance_name = "{{ easytier_node_obj }}"
 
 {% if ipv4 %}
 ipv4 = "{{ ipv4 }}"
@@ -13,20 +11,24 @@ listeners = [
 ]
 
 {% if external_node %}
-external-node = "{{ external_node }}"
+external_node = "{{ external_node }}"
 {% endif %}
 
-peers = [
 {% for i in peers %}
-    "{{ i }}",
+[[peer]]
+uri = "{{ i }}"
 {% endfor %}
-]
-proxy-networks = [
+
 {% for i in proxy_networks %}
-    "{{ i }}",
+[[proxy_network]]
+cidr = "{{ i }}"
+allow = ["tcp", "udp", "icmp"]
 {% endfor %}
-]
 
 {% if mtu %}
 mtu = {{ mtu }}
 {% endif %}
+
+[network_identity]
+network_name = "{{ easytier_node_obj.network.network_name }}"
+network_secret = "{{ easytier_node_obj.network.network_secret }}"
