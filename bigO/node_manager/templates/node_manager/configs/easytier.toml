@@ -1,4 +1,6 @@
-instance_name = "{{ easytier_node_obj }}"
+instance-name = "{{ easytier_node_obj }}"
+network-name = "{{ easytier_node_obj.network.network_name }}"
+network-secret = "{{ easytier_node_obj.network.network_secret }}"
 
 {% if ipv4 %}
 ipv4 = "{{ ipv4 }}"
@@ -19,7 +21,7 @@ peers = [
     "{{ i }}",
 {% endfor %}
 ]
-proxy_networks = [
+proxy-networks = [
 {% for i in proxy_networks %}
     "{{ i }}",
 {% endfor %}
