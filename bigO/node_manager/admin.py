@@ -1,5 +1,6 @@
 from django.contrib.humanize.templatetags.humanize import naturaltime
 from rest_framework_api_key.admin import APIKeyModelAdmin
+from decimal import Decimal, ROUND_HALF_DOWN
 
 from bigO.node_manager import models
 from django import forms
@@ -44,7 +45,8 @@ class NodeModelAdmin(admin.ModelAdmin):
         nodesyncstat = getattr(obj, "node_nodesyncstat", None)
         if nodesyncstat is None:
             return "never"
-        return (nodesyncstat.respond_at - nodesyncstat.initiated_at).seconds
+        microseconds = (nodesyncstat.respond_at - nodesyncstat.initiated_at).microseconds
+        return Decimal(microseconds / 1000000).quantize(Decimal("0.01"), rounding=ROUND_HALF_DOWN)
 
     @admin.display(ordering="node_nodesyncstat__count_up_to_now")
     def sync_count_display(self, obj):

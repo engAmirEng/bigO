@@ -53,8 +53,8 @@ def create_node_sync_stat(request: Request, node: models.Node) -> models.NodeLat
     try:
         obj = models.NodeLatestSyncStat.objects.get(node=node)
     except models.NodeLatestSyncStat.DoesNotExist:
-        obj = models.NodeLatestSyncStat()
-    obj.request_headers = json.dumps(request.headers)
+        obj = models.NodeLatestSyncStat(node=node)
+    obj.request_headers = json.dumps(dict(request.headers))
     obj.request_payload = json.dumps(request.data)
     obj.initiated_at = timezone.now()
     obj.response_payload = None
