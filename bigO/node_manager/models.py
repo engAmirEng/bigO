@@ -457,3 +457,12 @@ class NodeInnerProgram(TimeStampedModel):
 
     def __str__(self):
         return f"{self.pk}-{self.node}|{self.program_version}"
+
+class NodeLatestSyncStat(TimeStampedModel, models.Model):
+    node = models.OneToOneField(Node, on_delete=models.CASCADE, related_name="node_nodesyncstat")
+    initiated_at = models.DateTimeField()
+    respond_at = models.DateTimeField(null=True)
+    request_headers = models.JSONField()
+    request_payload = models.JSONField()
+    response_payload = models.JSONField(null=True)
+    count_up_to_now = models.BigIntegerField()

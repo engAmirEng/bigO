@@ -1,7 +1,10 @@
 import ipaddress
+import json
 import logging
 
 from django.db.models import Subquery
+from django.utils import timezone
+from rest_framework.request import Request
 
 from . import models
 
@@ -45,3 +48,28 @@ def get_easytier_to_node_ips(*, source_node: models.Node, dest_node_id: int) -> 
         else:
             logger.warning(f"no easytier destination from {source_node=} to {dest_node=}")
     return res
+
+def create_node_sync_stat(request: Request, node: models.Node) -> models.NodeLatestSyncStat:
+    try:
+        obj = models.NodeLatestSyncStat.objects.get(node=node)
+    except models.NodeLatestSyncStat.DoesNotExist:
+        obj = models.NodeLatestSyncStat()
+    obj.request_headers = json.dumps(request.headers)
+    obj.request_payload = json.dumps(request.data)
+    obj.initiated_at = timezone.now()
+    obj.response_payload = None
+    obj.respond_at = None
+    if obj.pk:
+        count_up_to_now = obj.count_up_to_now + 1
+    else:
+        count_up_to_now = 1
+    obj.count_up_to_now = count_up_to_now
+
+    obj.save()
+    return obj
+
+def complete_node_sync_stat(obj: models.NodeLatestSyncStat, response_payload) -> None:
+    obj.response_payload = json.dumps(response_payload)
+    obj.respond_at = timezone.now()
+
+    obj.save()

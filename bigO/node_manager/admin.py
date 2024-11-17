@@ -1,9 +1,13 @@
+from django.contrib.humanize.templatetags.humanize import naturaltime
 from rest_framework_api_key.admin import APIKeyModelAdmin
 
 from bigO.node_manager import models
 from django import forms
 from django.contrib import admin
 
+
+class NodeLatestSyncStatInline(admin.StackedInline):
+    model = models.NodeLatestSyncStat
 
 class NodePublicIPInline(admin.StackedInline):
     extra = 1
@@ -22,7 +26,32 @@ class ContainerSpecModelAdmin(admin.ModelAdmin):
 
 @admin.register(models.Node)
 class NodeModelAdmin(admin.ModelAdmin):
-    inlines = [NodePublicIPInline, NodeInnerProgramInline]
+    inlines = [NodePublicIPInline, NodeInnerProgramInline, NodeLatestSyncStatInline]
+    list_display = ("__str__", "last_sync_req_display", "last_sync_duration_display", "sync_count_display")
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.select_related("node_nodesyncstat")
+
+    @admin.display(ordering="node_nodesyncstat__initiated_at")
+    def last_sync_req_display(self, obj):
+        nodesyncstat = getattr(obj, "node_nodesyncstat", None)
+        if nodesyncstat is None:
+            return "never"
+        return naturaltime(nodesyncstat.initiated_at)
+    @admin.display()
+    def last_sync_duration_display(self, obj):
+        nodesyncstat = getattr(obj, "node_nodesyncstat", None)
+        if nodesyncstat is None:
+            return "never"
+        return (nodesyncstat.respond_at - nodesyncstat.initiated_at).seconds
+
+    @admin.display(ordering="node_nodesyncstat__count_up_to_now")
+    def sync_count_display(self, obj):
+        nodesyncstat = getattr(obj, "node_nodesyncstat", None)
+        if nodesyncstat is None:
+            return 0
+        return nodesyncstat.count_up_to_now
 
 
 @admin.register(models.NodeAPIKey)
@@ -136,4 +165,9 @@ class ProgramBinaryModelAdmin(admin.ModelAdmin):
 
 @admin.register(models.NodeInnerProgram)
 class NodeInnerProgramModelAdmin(admin.ModelAdmin):
+    pass
+
+
+@admin.register(models.NodeLatestSyncStat)
+class NodeLatestSyncStatModelAdmin(admin.ModelAdmin):
     pass

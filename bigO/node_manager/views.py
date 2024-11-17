@@ -65,6 +65,8 @@ class NodeBaseSyncAPIView(APIView):
         else:
             raise NotImplementedError
 
+        node_sync_stat_obj = services.create_node_sync_stat(request=request, node=node_obj)
+
         input_ser = self.InputSerializer(data=request.data)
         input_ser.is_valid(raise_exception=True)
         input_data = input_ser.data
@@ -114,8 +116,9 @@ class NodeBaseSyncAPIView(APIView):
                     }
                 ).data
             )
-
-        return Response(self.OutputSerializer({"configs": configs}).data, status=status.HTTP_200_OK)
+        response_payload = self.OutputSerializer({"configs": configs}).data
+        services.complete_node_sync_stat(obj=node_sync_stat_obj, response_payload=response_payload)
+        return Response(response_payload, status=status.HTTP_200_OK)
 
 
 class NodeProgramBinaryContentByHashAPIView(UserPassesTestMixin, View):
