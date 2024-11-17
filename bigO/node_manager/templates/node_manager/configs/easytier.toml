@@ -25,10 +25,6 @@ cidr = "{{ i }}"
 allow = ["tcp", "udp", "icmp"]
 {% endfor %}
 
-{% if mtu %}
-mtu = {{ mtu }}
-{% endif %}
-
 {% if easytier_node_obj.rpc_portal_port %}
 rpc_portal = "0.0.0.0:{{ easytier_node_obj.rpc_portal_port }}"
 {% endif %}
@@ -36,3 +32,9 @@ rpc_portal = "0.0.0.0:{{ easytier_node_obj.rpc_portal_port }}"
 [network_identity]
 network_name = "{{ easytier_node_obj.network.network_name }}"
 network_secret = "{{ easytier_node_obj.network.network_secret }}"
+
+[flags]
+no_tun = {% if ipv4 %}false{% else %}true{% endif %}
+{% if mtu %}
+mtu = {{ mtu }}
+{% endif %}
