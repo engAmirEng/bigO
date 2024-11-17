@@ -16,6 +16,7 @@ services:
       - production_django_logs:/app/logs
     depends_on:
       - redis
+    restart: unless-stopped
     env_file:
       - ./.envs/.django
       - ./.envs/.postgres
