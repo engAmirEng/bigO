@@ -47,6 +47,7 @@ services:
       context: .
       dockerfile: ./compose/production/nginx/Dockerfile
     image: televi1_local_nginx
+    restart: unless-stopped
     depends_on:
       - django
     volumes:
