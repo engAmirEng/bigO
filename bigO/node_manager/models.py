@@ -267,8 +267,8 @@ class EasyTierNode(TimeStampedModel):
 
     def get_run_opts(self):
         context = {"easytier_node_obj": self, "configfile_path_placeholder": "CONFIGFILEPATH"}
-        if self.custom_toml_config_template:
-            template = django.template.Template(self.custom_toml_config_template)
+        if self.custom_run_opts_template:
+            template = django.template.Template(self.custom_run_opts_template)
             result = template.render(context=django.template.Context(context))
         else:
             template = django.template.loader.get_template("node_manager/configs/easytier_opts.txt")
