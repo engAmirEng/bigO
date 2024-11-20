@@ -11,7 +11,8 @@ listeners = [
 ]
 
 {% if external_node %}
-external_node = "{{ external_node }}"
+[[peer]]
+uri = "{{ external_node }}"
 {% endif %}
 
 {% for i in peers %}
