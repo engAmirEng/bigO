@@ -45,6 +45,8 @@ class NodeModelAdmin(admin.ModelAdmin):
         nodesyncstat = getattr(obj, "node_nodesyncstat", None)
         if nodesyncstat is None:
             return "never"
+        if nodesyncstat.respond_at is None:
+            return "not responded"
         microseconds = (nodesyncstat.respond_at - nodesyncstat.initiated_at).microseconds
         return Decimal(microseconds / 1000000).quantize(Decimal("0.01"), rounding=ROUND_HALF_DOWN)
 
