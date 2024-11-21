@@ -128,6 +128,8 @@ class EasyTierNodeModelForm(forms.ModelForm):
 class EasyTierNodeModelAdmin(admin.ModelAdmin):
     form = EasyTierNodeModelForm
     inlines = [EasyTierNodePeerInline, EasyTierNodeListenerInline]
+    list_display = ("__str__", "network", "latency_first")
+    list_editable = ("latency_first", )
 
     @admin.display()
     def toml_config_display(self, obj):
