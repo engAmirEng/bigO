@@ -36,6 +36,7 @@ network_secret = "{{ easytier_node_obj.network.network_secret }}"
 
 [flags]
 no_tun = {% if ipv4 %}false{% else %}true{% endif %}
+latency_first = {% if easytier_node_obj.latency_first %}true{% else %}false{% endif %}
 {% if mtu %}
 mtu = {{ mtu }}
 {% endif %}
