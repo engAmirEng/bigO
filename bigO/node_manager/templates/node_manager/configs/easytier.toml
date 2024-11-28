@@ -23,7 +23,6 @@ uri = "{{ i }}"
 {% for i in proxy_networks %}
 [[proxy_network]]
 cidr = "{{ i }}"
-allow = ["tcp", "udp", "icmp"]
 {% endfor %}
 
 {% if easytier_node_obj.rpc_portal_port %}
