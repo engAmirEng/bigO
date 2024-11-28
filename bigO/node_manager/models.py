@@ -304,7 +304,7 @@ class EasyTierNode(TimeStampedModel):
         kept_current_nodepeers = []
         new_nodepeers = []
         current_nodepeers_qs = self.node_nodepeers.all()
-        for network_easytiernode in self.network.network_easytiernodes.exclude(id=self.id).exclude(ipv4__isnull=True):
+        for network_easytiernode in self.network.network_easytiernodes.exclude(id=self.id):
             nodepublicips_qs = network_easytiernode.node.node_nodepublicips.all()
             if not self.node.get_support_ipv6():
                 nodepublicips_qs = nodepublicips_qs.exclude(ip__ip__family=6)
