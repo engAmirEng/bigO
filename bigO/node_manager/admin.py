@@ -1,4 +1,5 @@
 from django.contrib.humanize.templatetags.humanize import naturaltime
+from django.db.models import Count
 from rest_framework_api_key.admin import APIKeyModelAdmin
 from decimal import Decimal, ROUND_HALF_DOWN
 
@@ -90,12 +91,21 @@ class NodeCustomConfigTemplateInline(admin.StackedInline):
 
 @admin.register(models.CustomConfigTemplate)
 class CustomConfigTemplateModelAdmin(admin.ModelAdmin):
+    list_display = ("__str__", "used_by_count")
     inlines = [NodeCustomConfigTemplateInline]
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.annotate(used_by_count=Count("nodecustomconfigtemplates"))
+
+    @admin.display(ordering="used_by_count")
+    def used_by_count(self, obj):
+        return obj.used_by_count
 
 
 @admin.register(models.EasyTierNetwork)
 class EasyTierNetworkModelAdmin(admin.ModelAdmin):
-    pass
+    list_display = ("__str__", "ip_range")
 
 
 class EasyTierNodeListenerInline(admin.StackedInline):
