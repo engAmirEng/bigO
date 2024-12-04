@@ -6,8 +6,7 @@ class UsersConfig(AppConfig):
     name = "bigO.telegram_bot"
 
     def ready(self):
-        from . import settings
-        from . import dispatchers
+        from . import dispatchers, settings
 
         for middleware_path in settings.TELEGRAM_MIDDLEWARE:
             Middleware = import_string(middleware_path)

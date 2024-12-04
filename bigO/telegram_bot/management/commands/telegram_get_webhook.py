@@ -3,8 +3,9 @@ import asyncio
 from aiogram import Bot
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.enums import ParseMode
-from ... import settings
 from django.core.management import BaseCommand
+
+from ... import settings
 
 
 class Command(BaseCommand):

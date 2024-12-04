@@ -49,6 +49,7 @@ def get_easytier_to_node_ips(*, source_node: models.Node, dest_node_id: int) -> 
             logger.warning(f"no easytier destination from {source_node=} to {dest_node=}")
     return res
 
+
 def create_node_sync_stat(request: Request, node: models.Node) -> models.NodeLatestSyncStat:
     try:
         obj = models.NodeLatestSyncStat.objects.get(node=node)
@@ -67,6 +68,7 @@ def create_node_sync_stat(request: Request, node: models.Node) -> models.NodeLat
 
     obj.save()
     return obj
+
 
 def complete_node_sync_stat(obj: models.NodeLatestSyncStat, response_payload) -> None:
     obj.response_payload = json.dumps(response_payload)

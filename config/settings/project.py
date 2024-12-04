@@ -1,6 +1,5 @@
 from environ import environ
 
-from aiogram.client.session.aiohttp import AiohttpSession
 
 from ._setup import env
 

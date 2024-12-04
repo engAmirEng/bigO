@@ -1,15 +1,17 @@
-from django.contrib.humanize.templatetags.humanize import naturaltime
-from django.db.models import Count
+from decimal import ROUND_HALF_DOWN, Decimal
+
 from rest_framework_api_key.admin import APIKeyModelAdmin
-from decimal import Decimal, ROUND_HALF_DOWN
 
 from bigO.node_manager import models
 from django import forms
 from django.contrib import admin
+from django.contrib.humanize.templatetags.humanize import naturaltime
+from django.db.models import Count
 
 
 class NodeLatestSyncStatInline(admin.StackedInline):
     model = models.NodeLatestSyncStat
+
 
 class NodePublicIPInline(admin.StackedInline):
     extra = 1
@@ -29,11 +31,21 @@ class ContainerSpecModelAdmin(admin.ModelAdmin):
 @admin.register(models.Node)
 class NodeModelAdmin(admin.ModelAdmin):
     inlines = [NodePublicIPInline, NodeInnerProgramInline, NodeLatestSyncStatInline]
-    list_display = ("__str__", "last_sync_req_display", "last_sync_duration_display", "sync_count_display")
+    list_display = (
+        "__str__",
+        "last_sync_req_display",
+        "last_sync_duration_display",
+        "sync_count_display",
+        "public_ips_display",
+    )
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
         return qs.select_related("node_nodesyncstat")
+
+    @admin.display()
+    def public_ips_display(self, obj):
+        return ", ".join([str(i.ip) for i in obj.node_nodepublicips.all()])
 
     @admin.display(ordering="node_nodesyncstat__initiated_at")
     def last_sync_req_display(self, obj):
@@ -41,6 +53,7 @@ class NodeModelAdmin(admin.ModelAdmin):
         if nodesyncstat is None:
             return "never"
         return naturaltime(nodesyncstat.initiated_at)
+
     @admin.display()
     def last_sync_duration_display(self, obj):
         nodesyncstat = getattr(obj, "node_nodesyncstat", None)
@@ -139,7 +152,7 @@ class EasyTierNodeModelAdmin(admin.ModelAdmin):
     form = EasyTierNodeModelForm
     inlines = [EasyTierNodePeerInline, EasyTierNodeListenerInline]
     list_display = ("__str__", "network", "latency_first")
-    list_editable = ("latency_first", )
+    list_editable = ("latency_first",)
 
     @admin.display()
     def toml_config_display(self, obj):

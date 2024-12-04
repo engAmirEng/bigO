@@ -13,7 +13,7 @@ from bigO.utils.models import TimeStampedModel
 from django.core import validators
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
-from django.db.models import F, Q, UniqueConstraint
+from django.db.models import F, UniqueConstraint
 
 logger = logging.getLogger(__name__)
 
@@ -327,7 +327,9 @@ class EasyTierNode(TimeStampedModel):
         for i in new_nodepeers:
             i.save()
         for nodepeer in node_peers:
-            peer = f"{nodepeer.peer_listener.protocol}://{nodepeer.peer_public_ip.ip.ip.ip}:{nodepeer.peer_listener.port}"
+            peer = (
+                f"{nodepeer.peer_listener.protocol}://{nodepeer.peer_public_ip.ip.ip.ip}:{nodepeer.peer_listener.port}"
+            )
             peers.append(peer)
 
         proxy_networks = []
@@ -458,6 +460,7 @@ class NodeInnerProgram(TimeStampedModel):
 
     def __str__(self):
         return f"{self.pk}-{self.node}|{self.program_version}"
+
 
 class NodeLatestSyncStat(TimeStampedModel, models.Model):
     node = models.OneToOneField(Node, on_delete=models.CASCADE, related_name="node_nodesyncstat")
