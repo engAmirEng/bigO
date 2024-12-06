@@ -121,7 +121,7 @@ def is_supervisor_running():
 
 def main(settings: Settings):
     _version = importlib.metadata.version("smallo1")
-
+    logging.basicConfig(filename=settings.get_logs_dir().joinpath("debug.log"), level=logging.DEBUG)
     if settings.sentry_dsn:
         logging.debug("sentry is configured")
         sentry_sdk.init(
@@ -130,8 +130,6 @@ def main(settings: Settings):
         )
     else:
         logging.debug("sentry is not configured")
-
-    logging.basicConfig(filename=settings.get_logs_dir().joinpath("debug.log"), level=logging.DEBUG)
 
     supervisor_config_path = settings.get_supervisor_dir().joinpath("supervisor.conf")
     supervisor_config_path.touch()
