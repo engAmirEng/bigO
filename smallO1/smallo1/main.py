@@ -280,22 +280,30 @@ def download_outerbinary(*, binary_content_url: str, save_to: Path, identifier: 
     retry_count = 0
     for i in range(retry_limit):
         retry_count += 1
-        r = requests.get(binary_content_url, json={}, headers=headers)
-        if r.status_code == 200:
-            file_bin = r.content
-            if sha256(file_bin).hexdigest() != identifier:
-                logger.debug(f"sha missmatch happened for {identifier=}")
-                continue
-            logger.debug(f"successfully downloaded {identifier=}")
-            break
-        else:
-            logger.warning(f"binary-content returned {r.status_code=}, and the content is \n{r.text[:50]}")
+        try:
+            r = requests.get(binary_content_url, json={}, headers=headers, stream=True, timeout=(5, 10))
+            if r.status_code == 200:
+                recieved_sha256 = sha256()
+                with open(save_to, "wb") as file:
+                    for chunk in r.iter_content(chunk_size=2048):
+                        file.write(chunk)
+                        recieved_sha256.update(chunk)
+
+                if recieved_sha256.hexdigest() != identifier:
+                    logger.debug(f"sha missmatch happened for {identifier=}")
+                    os.remove(save_to)
+                    continue
+                logger.debug(f"successfully downloaded {identifier=}")
+                break
+            else:
+                logger.warning(f"binary-content returned {r.status_code=}, and the content is \n{r.text[:50]}")
+        except requests.exceptions.Timeout:
+            logger.warning(f"timeout in binary download at {retry_count=}")
+            if save_to.exists():
+                os.remove(str(save_to))
+            continue
     else:
         raise ContentDownloadError()
-
-    with open(save_to, "wb") as f:
-        f.write(file_bin)
-    os.chmod(save_to, 0o755)
 
 
 def cli():
