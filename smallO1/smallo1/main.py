@@ -292,6 +292,7 @@ def download_outerbinary(*, binary_content_url: str, save_to: Path, identifier: 
                     logger.debug(f"sha missmatch happened for {identifier=}")
                     os.remove(save_to)
                     continue
+                os.chmod(save_to, 0o755)
                 logger.debug(f"successfully downloaded {identifier=}")
                 break
             else:
