@@ -1,4 +1,5 @@
 import argparse
+import importlib.metadata
 import logging
 import os
 import subprocess
@@ -6,9 +7,11 @@ import time
 import urllib.parse
 from hashlib import sha256
 from pathlib import Path
+from typing import Union
 
 import pydantic
 import requests
+import sentry_sdk
 from dotenv import load_dotenv
 from pydantic_settings import BaseSettings
 
@@ -23,6 +26,7 @@ class Settings(BaseSettings):
     server_base_url: pydantic.HttpUrl
     working_dir: str
     full_control_supervisord: bool
+    sentry_dsn: Union[pydantic.HttpUrl, None] = None
 
     @pydantic.model_validator(mode="before")
     def check_working_dir(cls, values):
@@ -116,6 +120,17 @@ def is_supervisor_running():
 
 
 def main(settings: Settings):
+    _version = importlib.metadata.version("smallo1")
+
+    if settings.sentry_dsn:
+        logging.debug("sentry is configured")
+        sentry_sdk.init(
+            dsn=str(settings.sentry_dsn),
+            release=_version,
+        )
+    else:
+        logging.debug("sentry is not configured")
+
     logging.basicConfig(filename=settings.get_logs_dir().joinpath("debug.log"), level=logging.DEBUG)
 
     supervisor_config_path = settings.get_supervisor_dir().joinpath("supervisor.conf")
@@ -240,6 +255,7 @@ priority=10
                     logging.info("supervisor updated")
 
         except Exception as e:
+            sentry_sdk.capture_exception(e)
             next_try_in = settings.interval_sec
             logger.error(e, f"{next_try_in=}")
             time.sleep(next_try_in)

@@ -10,6 +10,7 @@ python = ">=3.8"
 requests = "*"
 pydantic = ">=2.9.2,<3"
 pydantic-settings = ">=2.6.0,<3"
+sentry-sdk = "*"
 
 [tool.poetry.scripts]
 small-o1 = 'smallo1.main:cli'
