@@ -1,6 +1,6 @@
 -i https://pypi.org/simple
 -r base.txt
-alabaster==0.7.16; python_version >= '3.9'
+alabaster==1.0.0; python_version >= '3.9'
 anyio==4.7.0; python_version >= '3.9'
 asgiref==3.8.1; python_version >= '3.8'
 attrs==24.2.0; python_version >= '3.7'
