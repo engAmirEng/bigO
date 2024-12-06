@@ -151,7 +151,7 @@ def main(settings: Settings):
 
     while True:
         try:
-            headers = {"Authorization": f"Api-Key {settings.api_key}"}
+            headers = {"Authorization": f"Api-Key {settings.api_key}", "User-Agent": f"smallo1:{_version}"}
             payload = get_base_sync_request_payload()
             base_sync_url = settings.get_base_sync_url()
             logger.debug(f"requesting {base_sync_url}")
@@ -275,8 +275,9 @@ class ContentDownloadError(Exception):
 
 
 def download_outerbinary(*, binary_content_url: str, save_to: Path, identifier: str, api_key: str):
+    _version = importlib.metadata.version("smallo1")
     retry_limit = 3
-    headers = {"Authorization": f"Api-Key {api_key}"}
+    headers = {"Authorization": f"Api-Key {api_key}", "User-Agent": f"smallo1:{_version}"}
     retry_count = 0
     for i in range(retry_limit):
         retry_count += 1

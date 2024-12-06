@@ -464,6 +464,7 @@ class NodeInnerProgram(TimeStampedModel):
 
 class NodeLatestSyncStat(TimeStampedModel, models.Model):
     node = models.OneToOneField(Node, on_delete=models.CASCADE, related_name="node_nodesyncstat")
+    agent_spec = models.CharField(max_length=255, null=True, blank=True)
     initiated_at = models.DateTimeField()
     respond_at = models.DateTimeField(null=True)
     request_headers = models.JSONField()

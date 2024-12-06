@@ -33,6 +33,7 @@ class NodeModelAdmin(admin.ModelAdmin):
     inlines = [NodePublicIPInline, NodeInnerProgramInline, NodeLatestSyncStatInline]
     list_display = (
         "__str__",
+        "agent_spec_display",
         "last_sync_req_display",
         "last_sync_duration_display",
         "sync_count_display",
@@ -43,18 +44,25 @@ class NodeModelAdmin(admin.ModelAdmin):
         qs = super().get_queryset(request)
         return qs.select_related("node_nodesyncstat")
 
-    @admin.display()
+    @admin.display(description="public ips")
     def public_ips_display(self, obj):
         return ", ".join([str(i.ip) for i in obj.node_nodepublicips.all()])
 
-    @admin.display(ordering="node_nodesyncstat__initiated_at")
+    @admin.display(ordering="node_nodesyncstat__initiated_at", description="last sync req")
     def last_sync_req_display(self, obj):
         nodesyncstat = getattr(obj, "node_nodesyncstat", None)
         if nodesyncstat is None:
             return "never"
         return naturaltime(nodesyncstat.initiated_at)
 
-    @admin.display()
+    @admin.display(ordering="node_nodesyncstat__agent_spec", description="agent spec")
+    def agent_spec_display(self, obj):
+        nodesyncstat = getattr(obj, "node_nodesyncstat", None)
+        if nodesyncstat is None:
+            return None
+        return nodesyncstat.agent_spec
+
+    @admin.display(description="last sync duration")
     def last_sync_duration_display(self, obj):
         nodesyncstat = getattr(obj, "node_nodesyncstat", None)
         if nodesyncstat is None:
@@ -64,7 +72,7 @@ class NodeModelAdmin(admin.ModelAdmin):
         microseconds = (nodesyncstat.respond_at - nodesyncstat.initiated_at).microseconds
         return Decimal(microseconds / 1000000).quantize(Decimal("0.01"), rounding=ROUND_HALF_DOWN)
 
-    @admin.display(ordering="node_nodesyncstat__count_up_to_now")
+    @admin.display(ordering="node_nodesyncstat__count_up_to_now", description="sync count")
     def sync_count_display(self, obj):
         nodesyncstat = getattr(obj, "node_nodesyncstat", None)
         if nodesyncstat is None:
