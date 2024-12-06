@@ -1,6 +1,5 @@
 from environ import environ
 
-
 from ._setup import env
 
 # Project's apps stuff...

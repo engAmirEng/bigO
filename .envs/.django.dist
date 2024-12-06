@@ -27,6 +27,11 @@ TELEGRAM_WEBHOOK_FLYING_DOMAINS=
 # {bool}
 TELEGRAM_PREFER_REPLY_TO_WEBHOOK=
 
+# Sentry
+# ------------------------------------------------------------------------------
+# {url, default None}
+SENTRY_DSN=
+
 # Security
 # ------------------------------------------------------------------------------
 # {bool, default to false}

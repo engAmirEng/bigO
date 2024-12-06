@@ -1,5 +1,8 @@
 from datetime import timedelta
 
+import sentry_sdk
+from sentry_sdk.integrations.django import DjangoIntegration
+
 from ._setup import PLUGGABLE_FUNCS, clean_ellipsis, env
 from .django import DEBUG
 
@@ -80,3 +83,13 @@ SPECTACULAR_SETTINGS = {
     "VERSION": "1.0.0",
     "SERVE_PERMISSIONS": ["rest_framework.permissions.IsAdminUser"],
 }
+
+# Sentry
+# -------------------------------------------------------------------------------
+if sentry_dsn := env.url("SENTRY_DSN", default=None):
+    sentry_sdk.init(
+        dsn=sentry_dsn.geturl(),
+        integrations=[DjangoIntegration()],
+        auto_session_tracking=False,
+        traces_sample_rate=0.05,
+    )
