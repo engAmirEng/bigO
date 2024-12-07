@@ -1,9 +1,16 @@
 import logging
 import tomllib
+from urllib.parse import urlparse
 
+import aiohttp
+from asgiref.sync import sync_to_async
+
+from django.conf import settings
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.core.exceptions import PermissionDenied
-from django.http import FileResponse, JsonResponse
+from django.http import FileResponse, HttpResponse, JsonResponse, StreamingHttpResponse
+from django.shortcuts import get_object_or_404, redirect
+from django.urls import reverse
 from django.views import View
 from rest_framework import serializers, status
 from rest_framework.response import Response
@@ -138,3 +145,48 @@ class NodeProgramBinaryContentByHashAPIView(UserPassesTestMixin, View):
         if obj is None:
             return JsonResponse({}, status=status.HTTP_404_NOT_FOUND)
         return FileResponse(obj.file)
+
+
+async def node_supervisor_server_proxy_view(request, node_id: int, path: str = ""):
+    is_superuser = await sync_to_async(lambda: request.user.is_superuser)()
+    if not is_superuser:
+        raise PermissionDenied
+    node_obj = await sync_to_async(get_object_or_404)(models.Node, id=node_id)
+    first_publicip = await models.PublicIP.objects.filter(ip_nodepublicips__node=node_obj).afirst()
+    if not first_publicip:
+        return HttpResponse(f"No Public address for {str(node_obj)}")
+    url = f"http://{str(first_publicip.ip.ip)}:9001/" + path
+
+    basicauth = aiohttp.BasicAuth(login=settings.SUPERVISOR_BASICAUTH[0], password=settings.SUPERVISOR_BASICAUTH[1])
+    session = aiohttp.ClientSession(auth=basicauth)
+    client = await session.__aenter__()
+    response = await client.request(method=request.method, url=url, params=request.GET, allow_redirects=False)
+    if 300 <= response.status < 400:
+        location = urlparse(response.headers["Location"])
+        await response.release()
+        await session.__aexit__(None, None, None)
+        if location.path == "/":
+            return redirect(
+                reverse("node_manager:node_supervisor_server_proxy_root_view", kwargs={"node_id": node_id})
+                + f"?{location.query}"
+            )
+        else:
+            return redirect(
+                reverse(
+                    "node_manager:node_supervisor_server_proxy_view",
+                    kwargs={"node_id": node_id, "path": location.path},
+                )
+                + f"?{location.query}"
+            )
+    return StreamingHttpResponse(
+        streaming_response(session=session, response=response),
+        content_type=response.content_type,
+        status=response.status,
+    )
+
+
+async def streaming_response(session: aiohttp.ClientSession, response: aiohttp.ClientResponse):
+    async for chunk in response.content.iter_any():
+        yield chunk
+    await response.release()
+    await session.__aexit__(None, None, None)

@@ -10,4 +10,14 @@ urlpatterns = [
         views.NodeProgramBinaryContentByHashAPIView.as_view(),
         name="node_program_binary_content_by_hash",
     ),
+    path(
+        "node/<int:node_id>/supervisor-api/path/",
+        views.node_supervisor_server_proxy_view,
+        name="node_supervisor_server_proxy_root_view",
+    ),
+    path(
+        "node/<int:node_id>/supervisor-api/path/<path:path>",
+        views.node_supervisor_server_proxy_view,
+        name="node_supervisor_server_proxy_view",
+    ),
 ]

@@ -26,7 +26,8 @@ TELEGRAM_WEBHOOK_FLYING_DOMAINS=
 #TELEGRAM_PROXY=
 # {bool}
 TELEGRAM_PREFER_REPLY_TO_WEBHOOK=
-
+# {tuple, (user,pass)}
+SUPERVISOR_BASICAUTH=
 # Sentry
 # ------------------------------------------------------------------------------
 # {url, default None}

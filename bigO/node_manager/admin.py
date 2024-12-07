@@ -7,6 +7,8 @@ from django import forms
 from django.contrib import admin
 from django.contrib.humanize.templatetags.humanize import naturaltime
 from django.db.models import Count
+from django.urls import reverse
+from django.utils.html import format_html
 
 
 class NodeLatestSyncStatInline(admin.StackedInline):
@@ -38,6 +40,7 @@ class NodeModelAdmin(admin.ModelAdmin):
         "last_sync_duration_display",
         "sync_count_display",
         "public_ips_display",
+        "view_supervisor_page_display",
     )
 
     def get_queryset(self, request):
@@ -78,6 +81,13 @@ class NodeModelAdmin(admin.ModelAdmin):
         if nodesyncstat is None:
             return 0
         return nodesyncstat.count_up_to_now
+
+    @admin.display(description="view supervisor page")
+    def view_supervisor_page_display(self, obj):
+        return format_html(
+            '<a href="{}" target="_blank">View Supervisor</a>',
+            reverse("node_manager:node_supervisor_server_proxy_root_view", kwargs={"node_id": obj.id}),
+        )
 
 
 @admin.register(models.NodeAPIKey)

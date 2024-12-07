@@ -8,3 +8,7 @@ from ._setup import env
 # ------------------------------------------------------------------------------
 # show graphiql panel or not
 GRAPHIQL = env.bool("GRAPHIQL", False)
+
+# node_manager
+# ------------------------------------------------------------------------------
+SUPERVISOR_BASICAUTH = env.tuple("SUPERVISOR_BASICAUTH")
