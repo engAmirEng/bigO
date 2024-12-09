@@ -46,7 +46,7 @@ def check_node_latest_sync(*, limit_seconds: int, ignore_node_ids: list[int] | N
             "back_online_qs": back_onlines,
         },
     )
-    session = AiohttpSession(proxy="http://172.30.16.1:10809")
+    session = AiohttpSession()
     bot = aiogram.Bot(settings.TELEGRAM_BOT_TOKEN, session=session, parse_mode=ParseMode.HTML)
     async_to_sync(session.close)()
     async_to_sync(bot.send_message)(chat_id=superuser.telegram_chat_tid, text=message)
