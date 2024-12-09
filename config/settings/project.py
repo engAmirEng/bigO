@@ -12,3 +12,6 @@ GRAPHIQL = env.bool("GRAPHIQL", False)
 # node_manager
 # ------------------------------------------------------------------------------
 SUPERVISOR_BASICAUTH = env.tuple("SUPERVISOR_BASICAUTH")
+
+# other
+TELEGRAM_BOT_TOKEN = env.str("TELEGRAM_BOT_TOKEN")

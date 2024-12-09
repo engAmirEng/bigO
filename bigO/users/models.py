@@ -32,4 +32,6 @@ class User(TimeStampedModel, AbstractUser, PolymorphicModel):
     first_name = None  # type: ignore
     last_name = None  # type: ignore
 
+    telegram_chat_tid = models.BigIntegerField(null=True, blank=True)
+
     objects = UserManager()

@@ -33,6 +33,8 @@ SUPERVISOR_BASICAUTH=
 # {url, default None}
 SENTRY_DSN=
 
+TELEGRAM_BOT_TOKEN=
+
 # Security
 # ------------------------------------------------------------------------------
 # {bool, default to false}
