@@ -1,8 +1,8 @@
 {% load humanize %}
-{% if nodelatestsyncstat_qs.exists %}
+{% if reporting_offlines_qs.exists %}
 نود های زیر برای {{ limit_timedelta }} است که غیر فعال اند:
 {% endif %}
-{% for i in nodelatestsyncstat_qs %}
+{% for i in reporting_offlines_qs %}
 {{ i.node.name }}:
     {{ i.initiated_at }}({{ i.initiated_at|naturaltime }})
     {{ i.respond_at }}({{ i.respond_at|naturaltime }})
