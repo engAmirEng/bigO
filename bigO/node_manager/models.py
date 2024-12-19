@@ -52,7 +52,7 @@ class SystemArchitectureTextChoices(models.TextChoices):
 
 
 class Node(TimeStampedModel, models.Model):
-    name = models.CharField(max_length=255)
+    name = models.SlugField(max_length=255, unique=True)
     is_tunable = models.BooleanField(default=True, help_text="can tuns be created on it?")
     container_spec = models.OneToOneField(
         ContainerSpec, related_name="containerspec_nodes", on_delete=models.PROTECT, null=True, blank=True
