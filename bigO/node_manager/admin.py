@@ -169,8 +169,9 @@ class EasyTierNodeModelForm(forms.ModelForm):
 class EasyTierNodeModelAdmin(admin.ModelAdmin):
     form = EasyTierNodeModelForm
     inlines = [EasyTierNodePeerInline, EasyTierNodeListenerInline]
-    list_display = ("__str__", "network", "latency_first")
+    list_display = ("__str__", "network", "ipv4", "latency_first")
     list_editable = ("latency_first",)
+    list_filter = ("network", "node")
 
     @admin.display()
     def toml_config_display(self, obj):
