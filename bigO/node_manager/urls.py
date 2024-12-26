@@ -20,4 +20,5 @@ urlpatterns = [
         views.node_supervisor_server_proxy_view,
         name="node_supervisor_server_proxy_view",
     ),
+    path("nginx-auth-request/", views.nginx_auth_request, name="nginx_auth_request"),
 ]
