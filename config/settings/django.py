@@ -108,6 +108,7 @@ LOCAL_APPS = [
 ]
 THIRD_PARTY_APPS = clean_ellipsis(
     [
+        "admin_extra_buttons",
         "axes",
         "corsheaders",
         "taggit",
@@ -119,6 +120,7 @@ THIRD_PARTY_APPS = clean_ellipsis(
         "graphene_django",
         "graphql_jwt.refresh_token",
         "netfields",
+        "polymorphic",
         "rest_framework",
         "rest_framework_api_key",
         "rest_framework_simplejwt",
