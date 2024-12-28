@@ -102,7 +102,6 @@ CACHES = {
 # ------------------------------------------------------------------------------
 LOCAL_APPS = [
     "bigO.core",
-    "bigO.core.external_apps.MyAdminConfig",
     "bigO.node_manager",
     "bigO.users",
     "bigO.utils",
@@ -137,6 +136,7 @@ DJANGO_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django.contrib.admin",
     "django.forms",
 ]
 INSTALLED_APPS = LOCAL_APPS + THIRD_PARTY_APPS + DJANGO_APPS
