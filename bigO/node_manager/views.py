@@ -79,8 +79,6 @@ class NodeBaseSyncAPIView(APIView):
                 break
         else:
             raise NotImplementedError
-        node_obj = models.Node.objects.all()[1]
-
         node_sync_stat_obj = services.create_node_sync_stat(request=request, node=node_obj)
 
         input_ser = self.InputSerializer(data=request.data)
