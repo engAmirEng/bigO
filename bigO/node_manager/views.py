@@ -36,13 +36,21 @@ class ProgramSerializer(serializers.Serializer):
         return ret
 
 
+class ConfigDependantFileSerializer(serializers.Serializer):
+    key = serializers.SlugField()
+    content = serializers.CharField()
+    extension = serializers.CharField(allow_null=True)
+
+
 class ConfigSerializer(serializers.Serializer):
     id = serializers.CharField()
     program = ProgramSerializer()
     run_opts = serializers.CharField(required=True)
+    new_run_opts = serializers.CharField(required=True)
     configfile_content = serializers.CharField(allow_null=True)
     config_file_ext = serializers.CharField(allow_null=True)
     hash = serializers.CharField()
+    dependant_files = ConfigDependantFileSerializer(many=True)
 
 
 class MetricSerializer(serializers.Serializer):
@@ -51,7 +59,7 @@ class MetricSerializer(serializers.Serializer):
 
 class NodeBaseSyncAPIView(APIView):
     class InputSerializer(serializers.Serializer):
-        metrics = MetricSerializer(required=False)
+        metrics = MetricSerializer()
 
     class OutputSerializer(serializers.Serializer):
         configs = ConfigSerializer(many=True, required=False)
@@ -71,6 +79,7 @@ class NodeBaseSyncAPIView(APIView):
                 break
         else:
             raise NotImplementedError
+        node_obj = models.Node.objects.all()[1]
 
         node_sync_stat_obj = services.create_node_sync_stat(request=request, node=node_obj)
 
@@ -80,20 +89,38 @@ class NodeBaseSyncAPIView(APIView):
         services.node_spec_create(node=node_obj, ip_a=input_data["metrics"]["ip_a"])
 
         configs = []
-        for i in node_obj.node_customconfigtemplates.all():
+        for i in node_obj.node_customconfigs.all():
             program = i.get_program()
             if program is None:
                 logger.critical(f"no program found for {i}")
                 continue
+            config_depandant_content = i.get_config_depandant_content()
+            run_opts = i.get_run_opts()
+            if len(config_depandant_content) == 1:
+                new_run_opts = run_opts.replace("CONFIGFILEPATH", f"*#path:{config_depandant_content[0]['key']}#*")
+            else:
+                new_run_opts = run_opts
             configs.append(
                 ConfigSerializer(
                     {
-                        "id": f"custom_{i.config_template.id}_{i.id}",
+                        "id": f"custom_{i.custom_config.id}_{i.id}",
                         "program": ProgramSerializer(program).data,
-                        "run_opts": i.get_run_opts(),
-                        "configfile_content": i.get_config_content(),
-                        "config_file_ext": i.config_template.config_file_ext,
+                        "run_opts": run_opts,
+                        "new_run_opts": new_run_opts,
+                        "configfile_content": config_depandant_content[0]["content"]
+                        if config_depandant_content
+                        else None,
+                        "config_file_ext": config_depandant_content[0]["extension"]
+                        if config_depandant_content
+                        else None,
                         "hash": i.get_hash(),
+                        "dependant_files": ConfigDependantFileSerializer(
+                            [
+                                {"key": i["key"], "content": i["content"], "extension": i["extension"]}
+                                for i in config_depandant_content
+                            ],
+                            many=True,
+                        ).data,
                     }
                 ).data
             )
@@ -110,16 +137,22 @@ class NodeBaseSyncAPIView(APIView):
             if program is None:
                 logger.critical(f"no program found for {i}")
                 continue
-
+            toml_config_content = i.get_toml_config_content()
+            run_opts = i.get_run_opts()
+            new_run_opts = run_opts.replace("CONFIGFILEPATH", "*#path:main#*")
             configs.append(
                 ConfigSerializer(
                     {
                         "id": f"eati_{i.id}",
                         "program": ProgramSerializer(program).data,
-                        "run_opts": i.get_run_opts(),
-                        "configfile_content": i.get_toml_config_content(),
+                        "run_opts": run_opts,
+                        "new_run_opts": new_run_opts,
+                        "configfile_content": toml_config_content,
                         "config_file_ext": None,
                         "hash": i.get_hash(),
+                        "dependant_files": ConfigDependantFileSerializer(
+                            [{"key": "main", "content": toml_config_content, "extension": None}], many=True
+                        ).data,
                     }
                 ).data
             )

@@ -62,9 +62,6 @@ class Settings(BaseSettings):
             str(self.server_base_url), f"node-manager/node/program-binary/hash/{hash}/content/"
         )
 
-    def get_configfile_path_placeholder(self):
-        return "CONFIGFILEPATH"
-
     def get_logs_dir(self):
         working_dir = self.get_working_dir()
         res = working_dir.joinpath("logs")
@@ -187,26 +184,20 @@ def main(settings: Settings):
                             continue
                 else:
                     raise NotImplementedError
-                if configfile_content := config.configfile_content:
-                    conf_dir = settings.get_conf_dir()
-                    conf_file_name = f"{config.id}_{config.hash[:6]}"
-                    if config.config_file_ext:
-                        conf_file_name += config.config_file_ext
+                conf_dir = settings.get_conf_dir()
+                for dependant_file in config.dependant_files:
+                    conf_file_name = f"{config.id}_{config.hash[:6]}_{dependant_file.key}"
+                    if dependant_file.extension:
+                        conf_file_name += dependant_file.extension
                     conf_path = conf_dir.joinpath(conf_file_name)
-                    if not conf_path.is_file():
-                        with open(conf_path, "wb") as f:
-                            f.write(configfile_content.encode("utf-8"))
-                else:
-                    conf_path = None
-                    if settings.get_configfile_path_placeholder() in config.run_opts:
-                        logger.critical(
-                            f"run_opts contains reference to config file while there is no config file, {config.id=}"
-                        )
-
-                if conf_path is not None:
-                    run_opts = config.run_opts.replace(settings.get_configfile_path_placeholder(), str(conf_path))
-                else:
-                    run_opts = config.run_opts
+                    dependant_file.set_dest(conf_path)
+                for i in config.dependant_files:
+                    i.process_content(config.dependant_files)
+                    if not i._dest_path.is_file():
+                        with open(i._dest_path, "wb") as f:
+                            f.write(i._processed_content.encode("utf-8"))
+                config.process_run_opts()
+                run_opts = config._processed_run_opts
                 entry_command = f"{binary_path} {run_opts}"
 
                 new_supervisor_config += f"""
@@ -255,7 +246,7 @@ priority=10
         except Exception as e:
             sentry_sdk.capture_exception(e)
             next_try_in = settings.interval_sec
-            logger.error(e, f"{next_try_in=}")
+            logger.error(f"error occurred, {next_try_in=}", exc_info=e)
             time.sleep(next_try_in)
             continue
 

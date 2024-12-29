@@ -115,19 +115,24 @@ class ProgramVersionModelAdmin(admin.ModelAdmin):
     pass
 
 
-class NodeCustomConfigTemplateInline(admin.StackedInline):
+class NodeCustomConfigInline(admin.StackedInline):
     extra = 1
-    model = models.NodeCustomConfigTemplate
+    model = models.NodeCustomConfig
 
 
-@admin.register(models.CustomConfigTemplate)
-class CustomConfigTemplateModelAdmin(admin.ModelAdmin):
+class CustomConfigDependantFileInline(admin.StackedInline):
+    extra = 1
+    model = models.CustomConfigDependantFile
+
+
+@admin.register(models.CustomConfig)
+class CustomConfigModelAdmin(admin.ModelAdmin):
     list_display = ("__str__", "used_by_count")
-    inlines = [NodeCustomConfigTemplateInline]
+    inlines = [CustomConfigDependantFileInline, NodeCustomConfigInline]
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
-        return qs.annotate(used_by_count=Count("nodecustomconfigtemplates"))
+        return qs.annotate(used_by_count=Count("nodecustomconfigs"))
 
     @admin.display(ordering="used_by_count")
     def used_by_count(self, obj):
