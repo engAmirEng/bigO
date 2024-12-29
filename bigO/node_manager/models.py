@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from hashlib import sha256
-from typing import Self
+from typing import Self, TypedDict
 
 import netfields
 from rest_framework_api_key.models import AbstractAPIKey
@@ -118,62 +118,80 @@ class ProgramVersion(TimeStampedModel):
         return f"{self.pk}-{self.program} ({self.version})"
 
 
-class CustomConfigTemplate(TimeStampedModel, models.Model):
+class CustomConfig(TimeStampedModel, models.Model):
     name = models.CharField(max_length=255)
     program_version = models.ForeignKey(
         ProgramVersion,
         on_delete=models.PROTECT,
-        related_name="programversion_customconfigtemplates",
+        related_name="programversion_customconfigs",
     )
-    template = models.TextField(null=True, blank=True, help_text="{node_obj}")
-    config_file_ext = models.CharField(null=True, blank=True)
     run_opts_template = models.TextField(help_text="{node_obj, configfile_path_placeholder}")
-    tags = TaggableManager(related_name="tag_customconfigtemplates", blank=True)
+    tags = TaggableManager(related_name="tag_customconfigs", blank=True)
 
     def __str__(self):
         return f"{self.pk}-{self.name}"
 
 
-class NodeCustomConfigTemplate(TimeStampedModel):
+class CustomConfigDependantFile(TimeStampedModel, models.Model):
+    customconfig = models.ForeignKey(CustomConfig, on_delete=models.CASCADE, related_name="dependantfiles")
+    key = models.SlugField()
+    template = models.TextField(help_text="{node_obj}")
+    template_extension = models.CharField(null=True, blank=True)
+
+    class Meta:
+        constraints = [UniqueConstraint(fields=("customconfig", "key"), name="unique_slug_customconfig")]
+
+    def __str__(self):
+        return f"{self.pk}-{self.key}: for config {str(self.customconfig)}"
+
+
+class ConfigDepandantContent(TypedDict):
+    key: str
+    content: str
+    extension: str | None
+
+
+class NodeCustomConfig(TimeStampedModel):
     node = models.ForeignKey(
         Node,
         on_delete=models.CASCADE,
-        related_name="node_customconfigtemplates",
+        related_name="node_customconfigs",
     )
-    config_template = models.ForeignKey(
-        CustomConfigTemplate, on_delete=models.CASCADE, related_name="nodecustomconfigtemplates"
-    )
+    custom_config = models.ForeignKey(CustomConfig, on_delete=models.CASCADE, related_name="nodecustomconfigs")
 
     class Meta:
-        constraints = [UniqueConstraint(fields=("node", "config_template"), name="unique_node_config_template")]
+        constraints = [UniqueConstraint(fields=("node", "custom_config"), name="unique_node_custom_config")]
 
     def get_program(self) -> NodeInnerProgram | ProgramBinary | None:
-        res = self.node.node_nodeinnerbinary.filter(program_version=self.config_template.program_version).first()
+        res = self.node.node_nodeinnerbinary.filter(program_version=self.custom_config.program_version).first()
         if res is None:
             res = ProgramBinary.objects.filter(
-                program_version=self.config_template.program_version, architecture=self.node.architecture
+                program_version=self.custom_config.program_version, architecture=self.node.architecture
             ).first()
         return res
 
-    def get_config_content(self) -> str | None:
-        if not self.config_template.template:
-            return None
+    def get_config_depandant_content(self) -> list[ConfigDepandantContent]:
         context = {"node_obj": self.node}
-        template = django.template.Template(self.config_template.template)
-        result = template.render(context=django.template.Context(context))
-        return result
+        res = []
+        for i in self.custom_config.dependantfiles.all():
+            template = django.template.Template(i.template)
+            result = template.render(context=django.template.Context(context))
+            res.append({"key": i.key, "content": result, "extension": i.template_extension})
+
+        return res
 
     def get_run_opts(self) -> str:
         context = {"node_obj": self.node, "configfile_path_placeholder": "CONFIGFILEPATH"}
-        template = django.template.Template(self.config_template.run_opts_template)
+        template = django.template.Template(self.custom_config.run_opts_template)
         result = template.render(context=django.template.Context(context))
         return result
 
     def get_hash(self) -> str:
         influential = ""
         influential += self.get_run_opts()
-        if config_content := self.get_config_content():
-            influential += config_content
+        if config_depandant_content := self.get_config_depandant_content():
+            for i in config_depandant_content:
+                influential += i["content"]
         program = self.get_program()
         if isinstance(program, ProgramBinary):
             influential += program.hash
@@ -182,7 +200,7 @@ class NodeCustomConfigTemplate(TimeStampedModel):
         return sha256(influential.encode("utf-8")).hexdigest()
 
     def __str__(self):
-        return f"{self.pk}-{self.node}|{self.config_template}"
+        return f"{self.pk}-{self.node}|{self.custom_config}"
 
 
 class EasyTierNetwork(TimeStampedModel):
