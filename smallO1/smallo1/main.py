@@ -191,12 +191,18 @@ def main(settings: Settings):
                         conf_file_name += dependant_file.extension
                     conf_path = conf_dir.joinpath(conf_file_name)
                     dependant_file.set_dest(conf_path)
-                for i in config.dependant_files:
-                    i.process_content(config.dependant_files)
+                for dependant_file in response.global_deps:
+                    conf_file_name = f"global_deps_{dependant_file.key}_{dependant_file.hash[:6]}"
+                    if dependant_file.extension:
+                        conf_file_name += dependant_file.extension
+                    conf_path = conf_dir.joinpath(conf_file_name)
+                    dependant_file.set_dest(conf_path)
+                for i in [*response.global_deps, *config.dependant_files]:
+                    i.process_content([*response.global_deps, *config.dependant_files])
                     if not i._dest_path.is_file():
                         with open(i._dest_path, "wb") as f:
                             f.write(i._processed_content.encode("utf-8"))
-                config.process_run_opts()
+                config.process_run_opts([*response.global_deps, *config.dependant_files])
                 run_opts = config._processed_run_opts
                 entry_command = f"{binary_path} {run_opts}"
 

@@ -1,5 +1,6 @@
 import admin_extra_buttons.decorators
 import admin_extra_buttons.mixins
+from solo.admin import SingletonModelAdmin
 
 from django import forms
 from django.contrib import admin, messages
@@ -7,8 +8,12 @@ from django.contrib.admin import widgets
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect, render
 
-from . import models, services
+from . import models
 
+
+@admin.register(models.SiteConfiguration)
+class SiteConfigurationModelAdmin(SingletonModelAdmin):
+    autocomplete_fields = ["nodes_ca_cert"]
 
 
 class GeneratePrivateKeyForm(forms.Form):
@@ -33,21 +38,22 @@ class GeneratePrivateKeyForm(forms.Form):
         privatekey_obj.save()
         return privatekey_obj
 
+
 class SignCertificateForm(forms.Form):
     slug = forms.SlugField()
+    is_ca = forms.BooleanField(initial=False, required=False)
     common_name = forms.CharField()
     private_key = forms.ModelChoiceField(
         queryset=models.PrivateKey.objects.all(),
         widget=widgets.AutocompleteSelect(field=models.Certificate.private_key.field, admin_site=admin.site),
     )
-    ca_certificate = forms.ModelChoiceField(
+    parent_certificate = forms.ModelChoiceField(
         required=False,
         queryset=models.Certificate.objects.all(),
-        widget=widgets.AutocompleteSelect(field=models.Certificate.ca_certificate.field, admin_site=admin.site),
+        widget=widgets.AutocompleteSelect(field=models.Certificate.parent_certificate.field, admin_site=admin.site),
     )
     valid_after = forms.SplitDateTimeField(widget=widgets.AdminSplitDateTime)
     valid_before = forms.SplitDateTimeField(widget=widgets.AdminSplitDateTime)
-
 
     def save(self):
         from cryptography import x509
@@ -72,7 +78,7 @@ class SignCertificateForm(forms.Form):
             private_key_obj.content.encode("utf-8"),
             password=private_key_obj.passphrase.encode("utf-8") if private_key_obj.passphrase else None,
         )
-        if not (ca_certificate_obj := self.cleaned_data.get("ca_certificate")):
+        if not (parent_certificate_obj := self.cleaned_data.get("parent_certificate")):
             certificate = (
                 x509.CertificateBuilder()
                 .subject_name(subject)
@@ -94,9 +100,9 @@ class SignCertificateForm(forms.Form):
                 .subject_name(subject)
                 .sign(private_key=private_key, algorithm=hashes.SHA256())
             )
-            parent_certificate = x509.load_pem_x509_certificate(ca_certificate_obj.content.encode("utf-8"))
+            parent_certificate = x509.load_pem_x509_certificate(parent_certificate_obj.content.encode("utf-8"))
             parent_private_key = serialization.load_pem_private_key(
-                ca_certificate_obj.private_key.content.encode("utf-8"),
+                parent_certificate_obj.private_key.content.encode("utf-8"),
                 password=None,
             )
             certificate = (
@@ -116,12 +122,13 @@ class SignCertificateForm(forms.Form):
             )
         certificate_content = certificate.public_bytes(serialization.Encoding.PEM)
         certificate_obj = models.Certificate()
+        certificate_obj.is_ca = self.cleaned_data["is_ca"]
         certificate_obj.private_key = private_key_obj
         certificate_obj.slug = slug
         certificate_obj.content = certificate_content.decode("utf-8")
         certificate_obj.fingerprint = certificate.fingerprint(hashes.SHA256()).hex()
         certificate_obj.algorithm = models.PrivateKey.AlgorithmChoices.RSA
-        certificate_obj.ca_certificate = ca_certificate_obj
+        certificate_obj.parent_certificate = parent_certificate_obj
         certificate_obj.valid_from = valid_after
         certificate_obj.valid_to = valid_before
         certificate_obj.save()
@@ -166,7 +173,7 @@ class PrivateKeyModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.M
 @admin.register(models.Certificate)
 class CertificateModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.ModelAdmin):
     search_fields = ["slug"]
-    autocomplete_fields = ["private_key", "ca_certificate"]
+    autocomplete_fields = ["private_key", "parent_certificate"]
 
     @admin_extra_buttons.decorators.button(
         decorators=[login_required(login_url="admin:login")],

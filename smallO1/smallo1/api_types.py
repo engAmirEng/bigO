@@ -1,6 +1,8 @@
 from __future__ import annotations
+
 from pathlib import Path
 from typing import List, Optional, Union
+
 import pydantic
 
 
@@ -15,10 +17,12 @@ class ProgramResponse(pydantic.BaseModel):
             raise ValueError("Either 'outer_binary_identifier' or 'outer_binary_identifier' must be provided.")
         return values
 
+
 class ConfigDependantFileResponse(pydantic.BaseModel):
     key: str
     content: str
-    extension: Union[str, None]
+    extension: Optional[str]
+    hash: str
     _processed_content: Optional[str]
     _dest_path: Optional[Path]
 
@@ -32,7 +36,6 @@ class ConfigDependantFileResponse(pydantic.BaseModel):
         self._processed_content = content
 
 
-
 class ConfigResponse(pydantic.BaseModel):
     id: str
     program: ProgramResponse
@@ -41,9 +44,9 @@ class ConfigResponse(pydantic.BaseModel):
     dependant_files: List[ConfigDependantFileResponse]
     _processed_run_opts: Optional[int]
 
-    def process_run_opts(self):
+    def process_run_opts(self, deps: List[ConfigDependantFileResponse]):
         processed_run_opts = self.new_run_opts
-        for i in self.dependant_files:
+        for i in deps:
             assert i._dest_path
             processed_run_opts = processed_run_opts.replace(f"*#path:{i.key}#*", str(i._dest_path.absolute()))
         self._processed_run_opts = processed_run_opts
@@ -51,10 +54,12 @@ class ConfigResponse(pydantic.BaseModel):
 
 class BaseSyncResponse(pydantic.BaseModel):
     configs: List[ConfigResponse]
+    global_deps: List[ConfigDependantFileResponse]
 
 
 class MetricRequest(pydantic.BaseModel):
     ip_a: str
+
 
 class BaseSyncRequest(pydantic.BaseModel):
     metrics: MetricRequest

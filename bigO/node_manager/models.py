@@ -58,6 +58,7 @@ class Node(TimeStampedModel, models.Model):
         ContainerSpec, related_name="containerspec_nodes", on_delete=models.PROTECT, null=True, blank=True
     )
     architecture = models.CharField(max_length=63, choices=SystemArchitectureTextChoices.choices)
+    default_cert = models.ForeignKey("core.Certificate", on_delete=models.SET_NULL, null=True, blank=True)
 
     class NodeQuerySet(models.QuerySet):
         def support_ipv6(self):
@@ -70,6 +71,16 @@ class Node(TimeStampedModel, models.Model):
 
     def get_support_ipv6(self):
         return Node.objects.filter(id=self.id).support_ipv6().exists()
+
+    def get_default_cert(self):
+        from . import services
+
+        if self.default_cert:
+            return self.default_cert
+        cert = services.create_default_cert_for_node(self)
+        self.default_cert = cert
+        self.save()
+        return self.default_cert
 
 
 class NodeAPIKey(TimeStampedModel, AbstractAPIKey):

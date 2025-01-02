@@ -110,6 +110,7 @@ THIRD_PARTY_APPS = clean_ellipsis(
     [
         "admin_extra_buttons",
         "axes",
+        "solo",
         "corsheaders",
         "taggit",
         "debug_toolbar" if PLUGGABLE_FUNCS.DEBUG_TOOLBAR else ...,
