@@ -1,4 +1,3 @@
-from polymorphic.models import PolymorphicModel
 from solo.models import SingletonModel
 
 from bigO.utils.models import TimeStampedModel
@@ -40,7 +39,7 @@ class PrivateKey(AbstractCryptographicObject, TimeStampedModel, models.Model):
     key_length = models.PositiveSmallIntegerField()
 
 
-class Certificate(PolymorphicModel, AbstractCryptographicObject, TimeStampedModel, models.Model):
+class Certificate(AbstractCryptographicObject, TimeStampedModel, models.Model):
     is_ca = models.BooleanField(default=False)
     fingerprint = models.CharField(max_length=64, blank=False, db_index=True)
     private_key = models.ForeignKey(PrivateKey, on_delete=models.CASCADE, null=True, blank=True)
