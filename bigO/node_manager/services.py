@@ -1,7 +1,11 @@
 import ipaddress
 import json
 import logging
+import random
+from datetime import timedelta
 
+from bigO.core import models as core_models
+from django.db import transaction
 from django.db.models import Subquery
 from django.utils import timezone
 from rest_framework.request import Request
@@ -76,3 +80,80 @@ def complete_node_sync_stat(obj: models.NodeLatestSyncStat, response_payload) ->
     obj.respond_at = timezone.now()
 
     obj.save()
+
+
+def create_default_cert_for_node(node: models.Node) -> core_models.Certificate:
+    from cryptography import x509
+    from cryptography.hazmat._oid import NameOID
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+
+    config = core_models.SiteConfiguration.objects.get()
+    ca_cert = config.nodes_ca_cert
+    cert_slug = f"node_{node.pk}_defualt"
+
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    private_key_content = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.TraditionalOpenSSL,
+        encryption_algorithm=serialization.NoEncryption(),
+    )
+    privatekey_obj = core_models.PrivateKey()
+    privatekey_obj.algorithm = core_models.PrivateKey.AlgorithmChoices.RSA
+    privatekey_obj.content = private_key_content.decode("utf-8")
+    privatekey_obj.slug = cert_slug
+    privatekey_obj.key_length = private_key.key_size
+
+    common_name = f"*.{node.name}"
+    valid_after = timezone.now() - timedelta(days=random.randint(1, 365))
+    valid_before = timezone.now() + timedelta(days=3650)
+    subject = x509.Name(
+        [
+            x509.NameAttribute(NameOID.COUNTRY_NAME, "US"),
+            x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, "California"),
+            x509.NameAttribute(NameOID.LOCALITY_NAME, "San Francisco"),
+            x509.NameAttribute(NameOID.ORGANIZATION_NAME, "My Organization"),
+            x509.NameAttribute(NameOID.COMMON_NAME, common_name),
+        ]
+    )
+    csr = (
+        x509.CertificateSigningRequestBuilder()
+        .subject_name(subject)
+        .sign(private_key=private_key, algorithm=hashes.SHA256())
+    )
+    parent_certificate = x509.load_pem_x509_certificate(ca_cert.content.encode("utf-8"))
+    parent_private_key = serialization.load_pem_private_key(
+        ca_cert.private_key.content.encode("utf-8"),
+        password=None,
+    )
+    certificate = (
+        x509.CertificateBuilder()
+        .subject_name(csr.subject)
+        .issuer_name(parent_certificate.subject)
+        .public_key(csr.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(valid_after)
+        .not_valid_after(valid_before)
+        .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
+        .add_extension(
+            x509.SubjectAlternativeName([x509.DNSName(common_name)]),
+            critical=False,
+        )
+        .sign(private_key=parent_private_key, algorithm=hashes.SHA256())
+    )
+    certificate_content = certificate.public_bytes(serialization.Encoding.PEM)
+    certificate_obj = core_models.Certificate()
+    certificate_obj.is_ca = False
+    certificate_obj.private_key = privatekey_obj
+    certificate_obj.slug = cert_slug
+    certificate_obj.content = certificate_content.decode("utf-8")
+    certificate_obj.fingerprint = certificate.fingerprint(hashes.SHA256()).hex()
+    certificate_obj.algorithm = core_models.Certificate.AlgorithmChoices.RSA
+    certificate_obj.parent_certificate = ca_cert
+    certificate_obj.valid_from = valid_after
+    certificate_obj.valid_to = valid_before
+
+    with transaction.atomic():
+        privatekey_obj.save()
+        certificate_obj.save()
+    return certificate_obj

@@ -1,5 +1,6 @@
 import logging
 import tomllib
+from hashlib import sha256
 from urllib.parse import urlparse
 
 import aiohttp
@@ -40,6 +41,12 @@ class ConfigDependantFileSerializer(serializers.Serializer):
     key = serializers.SlugField()
     content = serializers.CharField()
     extension = serializers.CharField(allow_null=True)
+    hash = serializers.SerializerMethodField()
+
+    def get_hash(self, obj):
+        content = self.fields["content"].get_attribute(obj)
+        extension = self.fields["extension"].get_attribute(obj)
+        return sha256((content + str(extension)).encode("utf-8")).hexdigest()
 
 
 class ConfigSerializer(serializers.Serializer):
@@ -63,6 +70,7 @@ class NodeBaseSyncAPIView(APIView):
 
     class OutputSerializer(serializers.Serializer):
         configs = ConfigSerializer(many=True, required=False)
+        global_deps = ConfigDependantFileSerializer(many=True)
 
     permission_classes = [HasNodeAPIKey]
 
@@ -154,7 +162,16 @@ class NodeBaseSyncAPIView(APIView):
                     }
                 ).data
             )
-        response_payload = self.OutputSerializer({"configs": configs}).data
+        global_deps = []
+        default_cert = node_obj.get_default_cert()
+
+        global_deps.extend(
+            [
+                {"key": "default_cert", "content": default_cert.content, "extension": None},
+                {"key": "default_cert_key", "content": default_cert.private_key.content, "extension": None},
+            ]
+        )
+        response_payload = self.OutputSerializer({"configs": configs, "global_deps": global_deps}).data
         services.complete_node_sync_stat(obj=node_sync_stat_obj, response_payload=response_payload)
         return Response(response_payload, status=status.HTTP_200_OK)
 
