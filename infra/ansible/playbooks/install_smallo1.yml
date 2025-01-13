@@ -1,0 +1,112 @@
+---
+- name: Install and start smallo1
+  hosts: all
+  become: yes
+  vars_prompt:
+    - name: install_dir
+      prompt: "Enter the install_dir"
+      private: no
+
+    - name: pip_install_smallo1
+      prompt: "Enter the pip_install_smallo1"
+      private: no
+
+    - name: api_key
+      prompt: "Enter the api_key"
+      private: no
+
+    - name: interval_sec
+      prompt: "Enter the interval_sec"
+      private: no
+
+    - name: server_base_url
+      prompt: "Enter the server_base_url"
+      private: no
+
+  tasks:
+    - name: Ensure the system is updated
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+        upgrade: dist
+
+    - name: Install Supervisor
+      apt:
+        name: supervisor
+        state: present
+    - name: Ensure Supervisor service is enabled and started
+      systemd:
+        name: supervisor
+        enabled: yes
+        state: started
+
+    - name: Ensure the install directory exists
+      file:
+        path: "{{ install_dir }}"
+        state: directory
+        mode: '0755'
+    - name: Ensure required packages are installed for Python venv
+      ansible.builtin.package:
+        name: python3-venv
+        state: present
+    - name: Install the specified Python package in the virtual environment
+      pip:
+        name: "{{ pip_install_smallo1 }}"
+        virtualenv: "{{ install_dir }}/venv"
+        virtualenv_command: "python3 -m venv"
+    - name: Create the .env file
+      copy:
+        dest: "{{ install_dir }}/.env"
+        content: |
+          interval_sec={{ interval_sec }}
+          api_key={{ api_key }}
+          server_base_url={{ server_base_url }}
+          working_dir={{ install_dir }}/workdir
+          full_control_supervisord=False
+        mode: '0644'
+    - name: Fix Supervisor main config
+      copy:
+        dest: /etc/supervisor/supervisord.conf
+        content: |
+          ; supervisor config file
+
+          [unix_http_server]
+          file=/var/run/supervisor.sock   ; (the path to the socket file)
+          chmod=0700                       ; sockef file mode (default 0700)
+
+          [supervisord]
+          logfile=/var/log/supervisor/supervisord.log ; (main log file;default $CWD/supervisord.log)
+          pidfile=/var/run/supervisord.pid ; (supervisord pidfile;default supervisord.pid)
+          childlogdir=/var/log/supervisor            ; ('AUTO' child log dir, default $TEMP)
+
+          ; the below section must remain in the config file for RPC
+          ; (supervisorctl/web interface) to work, additional interfaces may be
+          ; added by defining them in separate rpcinterface: sections
+          [rpcinterface:supervisor]
+          supervisor.rpcinterface_factory = supervisor.rpcinterface:make_main_rpcinterface
+
+          [supervisorctl]
+          serverurl=unix:///var/run/supervisor.sock ; use a unix:// URL  for a unix socket
+
+          ; The [include] section can just contain the "files" setting.  This
+          ; setting can list multiple files (separated by whitespace or
+          ; newlines).  It can also contain wildcards.  The filenames are
+          ; interpreted as relative to this file.  Included files *cannot*
+          ; include files themselves.
+
+
+          [include]
+          files = /etc/supervisor/conf.d/*.conf {{ install_dir }}/workdir/supervisor/supervisor.conf
+    - name: Add smallo1 process to supervisor
+      copy:
+        dest: /etc/supervisor/conf.d/smallo1.conf
+        content: |
+          [program:smallo1]
+          command={{ install_dir }}/venv/bin/small-o1 --env-file {{ install_dir }}/.env
+          autostart=true
+          autorestart=true
+          priority=20
+    - name: Apply new configuration to Supervisor
+      community.general.supervisorctl:
+        name: all
+        state: restarted

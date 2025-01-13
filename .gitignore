@@ -281,3 +281,7 @@ media/
 .env
 .envs/*
 !.envs/**/*.dist
+
+### Ansible ###
+inventory/
+*.retry
