@@ -23,6 +23,10 @@
       prompt: "Enter the server_base_url"
       private: no
 
+    - name: sentry_dsn
+      prompt: "Enter the sentry_dsn"
+      private: no
+
   tasks:
     - name: Ensure the system is updated
       apt:
@@ -63,6 +67,9 @@
           server_base_url={{ server_base_url }}
           working_dir={{ install_dir }}/workdir
           full_control_supervisord=False
+          {% if sentry_dsn %}
+          sentry_dsn={{ sentry_dsn }}
+          {% endif %}
         mode: '0644'
     - name: Fix Supervisor main config
       copy:
