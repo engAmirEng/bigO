@@ -150,7 +150,7 @@ def main(settings: Settings):
             payload = get_base_sync_request_payload()
             base_sync_url = settings.get_base_sync_url()
             logger.debug(f"requesting {base_sync_url}")
-            r = requests.post(base_sync_url, json=payload, headers=headers)
+            r = requests.post(base_sync_url, json=payload, headers=headers, timeout=(5, 10))
             if r.status_code != 200:
                 next_try_in = settings.interval_sec
                 logger.warning(f"base-sync returned {r.status_code=}, {next_try_in=} and the content is \n{r.content}")
