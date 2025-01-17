@@ -6,6 +6,7 @@ from urllib.parse import urlparse
 import aiohttp
 from asgiref.sync import sync_to_async
 
+from bigO.core import models as core_models
 from django.conf import settings
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.core.exceptions import PermissionDenied
@@ -94,6 +95,8 @@ class NodeBaseSyncAPIView(APIView):
         input_data = input_ser.data
         services.node_spec_create(node=node_obj, ip_a=input_data["metrics"]["ip_a"])
 
+        site_config: core_models.SiteConfiguration = core_models.SiteConfiguration.objects.get()
+
         configs = []
         for i in node_obj.node_customconfigs.all():
             program = i.get_program()
@@ -162,15 +165,45 @@ class NodeBaseSyncAPIView(APIView):
                     }
                 ).data
             )
+
+        global_nginx_conf = services.get_global_nginx_conf(node=node_obj)
+        nginx_program = site_config.main_nginx.get_program_for_node(node_obj)
+        if global_nginx_conf:
+            if nginx_program is None:
+                logger.critical(f"no program found for global_nginx_conf")
+            else:
+                global_nginx_conf_hash = sha256(
+                    (global_nginx_conf[0] + global_nginx_conf[1]).encode("utf-8")
+                ).hexdigest()
+                configs.append(
+                    ConfigSerializer(
+                        {
+                            "id": "global_nginx_conf",
+                            "program": nginx_program,
+                            "run_opts": global_nginx_conf[0],
+                            "new_run_opts": global_nginx_conf[0],
+                            "configfile_content": global_nginx_conf[1],
+                            "config_file_ext": None,
+                            "hash": global_nginx_conf_hash,
+                            "dependant_files": ConfigDependantFileSerializer(
+                                [{"key": "main", "content": global_nginx_conf[1], "extension": None}], many=True
+                            ).data,
+                        }
+                    ).data
+                )
+
         global_deps = []
         default_cert = node_obj.get_default_cert()
-
         global_deps.extend(
             [
                 {"key": "default_cert", "content": default_cert.content, "extension": None},
                 {"key": "default_cert_key", "content": default_cert.private_key.content, "extension": None},
             ]
         )
+        if site_config.htpasswd_content:
+            global_deps.append(
+                {"key": "default_basic_http_file", "content": site_config.htpasswd_content, "extension": None}
+            )
         response_payload = self.OutputSerializer({"configs": configs, "global_deps": global_deps}).data
         services.complete_node_sync_stat(obj=node_sync_stat_obj, response_payload=response_payload)
         return Response(response_payload, status=status.HTTP_200_OK)

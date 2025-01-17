@@ -83,6 +83,11 @@ class Node(TimeStampedModel, models.Model):
         return self.default_cert
 
 
+class NodeSupervisorConfig(TimeStampedModel, models.Model):
+    node = models.OneToOneField(Node, on_delete=models.CASCADE, related_name="supervisorconfig")
+    xml_rpc_api_expose_port = models.IntegerField(null=True, blank=True)
+
+
 class NodeAPIKey(TimeStampedModel, AbstractAPIKey):
     node = models.ForeignKey(
         Node,
@@ -124,6 +129,15 @@ class ProgramVersion(TimeStampedModel):
 
     class Meta:
         constraints = [UniqueConstraint(fields=("program", "version"), name="unique_program_version")]
+
+    def get_program_for_node(self, node: Node) -> NodeInnerProgram | ProgramBinary | None:
+        """
+        returns the appropriate program with priority of NodeInnerProgram and then ProgramBinary
+        """
+        res = node.node_nodeinnerbinary.filter(program_version=self).first()
+        if res is None:
+            res = ProgramBinary.objects.filter(program_version=self, architecture=node.architecture).first()
+        return res
 
     def __str__(self):
         return f"{self.pk}-{self.program} ({self.version})"

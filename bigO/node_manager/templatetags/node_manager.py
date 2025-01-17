@@ -19,3 +19,8 @@ def default_cert(node: models.Node):
 @register.simple_tag
 def default_cert_key(node: models.Node):
     return "*#path:default_cert_key#*"
+
+
+@register.simple_tag
+def default_basic_http_file(node: models.Node):
+    return "*#path:default_basic_http_file#*"

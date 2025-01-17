@@ -30,9 +30,13 @@ class ContainerSpecModelAdmin(admin.ModelAdmin):
     pass
 
 
+class NodeSupervisorConfigInline(admin.StackedInline):
+    model = models.NodeSupervisorConfig
+
+
 @admin.register(models.Node)
 class NodeModelAdmin(admin.ModelAdmin):
-    inlines = [NodePublicIPInline, NodeInnerProgramInline, NodeLatestSyncStatInline]
+    inlines = [NodePublicIPInline, NodeSupervisorConfigInline, NodeInnerProgramInline, NodeLatestSyncStatInline]
     list_display = (
         "__str__",
         "agent_spec_display",

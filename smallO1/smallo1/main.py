@@ -7,7 +7,7 @@ import time
 import urllib.parse
 from hashlib import sha256
 from pathlib import Path
-from typing import Union
+from typing import Union, Tuple, Optional
 
 import pydantic
 import requests
@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
+    is_dev: bool = False
     interval_sec: int = 10
     api_key: str
     server_base_url: pydantic.HttpUrl
@@ -56,6 +57,11 @@ class Settings(BaseSettings):
 
     def get_base_sync_url(self):
         return urllib.parse.urljoin(str(self.server_base_url), "node-manager/node/base-sync/")
+
+    def get_timeout(self) -> Optional[Tuple[int, int]]:
+        if self.is_dev:
+            return None
+        return 5, 10
 
     def get_binary_content_url(self, hash: str):
         return urllib.parse.urljoin(
@@ -150,7 +156,7 @@ def main(settings: Settings):
             payload = get_base_sync_request_payload()
             base_sync_url = settings.get_base_sync_url()
             logger.debug(f"requesting {base_sync_url}")
-            r = requests.post(base_sync_url, json=payload, headers=headers, timeout=(5, 10))
+            r = requests.post(base_sync_url, json=payload, headers=headers, timeout=settings.get_timeout())
             if r.status_code != 200:
                 next_try_in = settings.interval_sec
                 logger.warning(f"base-sync returned {r.status_code=}, {next_try_in=} and the content is \n{r.content}")
@@ -178,6 +184,7 @@ def main(settings: Settings):
                                 save_to=binary_path,
                                 identifier=outer_binary_identifier,
                                 api_key=settings.api_key,
+                                timeout=settings.get_timeout()
                             )
                         except ContentDownloadError as e:
                             logger.critical(f"could not download {outer_binary_identifier} for {config.id=}")
@@ -269,7 +276,7 @@ class ContentDownloadError(Exception):
     pass
 
 
-def download_outerbinary(*, binary_content_url: str, save_to: Path, identifier: str, api_key: str):
+def download_outerbinary(*, binary_content_url: str, save_to: Path, identifier: str, api_key: str, timeout=Optional[Tuple[int, int]]):
     _version = importlib.metadata.version("smallo1")
     retry_limit = 3
     headers = {"Authorization": f"Api-Key {api_key}", "User-Agent": f"smallo1:{_version}"}
@@ -277,7 +284,7 @@ def download_outerbinary(*, binary_content_url: str, save_to: Path, identifier: 
     for i in range(retry_limit):
         retry_count += 1
         try:
-            r = requests.get(binary_content_url, json={}, headers=headers, stream=True, timeout=(5, 10))
+            r = requests.get(binary_content_url, json={}, headers=headers, stream=True, timeout=timeout)
             if r.status_code == 200:
                 recieved_sha256 = sha256()
                 with open(save_to, "wb") as file:

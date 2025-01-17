@@ -4,6 +4,7 @@ import logging
 import random
 from datetime import timedelta
 
+import django.template
 from bigO.core import models as core_models
 from django.db import transaction
 from django.db.models import Subquery
@@ -157,3 +158,54 @@ def create_default_cert_for_node(node: models.Node) -> core_models.Certificate:
         privatekey_obj.save()
         certificate_obj.save()
     return certificate_obj
+
+
+def get_global_nginx_conf(node: models.Node) -> tuple[str, str] | None:
+    nodesupervisorconfig_obj: models.NodeSupervisorConfig | None = models.NodeSupervisorConfig.objects.filter(
+        node=node
+    ).first()
+    if nodesupervisorconfig_obj is None or nodesupervisorconfig_obj.xml_rpc_api_expose_port is None:
+        return None
+    context = {
+        "servername": f"supervisor.{node.name}",
+        "supervisor_xml_rpc_api_expose_port": nodesupervisorconfig_obj.xml_rpc_api_expose_port,
+        "node": node,
+    }
+    cnfg = """
+{% load node_manager %}
+user root;
+include /etc/nginx/modules-enabled/*.conf;
+worker_processes  auto;
+
+events {
+    worker_connections  1024;
+}
+http {
+    upstream supervisor {
+        server  unix:/var/run/supervisor.sock;
+        keepalive 2;
+    }
+    server {
+        listen {{ supervisor_xml_rpc_api_expose_port }} ssl http2;
+        listen [::]:{{ supervisor_xml_rpc_api_expose_port }} ssl http2;
+        server_name  {{ servername }};
+        ssl_certificate {% default_cert node %};
+        ssl_certificate_key {% default_cert_key node %};
+        ssl_protocols TLSv1.3;
+        location / {
+            auth_basic           "closed site";
+            auth_basic_user_file {% default_basic_http_file node %};
+
+            proxy_pass http://supervisor;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+    }
+}
+    """
+    result = django.template.Template(cnfg).render(context=django.template.Context(context))
+    run_opt = django.template.Template('-c *#path:main#* -g "daemon off;"').render(
+        context=django.template.Context(context)
+    )
+    return run_opt, result
