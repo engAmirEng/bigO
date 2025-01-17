@@ -105,7 +105,7 @@ def create_default_cert_for_node(node: models.Node) -> core_models.Certificate:
     privatekey_obj.slug = cert_slug
     privatekey_obj.key_length = private_key.key_size
 
-    common_name = f"*.{node.name}"
+    common_name = f"*.{node.name}.com"
     valid_after = timezone.now() - timedelta(days=random.randint(1, 365))
     valid_before = timezone.now() + timedelta(days=3650)
     subject = x509.Name(
