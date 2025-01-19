@@ -87,7 +87,7 @@ class NodeModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.ModelAd
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
-        return qs.select_related("node_nodesyncstat")
+        return qs.select_related("node_nodesyncstat", "supervisorconfig")
 
     @admin.display(description="public ips")
     def public_ips_display(self, obj):
@@ -126,6 +126,9 @@ class NodeModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.ModelAd
 
     @admin.display(description="view supervisor page")
     def view_supervisor_page_display(self, obj):
+        supervisorconfig = getattr(obj, "supervisorconfig", None)
+        if supervisorconfig is None or not supervisorconfig.xml_rpc_api_expose_port:
+            return None
         return format_html(
             '<a href="{}" target="_blank">View Supervisor</a>',
             reverse("admin:node_manager_node_basic_supervisor", kwargs={"node_pk": obj.id}),
