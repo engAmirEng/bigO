@@ -160,17 +160,18 @@ def create_default_cert_for_node(node: models.Node) -> core_models.Certificate:
     return certificate_obj
 
 
-def get_global_nginx_conf(node: models.Node) -> tuple[str, str] | None:
+def get_global_nginx_conf(node: models.Node) -> tuple[str, str, dict] | None:
     nodesupervisorconfig_obj: models.NodeSupervisorConfig | None = models.NodeSupervisorConfig.objects.filter(
         node=node
     ).first()
     if nodesupervisorconfig_obj is None or nodesupervisorconfig_obj.xml_rpc_api_expose_port is None:
         return None
     context = {
-        "servername": f"supervisor.{node.name}",
+        "servername": f"supervisor.{node.name}.com",
         "supervisor_xml_rpc_api_expose_port": nodesupervisorconfig_obj.xml_rpc_api_expose_port,
         "node": node,
     }
+    context = django.template.Context(context)
     cnfg = """
 {% load node_manager %}
 user root;
@@ -205,7 +206,5 @@ http {
 }
     """
     result = django.template.Template(cnfg).render(context=django.template.Context(context))
-    run_opt = django.template.Template('-c *#path:main#* -g "daemon off;"').render(
-        context=django.template.Context(context)
-    )
-    return run_opt, result
+    run_opt = django.template.Template('-c *#path:main#* -g "daemon off;"').render(context=context)
+    return run_opt, result, context.get("deps", {"globals": []})

@@ -112,11 +112,11 @@ THIRD_PARTY_APPS = clean_ellipsis(
         "axes",
         "solo",
         "corsheaders",
-        "taggit",
         "debug_toolbar" if PLUGGABLE_FUNCS.DEBUG_TOOLBAR else ...,
         "django_celery_beat",
         "django_celery_results",
         "django_filters",
+        "django_htmx",
         "drf_spectacular",
         "graphene_django",
         "graphql_jwt.refresh_token",
@@ -125,6 +125,7 @@ THIRD_PARTY_APPS = clean_ellipsis(
         "rest_framework",
         "rest_framework_api_key",
         "rest_framework_simplejwt",
+        "taggit",
         "whitenoise.runserver_nostatic",
         # make sure any runserver command is after whitenoise's
         "daphne" if PLUGGABLE_FUNCS.DAPHNE else ...,
@@ -190,6 +191,7 @@ MIDDLEWARE = clean_ellipsis(
         "django.contrib.auth.middleware.AuthenticationMiddleware",
         "django.contrib.messages.middleware.MessageMiddleware",
         "django.middleware.clickjacking.XFrameOptionsMiddleware",
+        "django_htmx.middleware.HtmxMiddleware",
         # It only formats user lockout messages and renders Axes lockout responses
         # on failed user authentication attempts from login views.
         # If you do not want Axes to override the authentication response

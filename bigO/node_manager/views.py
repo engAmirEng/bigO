@@ -1,12 +1,15 @@
 import logging
+import socket
+import ssl
 import tomllib
 from hashlib import sha256
 from urllib.parse import urlparse
 
-import aiohttp
+import aiohttp.client_exceptions
 from asgiref.sync import sync_to_async
 
 from bigO.core import models as core_models
+from bigO.utils.decorators import xframe_options_sameorigin
 from django.conf import settings
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.core.exceptions import PermissionDenied
@@ -97,6 +100,19 @@ class NodeBaseSyncAPIView(APIView):
 
         site_config: core_models.SiteConfiguration = core_models.SiteConfiguration.objects.get()
 
+        global_deps = []
+        default_cert = node_obj.get_default_cert()
+        global_deps.extend(
+            [
+                {"key": "default_cert", "content": default_cert.content, "extension": None},
+                {"key": "default_cert_key", "content": default_cert.private_key.content, "extension": None},
+            ]
+        )
+        if site_config.htpasswd_content:
+            global_deps.append(
+                {"key": "default_basic_http_file", "content": site_config.htpasswd_content, "extension": None}
+            )
+
         configs = []
         for i in node_obj.node_customconfigs.all():
             program = i.get_program()
@@ -172,8 +188,12 @@ class NodeBaseSyncAPIView(APIView):
             if nginx_program is None:
                 logger.critical(f"no program found for global_nginx_conf")
             else:
+                influential = ""
+                influential_global_deps = [
+                    i["content"] for i in global_deps if i["key"] in global_nginx_conf[2]["globals"]
+                ]
                 global_nginx_conf_hash = sha256(
-                    (global_nginx_conf[0] + global_nginx_conf[1]).encode("utf-8")
+                    (global_nginx_conf[0] + global_nginx_conf[1] + "".join(influential_global_deps)).encode("utf-8")
                 ).hexdigest()
                 configs.append(
                     ConfigSerializer(
@@ -192,18 +212,6 @@ class NodeBaseSyncAPIView(APIView):
                     ).data
                 )
 
-        global_deps = []
-        default_cert = node_obj.get_default_cert()
-        global_deps.extend(
-            [
-                {"key": "default_cert", "content": default_cert.content, "extension": None},
-                {"key": "default_cert_key", "content": default_cert.private_key.content, "extension": None},
-            ]
-        )
-        if site_config.htpasswd_content:
-            global_deps.append(
-                {"key": "default_basic_http_file", "content": site_config.htpasswd_content, "extension": None}
-            )
         response_payload = self.OutputSerializer({"configs": configs, "global_deps": global_deps}).data
         services.complete_node_sync_stat(obj=node_sync_stat_obj, response_payload=response_payload)
         return Response(response_payload, status=status.HTTP_200_OK)
@@ -228,20 +236,71 @@ class NodeProgramBinaryContentByHashAPIView(UserPassesTestMixin, View):
         return FileResponse(obj.file)
 
 
-async def node_supervisor_server_proxy_view(request, node_id: int, path: str = ""):
+class CustomResolver(aiohttp.DefaultResolver):
+    def __init__(self, custom_ip):
+        super().__init__()
+        self.custom_ip = custom_ip
+
+    async def resolve(self, host, port=0, family=socket.AF_INET):
+        return [
+            {
+                "hostname": host,
+                "host": self.custom_ip,
+                "port": port,
+                "family": family,
+                "proto": 0,
+                "flags": 0,
+            }
+        ]
+
+
+@xframe_options_sameorigin
+async def node_supervisor_server_proxy_view(request, node_id: int, way: str, path: str = ""):
     is_superuser = await sync_to_async(lambda: request.user.is_superuser)()
     if not is_superuser:
         raise PermissionDenied
-    node_obj = await sync_to_async(get_object_or_404)(models.Node, id=node_id)
-    first_publicip = await models.PublicIP.objects.filter(ip_nodepublicips__node=node_obj).afirst()
-    if not first_publicip:
-        return HttpResponse(f"No Public address for {str(node_obj)}")
-    url = f"http://{str(first_publicip.ip.ip)}:9001/" + path
+    node_obj = await sync_to_async(get_object_or_404)(
+        models.Node.objects.select_related("supervisorconfig"), id=node_id
+    )
+    if (
+        supervisorconfig_obj := getattr(node_obj, "supervisorconfig", None)
+    ) is None or not supervisorconfig_obj.xml_rpc_api_expose_port:
+        return HttpResponse("xml_rpc_api_expose_port is not active for this node")
 
-    basicauth = aiohttp.BasicAuth(login=settings.SUPERVISOR_BASICAUTH[0], password=settings.SUPERVISOR_BASICAUTH[1])
-    session = aiohttp.ClientSession(auth=basicauth)
+    try:
+        method, *other = way.split(":")
+    except:
+        return HttpResponse(status=400)
+    if method == "public_ip":
+        public_ip = await models.PublicIP.objects.filter(ip_nodepublicips__node=node_obj, id=other[0]).afirst()
+        if public_ip is None:
+            return HttpResponse("mathching public ip not found")
+        ip = public_ip.ip.ip
+    elif method == "easytier":
+        easytiernode = await models.EasyTierNode.objects.filter(node=node_obj, network_id=other[0]).afirst()
+        if easytiernode is None:
+            return HttpResponse("mathching easytier node not found")
+        ip = easytiernode.ipv4.ip
+    else:
+        return HttpResponse(status=400)
+
+    host_name = f"supervisor.{node_obj.name}.com"
+    url = f"https://{host_name}:{supervisorconfig_obj.xml_rpc_api_expose_port}/" + path
+    config: core_models.SiteConfiguration = await core_models.SiteConfiguration.objects.select_related(
+        "nodes_ca_cert"
+    ).aget()
+    basicauth = aiohttp.BasicAuth(login=config.basic_username, password=config.basic_password)
+    resolver = CustomResolver(custom_ip=str(ip))
+    connector = aiohttp.TCPConnector(resolver=resolver)
+    session = aiohttp.ClientSession(headers={"Host": host_name}, connector=connector, auth=basicauth)
     client = await session.__aenter__()
-    response = await client.request(method=request.method, url=url, params=request.GET, allow_redirects=False)
+    sslcontext = ssl.create_default_context(cadata=config.nodes_ca_cert.content)
+    try:
+        response = await client.request(
+            ssl=sslcontext, method=request.method, url=url, params=request.GET, allow_redirects=False
+        )
+    except Exception as e:
+        return HttpResponse(str(e), status=500)
     if 300 <= response.status < 400:
         location = urlparse(response.headers["Location"])
         await response.release()
