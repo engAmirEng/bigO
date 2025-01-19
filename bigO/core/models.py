@@ -8,6 +8,10 @@ from django.db.models import CheckConstraint, Q
 
 class SiteConfiguration(SingletonModel):
     nodes_ca_cert = models.ForeignKey("Certificate", on_delete=models.PROTECT, null=True, blank=False)
+    main_nginx = models.ForeignKey("node_manager.ProgramVersion", on_delete=models.PROTECT, null=True, blank=False)
+    basic_username = models.CharField(blank=False, null=True)
+    basic_password = models.CharField(blank=False, null=True)
+    htpasswd_content = models.TextField(blank=True, null=True)
 
     def clean(self):
         if self.nodes_ca_cert:

@@ -1,3 +1,5 @@
+import crypt
+
 import admin_extra_buttons.decorators
 import admin_extra_buttons.mixins
 from solo.admin import SingletonModelAdmin
@@ -14,6 +16,16 @@ from . import models
 @admin.register(models.SiteConfiguration)
 class SiteConfigurationModelAdmin(SingletonModelAdmin):
     autocomplete_fields = ["nodes_ca_cert"]
+
+    def save_model(self, request, obj, form, change):
+        change_htpasswd_content = set(form.changed_data) & {
+            models.SiteConfiguration.basic_username.field.name,
+            models.SiteConfiguration.basic_password.field.name,
+        }
+        if change_htpasswd_content and models.SiteConfiguration.htpasswd_content.field.name not in form.changed_data:
+            htpasswd_content = f"{obj.basic_username}:{crypt.crypt(obj.basic_password)}"
+            obj.htpasswd_content = htpasswd_content
+        super().save_model(request, obj, form, change)
 
 
 class GeneratePrivateKeyForm(forms.Form):

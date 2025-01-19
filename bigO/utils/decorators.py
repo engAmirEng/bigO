@@ -61,3 +61,25 @@ def require_http_methods(request_method_list):
         return inner
 
     return decorator
+
+
+def xframe_options_sameorigin(view_func):
+    if iscoroutinefunction(view_func):
+
+        @wraps(view_func)
+        async def wrapper_view(*args, **kwargs):
+            resp = await view_func(*args, **kwargs)
+            if resp.get("X-Frame-Options") is None:
+                resp["X-Frame-Options"] = "SAMEORIGIN"
+            return resp
+
+    else:
+
+        @wraps(view_func)
+        def wrapper_view(*args, **kwargs):
+            resp = view_func(*args, **kwargs)
+            if resp.get("X-Frame-Options") is None:
+                resp["X-Frame-Options"] = "SAMEORIGIN"
+            return resp
+
+    return wrapper_view

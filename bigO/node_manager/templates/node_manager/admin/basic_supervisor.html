@@ -1,0 +1,30 @@
+{% extends "admin/base_site.html" %}
+{% load static i18n %}
+{% block extrahead %}
+{{ block.super }}
+<script src="{% static 'vendor/htmx/htmx.min.js' %}"></script>
+<script src="{% static 'vendor/htmx/ext/debug.js' %}"></script>
+{{ media }}
+{% endblock %}
+<div id="content">
+{% block content %}
+<form method="" hx-post="{% url 'admin:node_manager_node_basic_supervisor' node_id %}" hx-target="#content" hx-trigger="change">
+  {% csrf_token %}
+  {% if connect_form.errors %}
+    <p class="errornote">
+    {% blocktranslate count counter=errors|length %}Please correct the error below.{% plural %}Please correct the errors below.{% endblocktranslate %}
+    </p>
+    {{ connect_form.form.non_field_errors }}
+  {% endif %}
+  {% block field_sets %}
+  {% for fieldset in connect_form %}
+    {% include "admin/includes/fieldset.html" %}
+  {% endfor %}
+  {% endblock %}
+  <p>connecting via: {{ iframe_url }}</p>
+</form>
+{% if iframe_url %}
+<iframe id="ggg" src="{{ iframe_url }}" style="height:100vh;width:100%;"></iframe>
+{% endif %}
+{% endblock content %}
+</div>

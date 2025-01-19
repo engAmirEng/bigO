@@ -1,14 +1,20 @@
 from decimal import ROUND_HALF_DOWN, Decimal
 
+import admin_extra_buttons.decorators
+import admin_extra_buttons.mixins
+from render_block import render_block_to_string
 from rest_framework_api_key.admin import APIKeyModelAdmin
 
-from bigO.node_manager import models
-from django import forms
 from django.contrib import admin
+from django.contrib.auth.decorators import login_required
 from django.contrib.humanize.templatetags.humanize import naturaltime
 from django.db.models import Count
+from django.http import HttpResponse
+from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.utils.html import format_html
+
+from . import forms, models
 
 
 class NodeLatestSyncStatInline(admin.StackedInline):
@@ -30,9 +36,13 @@ class ContainerSpecModelAdmin(admin.ModelAdmin):
     pass
 
 
+class NodeSupervisorConfigInline(admin.StackedInline):
+    model = models.NodeSupervisorConfig
+
+
 @admin.register(models.Node)
-class NodeModelAdmin(admin.ModelAdmin):
-    inlines = [NodePublicIPInline, NodeInnerProgramInline, NodeLatestSyncStatInline]
+class NodeModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.ModelAdmin):
+    inlines = [NodePublicIPInline, NodeSupervisorConfigInline, NodeInnerProgramInline, NodeLatestSyncStatInline]
     list_display = (
         "__str__",
         "agent_spec_display",
@@ -42,6 +52,32 @@ class NodeModelAdmin(admin.ModelAdmin):
         "public_ips_display",
         "view_supervisor_page_display",
     )
+
+    @admin_extra_buttons.decorators.view(
+        pattern="<int:node_pk>/basic_supervisor/",
+        decorators=[login_required(login_url="admin:login")],
+        permission="node_manager.add_node",
+    )
+    def basic_supervisor(self, request, node_pk: int):
+        node_obj = get_object_or_404(models.Node, pk=node_pk)
+        connect_form = forms.SupervisorRPCConnectTypeForm(request.GET or request.POST, node_obj=node_obj)
+        url = connect_form.get_url()
+        connect_form = admin.helpers.AdminForm(
+            form=connect_form,
+            fieldsets=[(None, {"fields": (tuple(connect_form.fields),)})],
+            prepopulated_fields={},
+            model_admin=self,
+        )
+        context = self.get_common_context(request, title="Basic Supervisor")
+        context["node_id"] = node_pk
+        context["connect_form"] = connect_form
+        context["iframe_url"] = url
+        if request.htmx:
+            r = render_block_to_string(
+                "node_manager/admin/basic_supervisor.html", block_name="content", context=context, request=request
+            )
+            return HttpResponse(r)
+        return render(request, "node_manager/admin/basic_supervisor.html", context=context)
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
@@ -86,7 +122,7 @@ class NodeModelAdmin(admin.ModelAdmin):
     def view_supervisor_page_display(self, obj):
         return format_html(
             '<a href="{}" target="_blank">View Supervisor</a>',
-            reverse("node_manager:node_supervisor_server_proxy_root_view", kwargs={"node_id": obj.id}),
+            reverse("admin:node_manager_node_basic_supervisor", kwargs={"node_pk": obj.id}),
         )
 
 
@@ -155,24 +191,9 @@ class EasyTierNodePeerInline(admin.StackedInline):
     fk_name = models.EasyTierNodePeer.node.field.name
 
 
-class EasyTierNodeModelForm(forms.ModelForm):
-    toml_config = forms.CharField(disabled=True, required=False, widget=forms.Textarea)
-
-    class Meta:
-        model = models.EasyTierNode
-        fields = "__all__"
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        if self.instance and self.instance.pk:
-            self.fields["toml_config"].initial = self.instance.get_toml_config_content()
-        else:
-            self.fields["toml_config"].widget = forms.HiddenInput()
-
-
 @admin.register(models.EasyTierNode)
 class EasyTierNodeModelAdmin(admin.ModelAdmin):
-    form = EasyTierNodeModelForm
+    form = forms.EasyTierNodeModelForm
     inlines = [EasyTierNodePeerInline, EasyTierNodeListenerInline]
     list_display = ("__str__", "network", "ipv4", "latency_first")
     list_editable = ("latency_first",)
@@ -183,31 +204,9 @@ class EasyTierNodeModelAdmin(admin.ModelAdmin):
         return obj.get_toml_config_content()
 
 
-class ProgramBinaryModelForm(forms.ModelForm):
-    class Meta:
-        model = models.ProgramBinary
-        exclude = ["hash"]
-
-    def clean(self):
-        cleaned_data = super().clean()
-        file = cleaned_data.get(models.ProgramBinary.file.field.name)
-        if file:
-            file_data = file.read()
-            file_hash = models.ProgramBinary.get_hash(file_data)
-            qs = models.ProgramBinary.objects.filter(hash=file_hash)
-            if self.instance and self.instance.pk:
-                qs = qs.exclude(id=self.instance.id)
-            if qs.exists():
-                self.add_error(models.ProgramBinary.file.field.name, f"file already exists, {file_hash}")
-            else:
-                cleaned_data["file_hash"] = file_hash
-
-        return cleaned_data
-
-
 @admin.register(models.ProgramBinary)
 class ProgramBinaryModelAdmin(admin.ModelAdmin):
-    form = ProgramBinaryModelForm
+    form = forms.ProgramBinaryModelForm
     readonly_fields = ["hash"]
 
     def save_model(self, request, obj, form, change):

@@ -83,6 +83,11 @@ class Node(TimeStampedModel, models.Model):
         return self.default_cert
 
 
+class NodeSupervisorConfig(TimeStampedModel, models.Model):
+    node = models.OneToOneField(Node, on_delete=models.CASCADE, related_name="supervisorconfig")
+    xml_rpc_api_expose_port = models.IntegerField(null=True, blank=True)
+
+
 class NodeAPIKey(TimeStampedModel, AbstractAPIKey):
     node = models.ForeignKey(
         Node,
@@ -124,6 +129,15 @@ class ProgramVersion(TimeStampedModel):
 
     class Meta:
         constraints = [UniqueConstraint(fields=("program", "version"), name="unique_program_version")]
+
+    def get_program_for_node(self, node: Node) -> NodeInnerProgram | ProgramBinary | None:
+        """
+        returns the appropriate program with priority of NodeInnerProgram and then ProgramBinary
+        """
+        res = node.node_nodeinnerbinary.filter(program_version=self).first()
+        if res is None:
+            res = ProgramBinary.objects.filter(program_version=self, architecture=node.architecture).first()
+        return res
 
     def __str__(self):
         return f"{self.pk}-{self.program} ({self.version})"
@@ -185,7 +199,7 @@ class NodeCustomConfig(TimeStampedModel):
         context = {"node_obj": self.node}
         res = []
         for i in self.custom_config.dependantfiles.all():
-            template = django.template.Template(i.template)
+            template = django.template.Template("{% load node_manager %}" + i.template)
             result = template.render(context=django.template.Context(context))
             res.append({"key": i.key, "content": result, "extension": i.template_extension})
 
@@ -193,7 +207,7 @@ class NodeCustomConfig(TimeStampedModel):
 
     def get_run_opts(self) -> str:
         context = {"node_obj": self.node, "configfile_path_placeholder": "CONFIGFILEPATH"}
-        template = django.template.Template(self.custom_config.run_opts_template)
+        template = django.template.Template("{% load node_manager %}" + self.custom_config.run_opts_template)
         result = template.render(context=django.template.Context(context))
         return result
 
@@ -298,7 +312,7 @@ class EasyTierNode(TimeStampedModel):
     def get_run_opts(self):
         context = {"easytier_node_obj": self, "configfile_path_placeholder": "CONFIGFILEPATH"}
         if self.custom_run_opts_template:
-            template = django.template.Template(self.custom_run_opts_template)
+            template = django.template.Template("{% load node_manager %}" + self.custom_run_opts_template)
             result = template.render(context=django.template.Context(context))
         else:
             template = django.template.loader.get_template("node_manager/configs/easytier_opts.txt")
@@ -374,7 +388,7 @@ class EasyTierNode(TimeStampedModel):
             "proxy_networks": proxy_networks,
         }
         if self.custom_toml_config_template:
-            template = django.template.Template(self.custom_toml_config_template)
+            template = django.template.Template("{% load node_manager %}" + self.custom_toml_config_template)
             result = template.render(context=django.template.Context(context))
         else:
             template = django.template.loader.get_template("node_manager/configs/easytier.toml")
