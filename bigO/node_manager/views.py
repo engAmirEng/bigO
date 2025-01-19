@@ -10,7 +10,6 @@ from asgiref.sync import sync_to_async
 
 from bigO.core import models as core_models
 from bigO.utils.decorators import xframe_options_sameorigin
-from django.conf import settings
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.core.exceptions import PermissionDenied
 from django.http import FileResponse, HttpResponse, JsonResponse, StreamingHttpResponse
@@ -186,9 +185,8 @@ class NodeBaseSyncAPIView(APIView):
         nginx_program = site_config.main_nginx.get_program_for_node(node_obj)
         if global_nginx_conf:
             if nginx_program is None:
-                logger.critical(f"no program found for global_nginx_conf")
+                logger.critical("no program found for global_nginx_conf")
             else:
-                influential = ""
                 influential_global_deps = [
                     i["content"] for i in global_deps if i["key"] in global_nginx_conf[2]["globals"]
                 ]

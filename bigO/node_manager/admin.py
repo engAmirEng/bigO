@@ -68,10 +68,16 @@ class NodeModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.ModelAd
             prepopulated_fields={},
             model_admin=self,
         )
+        iframe_url = None
+        link_url = None
+        if url is not None:
+            iframe_url, link_url = url
+
         context = self.get_common_context(request, title="Basic Supervisor")
         context["node_id"] = node_pk
         context["connect_form"] = connect_form
-        context["iframe_url"] = url
+        context["iframe_url"] = iframe_url
+        context["link_url"] = link_url
         if request.htmx:
             r = render_block_to_string(
                 "node_manager/admin/basic_supervisor.html", block_name="content", context=context, request=request

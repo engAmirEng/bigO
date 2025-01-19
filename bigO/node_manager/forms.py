@@ -1,3 +1,4 @@
+from bigO.core import models as core_models
 from django import forms
 from django.urls import reverse
 
@@ -29,12 +30,13 @@ class SupervisorRPCConnectTypeForm(forms.Form):
                 "easytier_network", self.fields["easytier_network"].queryset.first().id
             )
 
-    def get_url(self):
+    def get_url(self) -> tuple[str, str | None] | None:
         supervisorconfig_obj = getattr(self.node_obj, "supervisorconfig", None)
         xml_rpc_api_expose_port = supervisorconfig_obj.xml_rpc_api_expose_port if supervisorconfig_obj else None
         if xml_rpc_api_expose_port is None:
             self.add_error(None, "xml_rpc_api_expose_port is not active for this node")
             return None
+        site_config = core_models.SiteConfiguration.objects.get()
         self.full_clean()
         cleaned_data = getattr(self, "cleaned_data", {})
         method = cleaned_data.get("method", self.fields["method"].initial)
@@ -48,11 +50,17 @@ class SupervisorRPCConnectTypeForm(forms.Form):
             if not ip_obj:
                 return None
             if _type == "direct":
-                return f"https://{ip_obj.ip.ip}:{xml_rpc_api_expose_port}"
+                return (
+                    f"https://{ip_obj.ip.ip}:{xml_rpc_api_expose_port}",
+                    f"https://{site_config.basic_username}:{site_config.basic_password}@{ip_obj.ip.ip}:{xml_rpc_api_expose_port}",
+                )
             elif _type == "relay":
-                return reverse(
-                    "node_manager:node_supervisor_server_proxy_root_view",
-                    args=[self.node_obj.id, f"{method}:{ip_obj.id}"],
+                return (
+                    reverse(
+                        "node_manager:node_supervisor_server_proxy_root_view",
+                        args=[self.node_obj.id, f"{method}:{ip_obj.id}"],
+                    ),
+                    None,
                 )
         elif method == "easytier":
             easytier_network_obj = cleaned_data.get("easytier_network", self.fields["easytier_network"].initial)
@@ -60,11 +68,17 @@ class SupervisorRPCConnectTypeForm(forms.Form):
                 return None
             if _type == "direct":
                 ip = easytier_network_obj.network_easytiernodes.filter(node=self.node_obj).first().ipv4
-                return f"https://{ip.ip}:{xml_rpc_api_expose_port}"
+                return (
+                    f"https://{ip.ip}:{xml_rpc_api_expose_port}",
+                    f"https://{site_config.basic_username}:{site_config.basic_password}@{ip.ip}:{xml_rpc_api_expose_port}",
+                )
             elif _type == "relay":
-                return reverse(
-                    "node_manager:node_supervisor_server_proxy_root_view",
-                    args=[self.node_obj.id, f"{method}:{easytier_network_obj.id}"],
+                return (
+                    reverse(
+                        "node_manager:node_supervisor_server_proxy_root_view",
+                        args=[self.node_obj.id, f"{method}:{easytier_network_obj.id}"],
+                    ),
+                    None,
                 )
 
 

@@ -21,7 +21,7 @@
     {% include "admin/includes/fieldset.html" %}
   {% endfor %}
   {% endblock %}
-  <p>connecting via: {{ iframe_url }}</p>
+  <a href="{{ link_url }}">connecting via: {{ iframe_url }}</a>
 </form>
 {% if iframe_url %}
 <iframe id="ggg" src="{{ iframe_url }}" style="height:100vh;width:100%;"></iframe>
