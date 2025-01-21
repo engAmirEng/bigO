@@ -161,7 +161,7 @@ class CustomConfigDependantFile(TimeStampedModel, models.Model):
     customconfig = models.ForeignKey(CustomConfig, on_delete=models.CASCADE, related_name="dependantfiles")
     key = models.SlugField()
     template = models.TextField(help_text="{node_obj}")
-    template_extension = models.CharField(null=True, blank=True)
+    template_extension = models.CharField(max_length=15, null=True, blank=True)
 
     class Meta:
         constraints = [UniqueConstraint(fields=("customconfig", "key"), name="unique_slug_customconfig")]

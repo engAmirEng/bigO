@@ -15,12 +15,12 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='siteconfiguration',
             name='basic_password',
-            field=models.CharField(blank=True, null=True),
+            field=models.CharField(blank=False, null=True),
         ),
         migrations.AddField(
             model_name='siteconfiguration',
             name='basic_username',
-            field=models.CharField(blank=True, null=True),
+            field=models.CharField(blank=False, null=True),
         ),
         migrations.AddField(
             model_name='siteconfiguration',
