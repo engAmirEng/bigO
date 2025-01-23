@@ -53,6 +53,10 @@
       ansible.builtin.package:
         name: python3-venv
         state: present
+    - name: Install git for pip installing from it
+      ansible.builtin.package:
+        name: git
+        state: present
     - name: Install the specified Python package in the virtual environment
       pip:
         name: "{{ pip_install_smallo1 }}"
