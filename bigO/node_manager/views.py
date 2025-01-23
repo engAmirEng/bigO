@@ -214,6 +214,10 @@ class NodeBaseSyncAPIView(APIView):
                     }
                 ).data
             )
+        from bigO.proxy_platforms.services import get_sync_node
+
+        proxy_configs = get_sync_node(node_obj)
+        configs.extend(proxy_configs)
 
         global_nginx_conf = services.get_global_nginx_conf(node=node_obj)
         nginx_program = site_config.main_nginx.get_program_for_node(node_obj)
