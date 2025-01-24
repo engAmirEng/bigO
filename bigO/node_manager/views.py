@@ -102,6 +102,7 @@ class NodeBaseSyncAPIView(APIView):
     class InputSerializer(serializers.Serializer):
         metrics = MetricSerializer()
         configs_states = ConfigStateSerializer(allow_null=True, many=True)
+        smallo1_logs = SupervisorProcessTailLogSerializer(allow_null=True)
 
     class OutputSerializer(serializers.Serializer):
         configs = ConfigSerializer(many=True, required=False)
@@ -127,7 +128,7 @@ class NodeBaseSyncAPIView(APIView):
         input_ser = self.InputSerializer(data=request.data)
         input_ser.is_valid(raise_exception=True)
         input_data = input_ser.validated_data
-        services.node_process_stats(input_data["configs_states"])
+        services.node_process_stats(input_data["configs_states"], smallo1_logs=input_data["smallo1_logs"])
         services.node_spec_create(node=node_obj, ip_a=input_data["metrics"]["ip_a"])
 
         site_config: core_models.SiteConfiguration = core_models.SiteConfiguration.objects.get()

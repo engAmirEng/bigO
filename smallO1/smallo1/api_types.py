@@ -70,6 +70,7 @@ class ConfigStateRequest(pydantic.BaseModel):
 class BaseSyncRequest(pydantic.BaseModel):
     metrics: MetricRequest
     configs_states: Optional[List[ConfigStateRequest]]
+    smallo1_logs: "SupervisorProcessTailLog"
 
 class SupervisorProcessInfoDict(typing_extensions.TypedDict):
     name: str

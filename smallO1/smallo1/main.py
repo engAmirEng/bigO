@@ -2,6 +2,7 @@ import argparse
 import datetime
 import importlib.metadata
 import logging.config
+import logging.handlers
 import os
 import subprocess
 import time
@@ -127,7 +128,22 @@ def is_supervisor_running(sup_server: xmlrpc.client.ServerProxy):
 
 def main(settings: Settings):
     _version = importlib.metadata.version("smallo1")
-    logging.basicConfig(filename=settings.get_logs_dir().joinpath("debug.log"), level=logging.DEBUG)
+    formatter = logging.Formatter("%(levelname)s %(asctime)s %(module)s %(process)d %(thread)d %(message)s")
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.DEBUG)
+    console_handler.setFormatter(formatter)
+    file_handler = logging.handlers.RotatingFileHandler(
+        settings.get_logs_dir().joinpath("debug.log"),
+        maxBytes=50 * 1024 * 1024,
+        backupCount=0
+    )
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(formatter)
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.DEBUG)
+    if settings.is_dev:
+        root_logger.addHandler(console_handler)
+    root_logger.addHandler(file_handler)
     if settings.sentry_dsn:
         logging.debug("sentry is configured")
         sentry_sdk.init(
@@ -159,7 +175,7 @@ def main(settings: Settings):
             headers = {"Authorization": f"Api-Key {settings.api_key}", "User-Agent": f"smallo1:{_version}"}
             base_sync_url = settings.get_base_sync_url()
             logger.debug(f"requesting {base_sync_url}")
-            with BaseSyncRequestPayload(sup_server=sup_server, backup_dir=settings.get_logs_dir()) as payloadmanager:
+            with BaseSyncRequestPayload(sup_server=sup_server, backup_dir=settings.get_logs_dir(), self_log_file=settings.get_logs_dir().joinpath("debug.log")) as payloadmanager:
                 r = requests.post(base_sync_url, json=payloadmanager.payload.model_dump(mode="json"), headers=headers, timeout=settings.get_timeout())
                 if r.status_code != 200:
                     next_try_in = settings.interval_sec
@@ -273,13 +289,15 @@ priority=10
 
 
 class BaseSyncRequestPayload:
-    def __init__(self, sup_server: xmlrpc.client.ServerProxy, backup_dir: Path):
+    def __init__(self, sup_server: xmlrpc.client.ServerProxy, backup_dir: Path, self_log_file: Path):
         self.sup_server = sup_server
         self.backup_dir = backup_dir
         self.is_committed = False
         self.payload: pydantic.BaseModel
+        self.self_log_file = self_log_file
 
     def __enter__(self):
+        bytes_limit = 20_000_000
         try:
             all_process_info_list: List[SupervisorProcessInfoDict] = self.sup_server.supervisor.getAllProcessInfo()
         except Exception as e:
@@ -295,25 +313,42 @@ class BaseSyncRequestPayload:
                 configs_states.extend(perv_configs_states)
             for i in all_process_info_list:
                 now = datetime.datetime.now().astimezone()
-                r = self.sup_server.supervisor.tailProcessStdoutLog(i["name"], 0, 20_000_000)
+                r = self.sup_server.supervisor.tailProcessStdoutLog(i["name"], 0, bytes_limit)
                 stdout_r = SupervisorProcessTailLog(bytes=r[0], offset=r[1], overflow=r[2])
-                r = self.sup_server.supervisor.tailProcessStderrLog(i["name"], 0, 20_000_000)
+                r = self.sup_server.supervisor.tailProcessStderrLog(i["name"], 0, bytes_limit)
                 stderr_r = SupervisorProcessTailLog(bytes=r[0], offset=r[1], overflow=r[2])
                 self.sup_server.supervisor.clearProcessLogs(i["name"])
                 configs_states.append(
                     ConfigStateRequest(time=now, supervisorprocessinfo=i, stdout=stdout_r, stderr=stderr_r))
 
         ipa_res = subprocess.run(["ip", "a"], capture_output=True)
-        self.payload = BaseSyncRequest(metrics=MetricRequest(ip_a=ipa_res.stdout.decode("utf-8")), configs_states=configs_states)
+        with open(self.self_log_file, "r+b") as f:
+            total_size = os.fstat(f.fileno()).st_size
+            ef = min(bytes_limit, total_size)
+            f.seek(-ef, os.SEEK_END)
+            self_log = f.read(ef)
+            f.truncate(0)
+        self.payload = BaseSyncRequest(
+            metrics=MetricRequest(ip_a=ipa_res.stdout.decode("utf-8")),
+            configs_states=configs_states,
+            smallo1_logs=SupervisorProcessTailLog(bytes=self_log.decode("utf-8"), offset=0, overflow=total_size>bytes_limit)
+        )
         return self
 
     @property
-    def backup_file(self):
-        r = self.backup_dir.joinpath("configs_states.json.bak")
-        r.touch(exist_ok=True)
-        return r
+    def backup_file(self) -> Path:
+        configs_states = self.backup_dir.joinpath("configs_states.json.bak")
+        configs_states.touch(exist_ok=True)
+        return configs_states
     def __exit__(self, exc_type, exc_value, exc_traceback):
         if not self.is_committed:
+            with open(self.self_log_file, "r+b") as f:
+                red_content = self.payload.smallo1_logs.bytes.encode("utf-8")
+                content = f.read()
+                f.seek(0)
+                f.write(red_content)
+                f.write(content)
+
             with open(self.backup_file, "wb") as f:
                 ta = pydantic.TypeAdapter(List[ConfigStateRequest])
                 f.write(ta.dump_json(self.payload.configs_states))

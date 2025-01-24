@@ -38,7 +38,7 @@ def node_spec_create(*, node: models.Node, ip_a: str):
         container_spec.save()
 
 
-def node_process_stats(configs_states: list[dict] | None):
+def node_process_stats(configs_states: list[dict] | None, smallo1_logs: dict | None):
     # todo
     pass
 
