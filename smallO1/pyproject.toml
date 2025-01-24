@@ -7,9 +7,9 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = ">=3.8"
-requests = "*"
 pydantic = ">=2.9.2,<3"
 pydantic-settings = ">=2.6.0,<3"
+requests = "*"
 sentry-sdk = "*"
 
 [tool.poetry.scripts]

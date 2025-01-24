@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import List, Optional
 
 import pydantic
+import typing_extensions
 
 
 class ProgramResponse(pydantic.BaseModel):
@@ -60,6 +61,32 @@ class BaseSyncResponse(pydantic.BaseModel):
 class MetricRequest(pydantic.BaseModel):
     ip_a: str
 
+class ConfigStateRequest(pydantic.BaseModel):
+    time: pydantic.AwareDatetime
+    supervisorprocessinfo: "SupervisorProcessInfoDict"
+    stdout: "SupervisorProcessTailLog"
+    stderr: "SupervisorProcessTailLog"
 
 class BaseSyncRequest(pydantic.BaseModel):
     metrics: MetricRequest
+    configs_states: Optional[List[ConfigStateRequest]]
+
+class SupervisorProcessInfoDict(typing_extensions.TypedDict):
+    name: str
+    group: str
+    description: str
+    start: int
+    stop: int
+    now: int
+    state: int
+    statename: str
+    spawnerr: str
+    exitstatus: int
+    stdout_logfile: str
+    stderr_logfile: str
+    pid: int
+
+class SupervisorProcessTailLog(pydantic.BaseModel):
+    bytes: str
+    offset: int
+    overflow: bool

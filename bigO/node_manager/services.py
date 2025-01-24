@@ -38,6 +38,11 @@ def node_spec_create(*, node: models.Node, ip_a: str):
         container_spec.save()
 
 
+def node_process_stats(configs_states: list[dict] | None):
+    # todo
+    pass
+
+
 def get_easytier_to_node_ips(*, source_node: models.Node, dest_node_id: int) -> list[ipaddress.IPv4Address]:
     source_ea_networks = models.EasyTierNetwork.objects.filter(network_easytiernodes__node_id=source_node.id)
     dest_ea_nodes = models.EasyTierNode.objects.filter(
@@ -205,6 +210,8 @@ http {
             proxy_set_header Connection 'upgrade';
         }
     }
+    error_log stderr warn;
+    access_log /dev/stdout ;
 }
     """
     result = django.template.Template(cnfg).render(context=django.template.Context(context))

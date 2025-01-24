@@ -1,21 +1,24 @@
 import argparse
+import datetime
 import importlib.metadata
-import logging
+import logging.config
 import os
 import subprocess
 import time
 import urllib.parse
+import xmlrpc.client
 from hashlib import sha256
 from pathlib import Path
-from typing import Union, Tuple, Optional
-
+from typing import Union, Tuple, Optional, List
 import pydantic
 import requests
 import sentry_sdk
 from dotenv import load_dotenv
 from pydantic_settings import BaseSettings
 
-from .api_types import BaseSyncRequest, BaseSyncResponse, MetricRequest
+from .api_types import BaseSyncRequest, BaseSyncResponse, MetricRequest, SupervisorProcessInfoDict, \
+    SupervisorProcessTailLog, ConfigStateRequest
+from . import utils
 
 logger = logging.getLogger(__name__)
 
@@ -114,12 +117,12 @@ files = {str(subconfig_path)}
         return res
 
 
-def is_supervisor_running():
-    result = subprocess.run(["supervisorctl", "status"], capture_output=True)
-    if ".sock no such file" in str(result.stdout):
+def is_supervisor_running(sup_server: xmlrpc.client.ServerProxy):
+    try:
+        res = sup_server.supervisor.getState()
+    except FileNotFoundError:
         return False
-    else:
-        return True
+    return res["statecode"] == 1
 
 
 def main(settings: Settings):
@@ -136,7 +139,8 @@ def main(settings: Settings):
 
     supervisor_config_path = settings.get_supervisor_dir().joinpath("supervisor.conf")
     supervisor_config_path.touch()
-    if not is_supervisor_running():
+    sup_server = xmlrpc.client.ServerProxy('http://dummy', transport=utils.UnixStreamTransport("/var/run/supervisor.sock"))
+    if not is_supervisor_running(sup_server=sup_server):
         if settings.full_control_supervisord:
             logger.info("supervisor is not running, starting it ...")
             supervisor_base_config_path = settings.get_supervisor_dir().joinpath("base_supervisor.conf")
@@ -153,15 +157,17 @@ def main(settings: Settings):
     while True:
         try:
             headers = {"Authorization": f"Api-Key {settings.api_key}", "User-Agent": f"smallo1:{_version}"}
-            payload = get_base_sync_request_payload()
             base_sync_url = settings.get_base_sync_url()
             logger.debug(f"requesting {base_sync_url}")
-            r = requests.post(base_sync_url, json=payload, headers=headers, timeout=settings.get_timeout())
-            if r.status_code != 200:
-                next_try_in = settings.interval_sec
-                logger.warning(f"base-sync returned {r.status_code=}, {next_try_in=} and the content is \n{r.content}")
-                time.sleep(next_try_in)
-                continue
+            with BaseSyncRequestPayload(sup_server=sup_server, backup_dir=settings.get_logs_dir()) as payloadmanager:
+                r = requests.post(base_sync_url, json=payloadmanager.payload.model_dump(mode="json"), headers=headers, timeout=settings.get_timeout())
+                if r.status_code != 200:
+                    next_try_in = settings.interval_sec
+                    logger.warning(f"base-sync returned {r.status_code=}, {next_try_in=} and the content is \n{r.content}")
+                    time.sleep(next_try_in)
+                    continue
+                payloadmanager.commited()
+
             response = r.json()
             logger.debug(f"base-sync respond with {r.status_code=} and content is:\n\n{response}")
 
@@ -230,7 +236,7 @@ priority=10
                 logging.debug("change found.")
                 with open(supervisor_config_path, "wb") as f:
                     f.write(new_supervisor_config.encode("utf-8"))
-                if not is_supervisor_running():
+                if not is_supervisor_running(sup_server=sup_server):
                     if settings.full_control_supervisord:
                         logger.info("supervisor is not running, starting it ...")
                         supervisor_base_config_path = settings.get_supervisor_dir().joinpath("base_supervisor.conf")
@@ -266,10 +272,57 @@ priority=10
         time.sleep(settings.interval_sec)
 
 
-def get_base_sync_request_payload():
-    res = subprocess.run(["ip", "a"], capture_output=True)
-    base_sync_request = BaseSyncRequest(metrics=MetricRequest(ip_a=res.stdout.decode("utf-8")))
-    return base_sync_request.model_dump()
+class BaseSyncRequestPayload:
+    def __init__(self, sup_server: xmlrpc.client.ServerProxy, backup_dir: Path):
+        self.sup_server = sup_server
+        self.backup_dir = backup_dir
+        self.is_committed = False
+        self.payload: pydantic.BaseModel
+
+    def __enter__(self):
+        try:
+            all_process_info_list: List[SupervisorProcessInfoDict] = self.sup_server.supervisor.getAllProcessInfo()
+        except Exception as e:
+            configs_states = None
+            if is_supervisor_running(sup_server=self.sup_server):
+                raise e
+        else:
+            configs_states: List[ConfigStateRequest] = []
+            with open(self.backup_file, "rb") as f:
+                perv_configs_states_json = f.read()
+            if perv_configs_states_json:
+                perv_configs_states = pydantic.TypeAdapter(List[ConfigStateRequest]).validate_json(perv_configs_states_json)
+                configs_states.extend(perv_configs_states)
+            for i in all_process_info_list:
+                now = datetime.datetime.now().astimezone()
+                r = self.sup_server.supervisor.tailProcessStdoutLog(i["name"], 0, 20_000_000)
+                stdout_r = SupervisorProcessTailLog(bytes=r[0], offset=r[1], overflow=r[2])
+                r = self.sup_server.supervisor.tailProcessStderrLog(i["name"], 0, 20_000_000)
+                stderr_r = SupervisorProcessTailLog(bytes=r[0], offset=r[1], overflow=r[2])
+                self.sup_server.supervisor.clearProcessLogs(i["name"])
+                configs_states.append(
+                    ConfigStateRequest(time=now, supervisorprocessinfo=i, stdout=stdout_r, stderr=stderr_r))
+
+        ipa_res = subprocess.run(["ip", "a"], capture_output=True)
+        self.payload = BaseSyncRequest(metrics=MetricRequest(ip_a=ipa_res.stdout.decode("utf-8")), configs_states=configs_states)
+        return self
+
+    @property
+    def backup_file(self):
+        r = self.backup_dir.joinpath("configs_states.json.bak")
+        r.touch(exist_ok=True)
+        return r
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        if not self.is_committed:
+            with open(self.backup_file, "wb") as f:
+                ta = pydantic.TypeAdapter(List[ConfigStateRequest])
+                f.write(ta.dump_json(self.payload.configs_states))
+        else:
+            self.backup_file.unlink(missing_ok=True)
+
+
+    def commited(self):
+        self.is_committed = True
 
 
 class ContentDownloadError(Exception):
