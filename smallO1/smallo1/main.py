@@ -179,13 +179,13 @@ def main(settings: Settings):
                 r = requests.post(base_sync_url, json=payloadmanager.payload.model_dump(mode="json"), headers=headers, timeout=settings.get_timeout())
                 if r.status_code != 200:
                     next_try_in = settings.interval_sec
-                    logger.warning(f"base-sync returned {r.status_code=}, {next_try_in=} and the content is \n{r.content}")
+                    logger.warning(f"base-sync returned {r.status_code=}, {next_try_in=} and the content is {r.content}")
                     time.sleep(next_try_in)
                     continue
                 payloadmanager.commited()
 
             response = r.json()
-            logger.debug(f"base-sync respond with {r.status_code=} and content is:\n\n{response}")
+            logger.debug(f"base-sync respond with {r.status_code=} and content is: {response}")
 
             response = BaseSyncResponse(**response)
             new_supervisor_config = ""
@@ -388,7 +388,7 @@ def download_outerbinary(*, binary_content_url: str, save_to: Path, identifier: 
                 logger.debug(f"successfully downloaded {identifier=}")
                 break
             else:
-                logger.warning(f"binary-content returned {r.status_code=}, and the content is \n{r.text[:50]}")
+                logger.warning(f"binary-content returned {r.status_code=}, and the content is {r.text[:50]}")
         except requests.exceptions.Timeout:
             logger.warning(f"timeout in binary download at {retry_count=}")
             if save_to.exists():
