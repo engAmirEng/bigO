@@ -10,6 +10,7 @@ from taggit.managers import TaggableManager
 
 import django.template.loader
 from bigO.utils.models import TimeStampedModel
+from bigO.core import models as core_models
 from django.core import validators
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
@@ -183,6 +184,8 @@ class NodeCustomConfig(TimeStampedModel):
         related_name="node_customconfigs",
     )
     custom_config = models.ForeignKey(CustomConfig, on_delete=models.CASCADE, related_name="nodecustomconfigs")
+    stdout_action_type = models.PositiveSmallIntegerField(choices=core_models.LogActionType.choices, default=core_models.LogActionType.NOTHING)
+    stderr_action_type = models.PositiveSmallIntegerField(choices=core_models.LogActionType.choices, default=core_models.LogActionType.NOTHING)
 
     class Meta:
         constraints = [UniqueConstraint(fields=("node", "custom_config"), name="unique_node_custom_config")]
@@ -270,6 +273,8 @@ class EasyTierNode(TimeStampedModel):
     rpc_portal_port = models.PositiveSmallIntegerField(null=True, blank=True)
     custom_toml_config_template = models.TextField(null=True, blank=True)
     custom_run_opts_template = models.TextField(null=True, blank=True)
+    stdout_action_type = models.PositiveSmallIntegerField(choices=core_models.LogActionType.choices, default=core_models.LogActionType.NOTHING)
+    stderr_action_type = models.PositiveSmallIntegerField(choices=core_models.LogActionType.choices, default=core_models.LogActionType.NOTHING)
 
     class EasyTierNodeQuerySet(models.QuerySet):
         def ann_can_create_tun(self):

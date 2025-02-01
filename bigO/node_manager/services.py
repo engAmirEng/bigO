@@ -10,7 +10,9 @@ from django.db import transaction
 from django.db.models import Subquery
 from django.utils import timezone
 from rest_framework.request import Request
-
+import requests.auth
+import requests.adapters
+from config import settings
 from . import models
 
 logger = logging.getLogger(__name__)
@@ -37,11 +39,114 @@ def node_spec_create(*, node: models.Node, ip_a: str):
                 container_spec.ipv6 = res
         container_spec.save()
 
+def node_process_stats(node_obj: models.Node, configs_states: list[dict] | None, smallo1_logs: dict | None):
+    streams = []
+    configs_states = configs_states or []
+    base_labels = {"service_name": "bigo"}
+    for i in configs_states:
+        service_name = i["supervisorprocessinfo"]["name"]
+        send_stdout = False
+        send_stderr = False
+        if service_name.startswith("custom_"):
+            ___, cc_id, ncci = service_name.split("_")
+            try:
+                nodecustomconfig_obj = models.NodeCustomConfig.objects.get(node=node_obj, custom_config_id=cc_id)
+            except models.NodeCustomConfig.DoesNotExist:
+                logger.info(f"node service name {service_name} not found for node_process_stats")
+                continue
+            send_stdout = nodecustomconfig_obj.stdout_action_type == core_models.LogActionType.TO_LOKI
+            send_stderr = nodecustomconfig_obj.stderr_action_type == core_models.LogActionType.TO_LOKI
+        if service_name.startswith("eati_"):
+            ___, etn_id = service_name.split("_")
+            try:
+                easytiernode_obj = models.EasyTierNode.objects.get(id=etn_id)
+                send_stdout = easytiernode_obj.stdout_action_type == core_models.LogActionType.TO_LOKI
+                send_stderr = easytiernode_obj.stderr_action_type == core_models.LogActionType.TO_LOKI
+            except models.EasyTierNode.DoesNotExist:
+                logger.info(f"node service name {service_name} not found for node_process_stats")
+                continue
+        if service_name == "global_nginx_conf":
+            continue
 
-def node_process_stats(configs_states: list[dict] | None, smallo1_logs: dict | None):
-    # todo
-    pass
+        collected_at = i["time"]
+        if send_stderr and i["stderr"]["bytes"]:
+            stderr_lines = i["stderr"]["bytes"].split("\n")
+            stream = {**base_labels, "node_id": node_obj.id, "node_name": node_obj.name, "config_name": i["supervisorprocessinfo"]["name"], "captured_at": "stderr"}
+            values = []
+            for stderr_line in stderr_lines:
+                values.append([str(int(collected_at.timestamp() * 1e9)), stderr_line])
+            streams.append({
+                "stream": stream,
+                "values": values
+            })
+        if send_stdout and i["stdout"]["bytes"]:
+            stdout_lines = i["stdout"]["bytes"].split("\n")
+            stream = {**base_labels, "node_id": node_obj.id, "node_name": node_obj.name, "config_name": i["supervisorprocessinfo"]["name"], "captured_at": "stdout"}
+            values = []
+            for stdout_line in stdout_lines:
+                values.append([str(int(collected_at.timestamp() * 1e9)), stdout_line])
+            streams.append({
+                "stream": stream,
+                "values": values
+            })
 
+    if smallo1_logs and smallo1_logs["bytes"]:
+        smallo1_log_lines = smallo1_logs["bytes"].split("\n")
+        stream = {**base_labels, "node_id": node_obj.id, "node_name": node_obj.name, "config_name": "smallo1"}
+        values = []
+        for smallo1_log_line in smallo1_log_lines:
+            values.append([str(int(collected_at.timestamp() * 1e9)), smallo1_log_line])
+        streams.append({
+            "stream": stream,
+            "values": values
+        })
+
+    requests_session = requests.Session()
+    retries = requests.adapters.Retry(total=5, backoff_factor=0.1, status_forcelist=[500, 502, 503, 504, 598])
+    requests_session.mount('https://', requests.adapters.HTTPAdapter(max_retries=retries))
+    site_config = core_models.SiteConfiguration.objects.get()
+    streams_list = split_by_total_length(streams, site_config.loki_batch_size)
+    for streams in streams_list:
+        payload = {
+            "streams": streams
+        }
+        headers = {"Content-Type": "application/json"}
+        res = requests_session.post(settings.LOKI_PUSH_ENDPOINT, headers=headers, json=payload, auth=requests.auth.HTTPBasicAuth(settings.LOKI_USERNAME, settings.LOKI_PASSWORD))
+        if not res.ok:
+            raise Exception(f"faild send to Loki, {res.text=}")
+
+
+def split_by_total_length(strings, max_length):
+    result = []
+    current_group = []
+    current_length = 0
+
+    for s in strings:
+        len_s = len(json.dumps(s))
+        # If a single string exceeds the max_length, place it in its own group
+        if len_s > max_length:
+            # If there's any current group, append it to the result before starting a new group
+            if current_group:
+                result.append(current_group)
+                current_group = []
+                current_length = 0
+            # Add the large string as its own group
+            result.append([s])
+        elif current_length + len_s > max_length:
+            # If adding the string exceeds max_length, finalize the current group and start a new one
+            result.append(current_group)
+            current_group = [s]
+            current_length = len_s
+        else:
+            # Otherwise, add the string to the current group
+            current_group.append(s)
+            current_length += len_s
+
+    # Add the last group if it's not empty
+    if current_group:
+        result.append(current_group)
+
+    return result
 
 def get_easytier_to_node_ips(*, source_node: models.Node, dest_node_id: int) -> list[ipaddress.IPv4Address]:
     source_ea_networks = models.EasyTierNetwork.objects.filter(network_easytiernodes__node_id=source_node.id)

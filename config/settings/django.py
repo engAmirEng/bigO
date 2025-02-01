@@ -295,17 +295,19 @@ LOGGING = {
     },
     "root": {"level": "INFO", "handlers": ["console", "file"]},
 }
-
+LOKI_PUSH_ENDPOINT = env.url("LOKI_PUSH_ENDPOINT").geturl()
+LOKI_USERNAME = env.str("LOKI_USERNAME")
+LOKI_PASSWORD = env.str("LOKI_PASSWORD")
 if env.bool("LOKI_LOGGING", default=False):
     # Define the log queue
     loki_log_queue = queue.Queue(-1)  # Use an unlimited queue size
 
     # Set up the Loki handler
     loki_handler = BasicLokiHandler(
-        url=env.url("LOKI_PUSH_ENDPOINT").geturl(),
+        url=LOKI_PUSH_ENDPOINT,
         labels=env.json("LOKI_BASE_LABELS"),
-        username=env.str("LOKI_USERNAME"),
-        password=env.str("LOKI_PASSWORD"),
+        username=LOKI_USERNAME,
+        password=LOKI_PASSWORD,
     )
 
     # Set up the QueueListener
