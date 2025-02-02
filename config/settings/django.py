@@ -295,6 +295,11 @@ LOGGING = {
     },
     "root": {"level": "INFO", "handlers": ["console", "file"]},
 }
+if env("INFLUX_URL", default=None):
+    INFLUX_URL = env.url("INFLUX_URL").geturl()
+    INFLUX_ORG = env.str("INFLUX_ORG")
+    INFLUX_BUCKET = env.str("INFLUX_BUCKET")
+    INFLUX_TOKEN = env.str("INFLUX_TOKEN")
 if env("LOKI_PUSH_ENDPOINT", default=None):
     LOKI_PUSH_ENDPOINT = env.url("LOKI_PUSH_ENDPOINT").geturl()
     LOKI_USERNAME = env.str("LOKI_USERNAME")

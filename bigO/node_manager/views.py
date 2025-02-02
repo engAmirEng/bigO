@@ -6,6 +6,7 @@ from hashlib import sha256
 from urllib.parse import urlparse
 
 import aiohttp.client_exceptions
+import sentry_sdk
 from asgiref.sync import sync_to_async
 
 from bigO.core import models as core_models
@@ -90,9 +91,7 @@ class SupervisorProcessTailLogSerializer(serializers.Serializer):
 
 
 class ConfigStateSerializer(serializers.Serializer):
-    time = serializers.DateTimeField(
-        format="iso-8601", input_formats=["iso-8601"]
-    )
+    time = serializers.DateTimeField(format="iso-8601", input_formats=["iso-8601"])
     supervisorprocessinfo = SupervisorProcessInfoSerializer()
     stdout = SupervisorProcessTailLogSerializer()
     stderr = SupervisorProcessTailLogSerializer()
@@ -128,7 +127,13 @@ class NodeBaseSyncAPIView(APIView):
         input_ser = self.InputSerializer(data=request.data)
         input_ser.is_valid(raise_exception=True)
         input_data = input_ser.validated_data
-        services.node_process_stats(node_obj=node_obj, configs_states=input_data["configs_states"], smallo1_logs=input_data["smallo1_logs"])
+        try:
+            services.node_process_stats(
+                node_obj=node_obj, configs_states=input_data["configs_states"], smallo1_logs=input_data["smallo1_logs"]
+            )
+        except Exception as e:
+            sentry_sdk.capture_exception(e)
+            logger.error("exception in node_process_stats", exc_info=e)
         services.node_spec_create(node=node_obj, ip_a=input_data["metrics"]["ip_a"])
 
         site_config: core_models.SiteConfiguration = core_models.SiteConfiguration.objects.get()
@@ -214,6 +219,35 @@ class NodeBaseSyncAPIView(APIView):
                     }
                 ).data
             )
+
+        telegraf_conf = services.get_telegraf_conf(node=node_obj)
+        telegraf_program = site_config.main_telegraf.get_program_for_node(node_obj) if site_config.main_telegraf else None
+        if telegraf_conf:
+            if telegraf_program is None:
+                logger.critical("no program found for telegraf_conf")
+            else:
+                influential_global_deps = [
+                    i["content"] for i in global_deps if i["key"] in telegraf_conf[2]["globals"]
+                ]
+                global_nginx_conf_hash = sha256(
+                    (telegraf_conf[0] + telegraf_conf[1] + "".join(influential_global_deps)).encode("utf-8")
+                ).hexdigest()
+                configs.append(
+                    ConfigSerializer(
+                        {
+                            "id": "telegraf_conf",
+                            "program": telegraf_program,
+                            "run_opts": telegraf_conf[0],
+                            "new_run_opts": telegraf_conf[0],
+                            "configfile_content": telegraf_conf[1],
+                            "config_file_ext": None,
+                            "hash": global_nginx_conf_hash,
+                            "dependant_files": ConfigDependantFileSerializer(
+                                [{"key": "main", "content": telegraf_conf[1], "extension": None}], many=True
+                            ).data,
+                        }
+                    ).data
+                )
 
         global_nginx_conf = services.get_global_nginx_conf(node=node_obj)
         nginx_program = site_config.main_nginx.get_program_for_node(node_obj)

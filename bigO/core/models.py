@@ -5,15 +5,22 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import CheckConstraint, Q
 
+
 class LogActionType(models.IntegerChoices):
     NOTHING = 0, "nothing"
     TO_LOKI = 1, "to loki"
 
+
 class SiteConfiguration(SingletonModel):
     nodes_ca_cert = models.ForeignKey("Certificate", on_delete=models.PROTECT, null=True, blank=False)
     main_nginx = models.ForeignKey("node_manager.ProgramVersion", on_delete=models.PROTECT, null=True, blank=False)
-    main_nginx_stdout_action_type = models.PositiveSmallIntegerField(choices=LogActionType.choices, default=LogActionType.NOTHING)
-    main_nginx_stderr_action_type = models.PositiveSmallIntegerField(choices=LogActionType.choices, default=LogActionType.NOTHING)
+    main_telegraf = models.ForeignKey("node_manager.ProgramVersion", on_delete=models.PROTECT, related_name="+", null=True, blank=False)
+    main_nginx_stdout_action_type = models.PositiveSmallIntegerField(
+        choices=LogActionType.choices, default=LogActionType.NOTHING
+    )
+    main_nginx_stderr_action_type = models.PositiveSmallIntegerField(
+        choices=LogActionType.choices, default=LogActionType.NOTHING
+    )
     loki_batch_size = models.PositiveBigIntegerField(default=1 * 1024 * 1024)
     basic_username = models.CharField(max_length=255, blank=False, null=True)
     basic_password = models.CharField(max_length=255, blank=False, null=True)

@@ -4,16 +4,19 @@ import logging
 import random
 from datetime import timedelta
 
+import influxdb_client.domain.write_precision
+import requests.adapters
+import requests.auth
+
 import django.template
 from bigO.core import models as core_models
+from config import settings
 from django.db import transaction
 from django.db.models import Subquery
 from django.utils import timezone
 from rest_framework.request import Request
-import requests.auth
-import requests.adapters
-from config import settings
-from . import models
+
+from . import models, typing
 
 logger = logging.getLogger(__name__)
 
@@ -39,10 +42,11 @@ def node_spec_create(*, node: models.Node, ip_a: str):
                 container_spec.ipv6 = res
         container_spec.save()
 
+
 def node_process_stats(node_obj: models.Node, configs_states: list[dict] | None, smallo1_logs: dict | None):
     streams = []
     configs_states = configs_states or []
-    base_labels = {"service_name": "bigo"}
+    base_labels = {"service_name": "bigo", "node_id": node_obj.id, "node_name": node_obj.name}
     for i in configs_states:
         service_name = i["supervisorprocessinfo"]["name"]
         send_stdout = False
@@ -67,53 +71,88 @@ def node_process_stats(node_obj: models.Node, configs_states: list[dict] | None,
                 continue
         if service_name == "global_nginx_conf":
             continue
-
-        collected_at = i["time"]
-        if send_stderr and i["stderr"]["bytes"]:
-            stderr_lines = i["stderr"]["bytes"].split("\n")
-            stream = {**base_labels, "node_id": node_obj.id, "node_name": node_obj.name, "config_name": i["supervisorprocessinfo"]["name"], "captured_at": "stderr"}
+        if service_name == "telegraf_conf" and i["stdout"]["bytes"] and getattr(settings, "INFLUX_URL", False):
+            for line in i["stdout"]["bytes"].split("\n"):
+                try:
+                    res = json.loads(line)
+                except json.JSONDecodeError:
+                    pass
+                finally:
+                    res = typing.TelegrafJsonOutPut(**res)
+                    with influxdb_client.InfluxDBClient(
+                        url=settings.INFLUX_URL, token=settings.INFLUX_TOKEN, org=settings.INFLUX_ORG
+                    ) as _client:
+                        with _client.write_api(
+                            write_options=influxdb_client.WriteOptions(
+                                batch_size=500,
+                                flush_interval=10_000,
+                                jitter_interval=2_000,
+                                retry_interval=5_000,
+                                max_retries=3,
+                                max_retry_delay=30_000,
+                                max_close_wait=300_000,
+                                exponential_base=2,
+                            )
+                        ) as _write_client:
+                            points = []
+                            for metric in res.metrics:
+                                point = influxdb_client.Point(metric.name)
+                                for tag_name, tag_value in {**metric.tags, **base_labels}.items():
+                                    point = point.tag(tag_name, tag_value)
+                                for field_name, field_value in metric.fields.items():
+                                    point = point.field(field_name, field_value)
+                                point.time(metric.timestamp, write_precision=influxdb_client.domain.write_precision.WritePrecision.S)
+                                points.append(point)
+                            _write_client.write(settings.INFLUX_BUCKET, settings.INFLUX_ORG, points)
+        if getattr(settings, "LOKI_PUSH_ENDPOINT", False):
+            collected_at = i["time"]
+            if send_stderr and i["stderr"]["bytes"]:
+                stderr_lines = i["stderr"]["bytes"].split("\n")
+                stream = {
+                    **base_labels,
+                    "config_name": i["supervisorprocessinfo"]["name"],
+                    "captured_at": "stderr",
+                }
+                values = []
+                for stderr_line in stderr_lines:
+                    values.append([str(int(collected_at.timestamp() * 1e9)), stderr_line])
+                streams.append({"stream": stream, "values": values})
+            if send_stdout and i["stdout"]["bytes"]:
+                stdout_lines = i["stdout"]["bytes"].split("\n")
+                stream = {
+                    **base_labels,
+                    "config_name": i["supervisorprocessinfo"]["name"],
+                    "captured_at": "stdout",
+                }
+                values = []
+                for stdout_line in stdout_lines:
+                    values.append([str(int(collected_at.timestamp() * 1e9)), stdout_line])
+                streams.append({"stream": stream, "values": values})
+    if getattr(settings, "LOKI_PUSH_ENDPOINT", False):
+        if smallo1_logs and smallo1_logs["bytes"]:
+            smallo1_log_lines = smallo1_logs["bytes"].split("\n")
+            stream = {**base_labels, "config_name": "smallo1"}
             values = []
-            for stderr_line in stderr_lines:
-                values.append([str(int(collected_at.timestamp() * 1e9)), stderr_line])
-            streams.append({
-                "stream": stream,
-                "values": values
-            })
-        if send_stdout and i["stdout"]["bytes"]:
-            stdout_lines = i["stdout"]["bytes"].split("\n")
-            stream = {**base_labels, "node_id": node_obj.id, "node_name": node_obj.name, "config_name": i["supervisorprocessinfo"]["name"], "captured_at": "stdout"}
-            values = []
-            for stdout_line in stdout_lines:
-                values.append([str(int(collected_at.timestamp() * 1e9)), stdout_line])
-            streams.append({
-                "stream": stream,
-                "values": values
-            })
+            for smallo1_log_line in smallo1_log_lines:
+                values.append([str(int(collected_at.timestamp() * 1e9)), smallo1_log_line])
+            streams.append({"stream": stream, "values": values})
 
-    if smallo1_logs and smallo1_logs["bytes"]:
-        smallo1_log_lines = smallo1_logs["bytes"].split("\n")
-        stream = {**base_labels, "node_id": node_obj.id, "node_name": node_obj.name, "config_name": "smallo1"}
-        values = []
-        for smallo1_log_line in smallo1_log_lines:
-            values.append([str(int(collected_at.timestamp() * 1e9)), smallo1_log_line])
-        streams.append({
-            "stream": stream,
-            "values": values
-        })
-
-    requests_session = requests.Session()
-    retries = requests.adapters.Retry(total=5, backoff_factor=0.1, status_forcelist=[500, 502, 503, 504, 598])
-    requests_session.mount('https://', requests.adapters.HTTPAdapter(max_retries=retries))
-    site_config = core_models.SiteConfiguration.objects.get()
-    streams_list = split_by_total_length(streams, site_config.loki_batch_size)
-    for streams in streams_list:
-        payload = {
-            "streams": streams
-        }
-        headers = {"Content-Type": "application/json"}
-        res = requests_session.post(settings.LOKI_PUSH_ENDPOINT, headers=headers, json=payload, auth=requests.auth.HTTPBasicAuth(settings.LOKI_USERNAME, settings.LOKI_PASSWORD))
-        if not res.ok:
-            raise Exception(f"faild send to Loki, {res.text=}")
+        requests_session = requests.Session()
+        retries = requests.adapters.Retry(total=5, backoff_factor=0.1, status_forcelist=[500, 502, 503, 504, 598])
+        requests_session.mount("https://", requests.adapters.HTTPAdapter(max_retries=retries))
+        site_config = core_models.SiteConfiguration.objects.get()
+        streams_list = split_by_total_length(streams, site_config.loki_batch_size)
+        for streams in streams_list:
+            payload = {"streams": streams}
+            headers = {"Content-Type": "application/json"}
+            res = requests_session.post(
+                settings.LOKI_PUSH_ENDPOINT,
+                headers=headers,
+                json=payload,
+                auth=requests.auth.HTTPBasicAuth(settings.LOKI_USERNAME, settings.LOKI_PASSWORD),
+            )
+            if not res.ok:
+                raise Exception(f"faild send to Loki, {res.text=}")
 
 
 def split_by_total_length(strings, max_length):
@@ -147,6 +186,7 @@ def split_by_total_length(strings, max_length):
         result.append(current_group)
 
     return result
+
 
 def get_easytier_to_node_ips(*, source_node: models.Node, dest_node_id: int) -> list[ipaddress.IPv4Address]:
     source_ea_networks = models.EasyTierNetwork.objects.filter(network_easytiernodes__node_id=source_node.id)
@@ -321,4 +361,36 @@ http {
     """
     result = django.template.Template(cnfg).render(context=django.template.Context(context))
     run_opt = django.template.Template('-c *#path:main#* -g "daemon off;"').render(context=context)
+    return run_opt, result, context.get("deps", {"globals": []})
+
+
+def get_telegraf_conf(node: models.Node) -> tuple[str, str, dict] | None:
+    if not node.collect_metrics:
+        return None
+    context = {}
+    context = django.template.Context(context)
+    cnfg = """
+[agent]
+  round_interval = true
+  metric_batch_size = 1000
+  metric_buffer_limit = 10000
+  collection_jitter = "0s"
+  flush_interval = "10s"
+  flush_jitter = "0s"
+  precision = "0s"
+
+[[outputs.file]]
+  files = ["stdout"]
+  data_format = "json"
+  use_batch_format = true
+  json_timestamp_units = "1s"
+
+[[inputs.mem]]
+[[inputs.processes]]
+  use_sudo = true
+[[inputs.swap]]
+[[inputs.system]]
+    """
+    result = django.template.Template(cnfg).render(context=django.template.Context(context))
+    run_opt = django.template.Template("-config *#path:main#*").render(context=context)
     return run_opt, result, context.get("deps", {"globals": []})

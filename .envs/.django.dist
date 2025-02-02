@@ -74,6 +74,17 @@ CELERY_BROKER_URL=redis://127.0.0.1:6379/0
 CELERY_FLOWER_USER=debug
 CELERY_FLOWER_PASSWORD=debug
 
+# Metrics
+# ------------------------------------------------------------------------------
+# {url}
+#INFLUX_URL=
+# {str, required if INFLUX_URL}
+#INFLUX_ORG=
+# {str, required if INFLUX_URL}
+#INFLUX_BUCKET=
+# {str, required if INFLUX_URL}
+#INFLUX_TOKEN=
+
 # Logging
 # ------------------------------------------------------------------------------
 # {bool, default to false}
