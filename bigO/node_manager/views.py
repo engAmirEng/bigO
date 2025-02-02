@@ -101,8 +101,8 @@ class ConfigStateSerializer(serializers.Serializer):
 class NodeBaseSyncAPIView(APIView):
     class InputSerializer(serializers.Serializer):
         metrics = MetricSerializer()
-        configs_states = ConfigStateSerializer(allow_null=True, many=True)
-        smallo1_logs = SupervisorProcessTailLogSerializer(allow_null=True)
+        configs_states = ConfigStateSerializer(required=False, default=None, allow_null=True, many=True)
+        smallo1_logs = SupervisorProcessTailLogSerializer(required=False, default=None, allow_null=True)
 
     class OutputSerializer(serializers.Serializer):
         configs = ConfigSerializer(many=True, required=False)
