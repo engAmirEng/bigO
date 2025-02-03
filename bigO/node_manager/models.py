@@ -525,6 +525,5 @@ class NodeLatestSyncStat(TimeStampedModel, models.Model):
     initiated_at = models.DateTimeField()
     respond_at = models.DateTimeField(null=True)
     request_headers = models.JSONField()
-    request_payload = models.JSONField()
     response_payload = models.JSONField(null=True)
     count_up_to_now = models.BigIntegerField()

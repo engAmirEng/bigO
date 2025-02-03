@@ -213,7 +213,6 @@ def create_node_sync_stat(request: Request, node: models.Node) -> models.NodeLat
     except models.NodeLatestSyncStat.DoesNotExist:
         obj = models.NodeLatestSyncStat(node=node)
     obj.request_headers = json.dumps(dict(request.headers))
-    obj.request_payload = json.dumps(request.data)
     obj.initiated_at = timezone.now()
     obj.agent_spec = request._request.headers.get("user-agent", "")[:200]
     obj.response_payload = None
