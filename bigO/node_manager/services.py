@@ -100,6 +100,8 @@ def node_process_stats(node_obj: models.Node, configs_states: list[dict] | None,
                                 for tag_name, tag_value in {**metric.tags, **base_labels}.items():
                                     point = point.tag(tag_name, tag_value)
                                 for field_name, field_value in metric.fields.items():
+                                    if isinstance(field_value, int):
+                                        field_value = float(field_value)
                                     point = point.field(field_name, field_value)
                                 point.time(metric.timestamp, write_precision=influxdb_client.domain.write_precision.WritePrecision.S)
                                 points.append(point)
