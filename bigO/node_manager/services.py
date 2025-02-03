@@ -390,6 +390,7 @@ def get_telegraf_conf(node: models.Node) -> tuple[str, str, dict] | None:
   use_sudo = true
 [[inputs.swap]]
 [[inputs.system]]
+[[inputs.net]]
     """
     result = django.template.Template(cnfg).render(context=django.template.Context(context))
     run_opt = django.template.Template("-config *#path:main#*").render(context=context)
