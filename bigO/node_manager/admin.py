@@ -42,7 +42,7 @@ class NodeSupervisorConfigInline(admin.StackedInline):
 
 @admin.register(models.Node)
 class NodeModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.ModelAdmin):
-    inlines = [NodePublicIPInline, NodeSupervisorConfigInline, NodeInnerProgramInline, NodeLatestSyncStatInline]
+    inlines = [NodePublicIPInline, NodeSupervisorConfigInline, NodeInnerProgramInline, ]
     list_display = (
         "__str__",
         "agent_spec_display",
