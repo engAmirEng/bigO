@@ -5,7 +5,7 @@ set -o nounset
 
 
 exec celery \
-    -A config.celery_app \
+#    -A config.celery_app \      # i do not know why it does not work
     -b "${CELERY_BROKER_URL}" \
     flower \
     --port=5555 --address='0.0.0.0' --url_prefix=flower \
