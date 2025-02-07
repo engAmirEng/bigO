@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, TypedDict
 
 from pydantic import BaseModel
 
@@ -12,3 +12,8 @@ class TelegrafMetric(BaseModel):
 
 class TelegrafJsonOutPut(BaseModel):
     metrics: list[TelegrafMetric]
+
+
+class LokiStram(TypedDict):
+    stream: dict[str, str]
+    values: list[list[str, str]]

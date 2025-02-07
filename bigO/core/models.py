@@ -14,7 +14,9 @@ class LogActionType(models.IntegerChoices):
 class SiteConfiguration(SingletonModel):
     nodes_ca_cert = models.ForeignKey("Certificate", on_delete=models.PROTECT, null=True, blank=False)
     main_nginx = models.ForeignKey("node_manager.ProgramVersion", on_delete=models.PROTECT, null=True, blank=False)
-    main_telegraf = models.ForeignKey("node_manager.ProgramVersion", on_delete=models.PROTECT, related_name="+", null=True, blank=False)
+    main_telegraf = models.ForeignKey(
+        "node_manager.ProgramVersion", on_delete=models.PROTECT, related_name="+", null=True, blank=False
+    )
     main_nginx_stdout_action_type = models.PositiveSmallIntegerField(
         choices=LogActionType.choices, default=LogActionType.NOTHING
     )

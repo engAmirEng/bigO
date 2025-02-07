@@ -6,7 +6,6 @@ from hashlib import sha256
 from urllib.parse import urlparse
 
 import aiohttp.client_exceptions
-import sentry_sdk
 from asgiref.sync import sync_to_async
 
 from bigO.core import models as core_models
@@ -127,13 +126,9 @@ class NodeBaseSyncAPIView(APIView):
         input_ser = self.InputSerializer(data=request.data)
         input_ser.is_valid(raise_exception=True)
         input_data = input_ser.validated_data
-        try:
-            services.node_process_stats(
-                node_obj=node_obj, configs_states=input_data["configs_states"], smallo1_logs=input_data["smallo1_logs"]
-            )
-        except Exception as e:
-            sentry_sdk.capture_exception(e)
-            logger.error("exception in node_process_stats", exc_info=e)
+        services.node_process_stats(
+            node_obj=node_obj, configs_states=input_data["configs_states"], smallo1_logs=input_data["smallo1_logs"]
+        )
         services.node_spec_create(node=node_obj, ip_a=input_data["metrics"]["ip_a"])
 
         site_config: core_models.SiteConfiguration = core_models.SiteConfiguration.objects.get()
@@ -221,7 +216,9 @@ class NodeBaseSyncAPIView(APIView):
             )
 
         telegraf_conf = services.get_telegraf_conf(node=node_obj)
-        telegraf_program = site_config.main_telegraf.get_program_for_node(node_obj) if site_config.main_telegraf else None
+        telegraf_program = (
+            site_config.main_telegraf.get_program_for_node(node_obj) if site_config.main_telegraf else None
+        )
         if telegraf_conf:
             if telegraf_program is None:
                 logger.critical("no program found for telegraf_conf")
