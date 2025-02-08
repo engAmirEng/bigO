@@ -61,6 +61,7 @@ class Node(TimeStampedModel, models.Model):
     architecture = models.CharField(max_length=63, choices=SystemArchitectureTextChoices.choices)
     default_cert = models.ForeignKey("core.Certificate", on_delete=models.SET_NULL, null=True, blank=True)
     collect_metrics = models.BooleanField(default=False)
+    collect_logs = models.BooleanField(default=False)
 
     class NodeQuerySet(models.QuerySet):
         def support_ipv6(self):

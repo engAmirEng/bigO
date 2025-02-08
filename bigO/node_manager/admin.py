@@ -50,10 +50,11 @@ class NodeModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.ModelAd
         "last_sync_duration_display",
         "sync_count_display",
         "collect_metrics",
+        "collect_logs",
         "public_ips_display",
         "view_supervisor_page_display",
     )
-    list_editable = ["collect_metrics"]
+    list_editable = ["collect_metrics", "collect_logs"]
 
     @admin_extra_buttons.decorators.view(
         pattern="<int:node_pk>/basic_supervisor/",
