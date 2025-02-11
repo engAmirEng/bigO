@@ -160,7 +160,7 @@ class ProgramModelAdmin(admin.ModelAdmin):
 
 @admin.register(models.ProgramVersion)
 class ProgramVersionModelAdmin(admin.ModelAdmin):
-    pass
+    search_fields = ("program__name", "version")
 
 
 class NodeCustomConfigInline(admin.StackedInline):
@@ -207,9 +207,18 @@ class EasyTierNodePeerInline(admin.StackedInline):
 class EasyTierNodeModelAdmin(admin.ModelAdmin):
     form = forms.EasyTierNodeModelForm
     inlines = [EasyTierNodePeerInline, EasyTierNodeListenerInline]
-    list_display = ("__str__", "network", "ipv4", "latency_first")
-    list_editable = ("latency_first",)
+    list_display = ("__str__", "network_display", "preferred_program_version", "ipv4", "latency_first")
+    list_editable = ("latency_first", "preferred_program_version")
+    autocomplete_fields = ("preferred_program_version",)
     list_filter = ("network", "node")
+    list_select_related = ("network",)
+
+    @admin.display(ordering="network", description="Network")
+    def network_display(self, obj):
+        url = reverse(
+            f"admin:{obj.network._meta.app_label}_{obj.network._meta.model_name}_change", args=(obj.network.pk,)
+        )
+        return format_html('<a href="{}">{}</a>', url, str(obj.network))
 
     @admin.display()
     def toml_config_display(self, obj):

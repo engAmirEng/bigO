@@ -271,6 +271,13 @@ class EasyTierNode(TimeStampedModel):
         max_length=255, null=True, blank=True, help_text="tcp://public.easytier.top:11010"
     )
     network = models.ForeignKey(EasyTierNetwork, on_delete=models.CASCADE, related_name="network_easytiernodes")
+    preferred_program_version = models.ForeignKey(
+        ProgramVersion,
+        on_delete=models.PROTECT,
+        related_name="preferredprogramversion_easytiernode",
+        null=True,
+        blank=True,
+    )
     ipv4 = netfields.InetAddressField(
         null=True, blank=True, help_text="this is a stational entity"
     )  # stational entity
@@ -302,10 +309,11 @@ class EasyTierNode(TimeStampedModel):
         """
         returns the appropriate program with priority of NodeInnerProgram and then ProgramBinary
         """
-        res = self.node.node_nodeinnerbinary.filter(program_version=self.network.program_version).first()
+        program_version = self.preferred_program_version or self.network.program_version
+        res = self.node.node_nodeinnerbinary.filter(program_version=program_version).first()
         if res is None:
             res = ProgramBinary.objects.filter(
-                program_version=self.network.program_version, architecture=self.node.architecture
+                program_version=program_version, architecture=self.node.architecture
             ).first()
         return res
 

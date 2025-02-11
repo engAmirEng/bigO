@@ -67,7 +67,12 @@ def node_process_stats(node_obj: models.Node, configs_states: list[dict] | None,
                 continue
         if service_name == "global_nginx_conf":
             continue
-        if node_obj.collect_metrics and service_name == "telegraf_conf" and i["stdout"]["bytes"] and getattr(settings, "INFLUX_URL", False):
+        if (
+            node_obj.collect_metrics
+            and service_name == "telegraf_conf"
+            and i["stdout"]["bytes"]
+            and getattr(settings, "INFLUX_URL", False)
+        ):
             tasks.telegraf_to_influx_send.delay(telegraf_json_lines=i["stdout"]["bytes"], base_labels=base_labels)
         if node_obj.collect_logs and getattr(settings, "LOKI_PUSH_ENDPOINT", False):
             collected_at = i["time"]
