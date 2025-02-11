@@ -282,7 +282,7 @@ priority=10
         except Exception as e:
             sentry_sdk.capture_exception(e)
             next_try_in = settings.interval_sec
-            logger.error(f"error occurred, {next_try_in=}", exc_info=e)
+            logger.error(f"error occurred, {next_try_in=}, {e=}")
             time.sleep(next_try_in)
             continue
 
