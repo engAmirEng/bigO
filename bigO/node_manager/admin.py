@@ -189,7 +189,8 @@ class CustomConfigModelAdmin(admin.ModelAdmin):
 
 @admin.register(models.EasyTierNetwork)
 class EasyTierNetworkModelAdmin(admin.ModelAdmin):
-    list_display = ("__str__", "ip_range")
+    list_display = ("__str__", "program_version", "ip_range")
+    list_select_related = ("program_version",)
 
 
 class EasyTierNodeListenerInline(admin.StackedInline):
