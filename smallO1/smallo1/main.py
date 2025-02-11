@@ -129,6 +129,7 @@ def is_supervisor_running(sup_server: xmlrpc.client.ServerProxy):
 def main(settings: Settings):
     _version = importlib.metadata.version("smallo1")
     formatter = logging.Formatter("%(levelname)s %(asctime)s %(module)s %(process)d %(thread)d %(message)s")
+    formatter.converter = time.gmtime
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.DEBUG)
     console_handler.setFormatter(formatter)

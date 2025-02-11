@@ -1,7 +1,10 @@
+import datetime
 import ipaddress
 import json
 import logging
 import random
+import re
+import zoneinfo
 from datetime import timedelta
 
 import django.template
@@ -100,11 +103,21 @@ def node_process_stats(node_obj: models.Node, configs_states: list[dict] | None,
                 streams.append({"stream": stream, "values": values})
     if node_obj.collect_logs and getattr(settings, "LOKI_PUSH_ENDPOINT", False):
         if smallo1_logs and smallo1_logs["bytes"]:
+            logtime_pattern = r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}"
             smallo1_log_lines = smallo1_logs["bytes"].split("\n")
             stream = {**base_labels, "config_name": "smallo1"}
             values = []
             for smallo1_log_line in smallo1_log_lines:
-                values.append([str(int(collected_at.timestamp() * 1e9)), smallo1_log_line])
+                logtime_match = re.search(logtime_pattern, smallo1_log_line)
+                if logtime_match:
+                    logtime_str = logtime_match.group()
+                    logged_at = datetime.datetime.strptime(logtime_str, "%Y-%m-%d %H:%M:%S,%f").replace(
+                        tzinfo=zoneinfo.ZoneInfo("UTC")
+                    )
+                else:
+                    logger.error(f"cannot match logtime from log line of smallo1 of {node_obj=}")
+                    continue
+                values.append([str(int(logged_at.timestamp() * 1e9)), smallo1_log_line])
             streams.append({"stream": stream, "values": values})
         tasks.send_to_loki.delay(streams=streams)
 
