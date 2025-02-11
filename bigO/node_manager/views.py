@@ -389,7 +389,9 @@ async def node_supervisor_server_proxy_view(request, node_id: int, way: str, pat
 
 
 async def streaming_response(session: aiohttp.ClientSession, response: aiohttp.ClientResponse):
-    async for chunk in response.content.iter_any():
-        yield chunk
-    await response.release()
-    await session.__aexit__(None, None, None)
+    try:
+        async for chunk in response.content.iter_any():
+            yield chunk
+    finally:
+        await response.release()
+        await session.__aexit__(None, None, None)
