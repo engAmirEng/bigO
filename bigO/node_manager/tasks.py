@@ -53,7 +53,7 @@ def check_node_latest_sync(*, limit_seconds: int, ignore_node_ids: list[int] | N
         },
     )
     async def inner():
-        with AiohttpSession() as session:
+        async with AiohttpSession() as session:
             bot = aiogram.Bot(settings.TELEGRAM_BOT_TOKEN, session=session, parse_mode=ParseMode.HTML)
             await bot.send_message(chat_id=superuser.telegram_chat_tid, text=message)
 
