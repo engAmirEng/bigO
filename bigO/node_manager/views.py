@@ -214,6 +214,10 @@ class NodeBaseSyncAPIView(APIView):
                     }
                 ).data
             )
+        from bigO.proxy_manager.services import get_sync_node
+
+        proxy_configs = get_sync_node(node_obj)
+        configs.extend(proxy_configs)
 
         telegraf_conf = services.get_telegraf_conf(node=node_obj)
         telegraf_program = (
