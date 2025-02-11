@@ -52,10 +52,12 @@ def check_node_latest_sync(*, limit_seconds: int, ignore_node_ids: list[int] | N
             "back_online_qs": back_onlines_qs,
         },
     )
-    session = AiohttpSession()
-    bot = aiogram.Bot(settings.TELEGRAM_BOT_TOKEN, session=session, parse_mode=ParseMode.HTML)
-    async_to_sync(session.close)()
-    async_to_sync(bot.send_message)(chat_id=superuser.telegram_chat_tid, text=message)
+    async def inner():
+        with AiohttpSession() as session:
+            bot = aiogram.Bot(settings.TELEGRAM_BOT_TOKEN, session=session, parse_mode=ParseMode.HTML)
+            await bot.send_message(chat_id=superuser.telegram_chat_tid, text=message)
+
+    async_to_sync(inner)()
     cache.set("offline_nodes", json.dumps([i.node_id for i in all_offlines_qs]))
     return f"{str(reporting_offlines_qs.count())} are down and {str(back_onlines_qs.count())} are back"
 
