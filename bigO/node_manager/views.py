@@ -370,7 +370,7 @@ async def node_supervisor_server_proxy_view(request, node_id: int, way: str, pat
         await session.__aexit__(None, None, None)
         if location.path == "/":
             return redirect(
-                reverse("node_manager:node_supervisor_server_proxy_root_view", kwargs={"node_id": node_id})
+                reverse("node_manager:node_supervisor_server_proxy_root_view", kwargs={"node_id": node_id, "way": way})
                 + f"?{location.query}"
             )
         else:
