@@ -3,6 +3,7 @@
 .idea
 # VisualStudioCode
 .vscode
+.vs
 
 ### Python template
 # Byte-compiled / optimized / DLL files
