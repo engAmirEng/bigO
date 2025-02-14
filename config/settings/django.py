@@ -68,10 +68,11 @@ try:
     # when DATABASE_URL="" then env("DATABASE_URL", default=None) returns None!!
 
     # just for "docs" and to run project in a dummy mode
-    DATABASES = {"default": env.db("DATABASE_URL")}
+    DATABASES = {"default": env.db("DATABASE_URL"), "stats": env.db("STATS_DATABASE_URL")}
 except django.core.exceptions.ImproperlyConfigured:
     DATABASES = {
-        "default": {
+        "default": {},
+        "main": {
             "ENGINE": "django.db.backends.postgresql",
             "HOST": env.str("POSTGRES_HOST"),
             "NAME": env.str("POSTGRES_DB"),
@@ -79,10 +80,22 @@ except django.core.exceptions.ImproperlyConfigured:
             "PORT": env.int("POSTGRES_PORT"),
             "USER": env.str("POSTGRES_USER"),
             "CONN_MAX_AGE": env.int("CONN_MAX_AGE", default=0),
-        }
+        },
+        "stats": {
+            "ENGINE": "django.db.backends.postgresql",
+            "HOST": env.str("STATS_POSTGRES_HOST"),
+            "NAME": env.str("STATS_POSTGRES_DB"),
+            "PASSWORD": env.str("STATS_POSTGRES_PASSWORD"),
+            "PORT": env.int("STATS_POSTGRES_PORT"),
+            "USER": env.str("STATS_POSTGRES_USER"),
+            "CONN_MAX_AGE": env.int("STATS_CONN_MAX_AGE", default=0),
+        },
     }
     DATABASES["default"]["CONN_MAX_AGE"] = env.int("CONN_MAX_AGE", default=0)
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+
+DATABASE_ROUTERS = ["config.db_routers.DBRouter"]
 
 # CACHES
 # ------------------------------------------------------------------------------
@@ -103,6 +116,7 @@ CACHES = {
 LOCAL_APPS = [
     "bigO.core",
     "bigO.node_manager",
+    "bigO.proxy_manager",
     "bigO.users",
     "bigO.utils",
 ]

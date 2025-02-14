@@ -6,6 +6,7 @@ from typing import Self, TypedDict
 
 import netfields
 from rest_framework_api_key.models import AbstractAPIKey
+from solo.models import SingletonModel
 from taggit.managers import TaggableManager
 
 import django.template.loader
@@ -465,6 +466,13 @@ class EasyTierNodePeer(TimeStampedModel):
             and self.peer_listener_id == other.peer_listener_id
             and self.peer_public_ip == other.peer_public_ip
         )
+
+
+class XrayConfig(TimeStampedModel, SingletonModel):
+    program_version = models.ForeignKey(
+        ProgramVersion, on_delete=models.PROTECT, related_name="programversion_xrayconfig"
+    )
+    content = models.TextField()
 
 
 class GostClientNode(TimeStampedModel):
