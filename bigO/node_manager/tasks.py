@@ -70,7 +70,7 @@ def telegraf_to_influx_send(telegraf_json_lines: str, base_labels: dict[str, Any
             res = json.loads(line)
         except json.JSONDecodeError:
             pass
-        finally:
+        else:
             res = typing.TelegrafJsonOutPut(**res)
             for metric in res.metrics:
                 point = influxdb_client.Point(metric.name)
