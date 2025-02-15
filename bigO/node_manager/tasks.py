@@ -52,6 +52,7 @@ def check_node_latest_sync(*, limit_seconds: int, ignore_node_ids: list[int] | N
             "back_online_qs": back_onlines_qs,
         },
     )
+
     async def inner():
         async with AiohttpSession() as session:
             bot = aiogram.Bot(settings.TELEGRAM_BOT_TOKEN, session=session, parse_mode=ParseMode.HTML)
