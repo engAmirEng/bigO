@@ -243,7 +243,7 @@ def create_default_cert_for_node(node: models.Node) -> core_models.Certificate:
     certificate_obj.valid_from = valid_after
     certificate_obj.valid_to = valid_before
 
-    with transaction.atomic():
+    with transaction.atomic(using="main"):
         privatekey_obj.save()
         certificate_obj.save()
     return certificate_obj

@@ -343,7 +343,7 @@ class EasyTierNode(TimeStampedModel):
             result = template.render(context)
         return result
 
-    @transaction.atomic
+    @transaction.atomic(using="main")
     def get_toml_config_content(self):
         ipv4 = None
         if self.get_can_create_tun():
