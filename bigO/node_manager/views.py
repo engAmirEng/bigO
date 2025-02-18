@@ -6,8 +6,11 @@ from hashlib import sha256
 from urllib.parse import urlparse
 
 import aiohttp.client_exceptions
+import pydantic
+import sentry_sdk
 from asgiref.sync import sync_to_async
 
+import bigO.utils.exceptions
 from bigO.core import models as core_models
 from bigO.utils.decorators import xframe_options_sameorigin
 from django.contrib.auth.mixins import UserPassesTestMixin
@@ -20,7 +23,7 @@ from rest_framework import serializers, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from . import models, services
+from . import models, services, typing
 from .permissions import HasNodeAPIKey
 
 logger = logging.getLogger(__name__)
@@ -63,44 +66,11 @@ class ConfigSerializer(serializers.Serializer):
     dependant_files = ConfigDependantFileSerializer(many=True)
 
 
-class MetricSerializer(serializers.Serializer):
-    ip_a = serializers.CharField()
-
-
-class SupervisorProcessInfoSerializer(serializers.Serializer):
-    name = serializers.CharField(allow_blank=True)
-    group = serializers.CharField(allow_blank=True)
-    description = serializers.CharField(allow_blank=True)
-    start = serializers.IntegerField()
-    stop = serializers.IntegerField()
-    now = serializers.IntegerField()
-    state = serializers.IntegerField()
-    statename = serializers.CharField(allow_blank=True)
-    spawnerr = serializers.CharField(allow_blank=True)
-    exitstatus = serializers.IntegerField()
-    stdout_logfile = serializers.CharField(allow_blank=True)
-    stderr_logfile = serializers.CharField(allow_blank=True)
-    pid = serializers.IntegerField()
-
-
-class SupervisorProcessTailLogSerializer(serializers.Serializer):
-    bytes = serializers.CharField(allow_blank=True)
-    offset = serializers.IntegerField()
-    overflow = serializers.BooleanField()
-
-
-class ConfigStateSerializer(serializers.Serializer):
-    time = serializers.DateTimeField(format="iso-8601", input_formats=["iso-8601"])
-    supervisorprocessinfo = SupervisorProcessInfoSerializer()
-    stdout = SupervisorProcessTailLogSerializer()
-    stderr = SupervisorProcessTailLogSerializer()
-
-
 class NodeBaseSyncAPIView(APIView):
-    class InputSerializer(serializers.Serializer):
-        metrics = MetricSerializer()
-        configs_states = ConfigStateSerializer(required=False, default=None, allow_null=True, many=True)
-        smallo1_logs = SupervisorProcessTailLogSerializer(required=False, default=None, allow_null=True)
+    class InputSchema(pydantic.BaseModel):
+        metrics: typing.MetricSchema
+        configs_states: list[typing.ConfigStateSchema] | None = None
+        smallo1_logs: typing.SupervisorProcessTailLogSerializerSchema | None = None
 
     class OutputSerializer(serializers.Serializer):
         configs = ConfigSerializer(many=True, required=False)
@@ -123,13 +93,15 @@ class NodeBaseSyncAPIView(APIView):
             raise NotImplementedError
         node_sync_stat_obj = services.create_node_sync_stat(request=request, node=node_obj)
 
-        input_ser = self.InputSerializer(data=request.data)
-        input_ser.is_valid(raise_exception=True)
-        input_data = input_ser.validated_data
+        try:
+            input_data = self.InputSchema(**request.data)
+        except pydantic.ValidationError as e:
+            sentry_sdk.capture_exception(e)
+            raise bigO.utils.exceptions.pydantic_to_drf_error(e)
         services.node_process_stats(
-            node_obj=node_obj, configs_states=input_data["configs_states"], smallo1_logs=input_data["smallo1_logs"]
+            node_obj=node_obj, configs_states=input_data.configs_states, smallo1_logs=input_data.smallo1_logs
         )
-        services.node_spec_create(node=node_obj, ip_a=input_data["metrics"]["ip_a"])
+        services.node_spec_create(node=node_obj, ip_a=input_data.metrics.ip_a)
 
         site_config: core_models.SiteConfiguration = core_models.SiteConfiguration.objects.get()
 
