@@ -42,12 +42,16 @@ def node_spec_create(*, node: models.Node, ip_a: str):
         container_spec.save()
 
 
-def node_process_stats(node_obj: models.Node, configs_states: list[dict] | None, smallo1_logs: dict | None):
+def node_process_stats(
+    node_obj: models.Node,
+    configs_states: list[typing.ConfigStateSchema] | None,
+    smallo1_logs: typing.SupervisorProcessTailLogSerializerSchema | None,
+):
     streams: list[typing.LokiStram] = []
     configs_states = configs_states or []
     base_labels = {"service_name": "bigo", "node_id": node_obj.id, "node_name": node_obj.name}
     for i in configs_states:
-        service_name = i["supervisorprocessinfo"]["name"]
+        service_name = i.supervisorprocessinfo.name
         send_stdout = False
         send_stderr = False
         if service_name.startswith("custom_"):
@@ -73,28 +77,28 @@ def node_process_stats(node_obj: models.Node, configs_states: list[dict] | None,
         if (
             node_obj.collect_metrics
             and service_name == "telegraf_conf"
-            and i["stdout"]["bytes"]
+            and i.stdout.bytes
             and getattr(settings, "INFLUX_URL", False)
         ):
-            tasks.telegraf_to_influx_send.delay(telegraf_json_lines=i["stdout"]["bytes"], base_labels=base_labels)
+            tasks.telegraf_to_influx_send.delay(telegraf_json_lines=i.stdout.bytes, base_labels=base_labels)
         if node_obj.collect_logs and getattr(settings, "LOKI_PUSH_ENDPOINT", False):
-            collected_at = i["time"]
-            if send_stderr and i["stderr"]["bytes"]:
-                stderr_lines = i["stderr"]["bytes"].split("\n")
+            collected_at = i.time
+            if send_stderr and i.stderr.bytes:
+                stderr_lines = i.stderr.bytes.split("\n")
                 stream = {
                     **base_labels,
-                    "config_name": i["supervisorprocessinfo"]["name"],
+                    "config_name": i.supervisorprocessinfo.name,
                     "captured_at": "stderr",
                 }
                 values = []
                 for stderr_line in stderr_lines:
                     values.append([str(int(collected_at.timestamp() * 1e9)), stderr_line])
                 streams.append({"stream": stream, "values": values})
-            if send_stdout and i["stdout"]["bytes"]:
-                stdout_lines = i["stdout"]["bytes"].split("\n")
+            if send_stdout and i.stdout.bytes:
+                stdout_lines = i.stdout.bytes.split("\n")
                 stream = {
                     **base_labels,
-                    "config_name": i["supervisorprocessinfo"]["name"],
+                    "config_name": i.supervisorprocessinfo.name,
                     "captured_at": "stdout",
                 }
                 values = []
@@ -102,9 +106,9 @@ def node_process_stats(node_obj: models.Node, configs_states: list[dict] | None,
                     values.append([str(int(collected_at.timestamp() * 1e9)), stdout_line])
                 streams.append({"stream": stream, "values": values})
     if node_obj.collect_logs and getattr(settings, "LOKI_PUSH_ENDPOINT", False):
-        if smallo1_logs and smallo1_logs["bytes"]:
+        if smallo1_logs and smallo1_logs.bytes:
             logtime_pattern = r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}"
-            smallo1_log_lines = smallo1_logs["bytes"].split("\n")
+            smallo1_log_lines = smallo1_logs.bytes.split("\n")
             stream = {**base_labels, "config_name": "smallo1"}
             values = []
             for smallo1_log_line in smallo1_log_lines:
