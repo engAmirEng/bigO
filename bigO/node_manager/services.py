@@ -121,7 +121,7 @@ def node_process_stats(
                         tzinfo=zoneinfo.ZoneInfo("UTC")
                     )
                 else:
-                    logger.warning(f"cannot match logtime from log line of smallo1 of {node_obj=}; {smallo1_log_line=}")
+                    logger.error(f"cannot match logtime from log line of smallo1 of {node_obj=}; {smallo1_log_line=}")
                     continue
                 values.append([str(int(logged_at.timestamp() * 1e9)), smallo1_log_line])
             streams.append({"stream": stream, "values": values})
