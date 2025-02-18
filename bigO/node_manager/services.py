@@ -112,6 +112,8 @@ def node_process_stats(
             stream = {**base_labels, "config_name": "smallo1"}
             values = []
             for smallo1_log_line in smallo1_log_lines:
+                if not smallo1_log_line:
+                    continue  # skip blank lines
                 logtime_match = re.search(logtime_pattern, smallo1_log_line)
                 if logtime_match:
                     logtime_str = logtime_match.group()
