@@ -1,15 +1,23 @@
 import uuid
 
+from solo.admin import SingletonModelAdmin
+
 from django import forms
 from django.contrib import admin
 
 from . import models
 
 
+@admin.register(models.Config)
+class ConfigModelAdmin(SingletonModelAdmin):
+    list_display = ("__str__",)
+
+
 class SubscriptionModelForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["xray_uuid"].initial = uuid.uuid4()
+        self.fields["uuid"].initial = uuid.uuid4()
 
     class Meta:
         model = models.Subscription
@@ -23,3 +31,8 @@ class SubscriptionModelAdmin(admin.ModelAdmin):
     form = SubscriptionModelForm
     autocomplete_fields = ("user",)
     search_fields = ("user__name", "description")
+
+
+@admin.register(models.Inbound)
+class InboundModelAdmin(admin.ModelAdmin):
+    list_display = ("__str__",)

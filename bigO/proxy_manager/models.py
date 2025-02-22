@@ -1,10 +1,18 @@
+from solo.models import SingletonModel
+
 from bigO.utils.models import TimeStampedModel
 from django.db import models
 
 
+class Config(TimeStampedModel, SingletonModel):
+    sublink_header_template = models.TextField(null=True, blank=False, help_text="{{ subscription_obj }}")
+
+
 class Subscription(TimeStampedModel, models.Model):
+    title = models.CharField(max_length=127)
+    uuid = models.UUIDField(unique=True)
     user = models.ForeignKey("users.User", on_delete=models.PROTECT, null=True, blank=True)
-    xray_uuid = models.UUIDField(blank=True)
+    xray_uuid = models.UUIDField(blank=True, unique=True)
     expiry = models.DurationField(null=True, blank=True)
     upload_limit_bytes = models.PositiveBigIntegerField()
     download_limit_bytes = models.PositiveBigIntegerField()
@@ -16,6 +24,8 @@ class Subscription(TimeStampedModel, models.Model):
     # online_at
     # on_hold_expire_durationon_hold_expire_duration
     # on_hold_timeout
+    current_download_bytes = models.PositiveBigIntegerField(default=0)
+    current_upload_bytes = models.PositiveBigIntegerField(default=0)
 
 
 class SubscriptionNodeUsage(TimeStampedModel, models.Model):
@@ -24,3 +34,12 @@ class SubscriptionNodeUsage(TimeStampedModel, models.Model):
     node_oid = models.PositiveIntegerField()
     upload_traffic = models.PositiveSmallIntegerField()
     download_traffic = models.PositiveSmallIntegerField()
+
+
+class Inbound(TimeStampedModel, models.Model):
+    name = models.SlugField()
+    inbound_template = models.TextField(help_text="{{ node_obj }}")
+    link_template = models.TextField(help_text="{{ subscription_obj }}")
+
+    def __str__(self):
+        return f"{self.pk}-{self.name}"
