@@ -16,6 +16,7 @@ from django.utils import timezone
 from rest_framework.request import Request
 
 from . import models, tasks, typing
+from bigO.proxy_manager import services as services_models
 
 logger = logging.getLogger(__name__)
 
@@ -248,8 +249,36 @@ def create_default_cert_for_node(node: models.Node) -> core_models.Certificate:
         certificate_obj.save()
     return certificate_obj
 
-
 def get_global_nginx_conf(node: models.Node) -> tuple[str, str, dict] | None:
+    usage = False
+    deps = {}
+    res = """
+user root;
+include /etc/nginx/modules-enabled/*.conf;
+worker_processes  auto;
+
+events {
+    worker_connections  1024;
+}
+    """
+    supervisor_nginx_conf = get_supervisor_nginx_conf(node=node)
+    if supervisor_nginx_conf:
+        res += supervisor_nginx_conf[0]
+        deps = supervisor_nginx_conf[1]
+        usage = True
+    proxy_manager_nginx_conf = services_models.get_proxy_manager_nginx_conf(node_obj=node)
+    if proxy_manager_nginx_conf:
+        res += proxy_manager_nginx_conf[0]
+        deps = proxy_manager_nginx_conf[1]
+        usage = True
+
+    if not usage:
+        return None
+    run_opt = django.template.Template('-c *#path:main#* -g "daemon off;"').render(context={})
+    return run_opt, res, deps
+
+
+def get_supervisor_nginx_conf(node: models.Node) -> tuple[str, dict] | None:
     nodesupervisorconfig_obj: models.NodeSupervisorConfig | None = models.NodeSupervisorConfig.objects.filter(
         node=node
     ).first()
@@ -263,13 +292,6 @@ def get_global_nginx_conf(node: models.Node) -> tuple[str, str, dict] | None:
     context = django.template.Context(context)
     cnfg = """
 {% load node_manager %}
-user root;
-include /etc/nginx/modules-enabled/*.conf;
-worker_processes  auto;
-
-events {
-    worker_connections  1024;
-}
 http {
     upstream supervisor {
         server  unix:/var/run/supervisor.sock;
@@ -299,8 +321,7 @@ http {
 }
     """
     result = django.template.Template(cnfg).render(context=django.template.Context(context))
-    run_opt = django.template.Template('-c *#path:main#* -g "daemon off;"').render(context=context)
-    return run_opt, result, context.get("deps", {"globals": []})
+    return result, context.get("deps", {"globals": []})
 
 
 def get_telegraf_conf(node: models.Node) -> tuple[str, str, dict] | None:
