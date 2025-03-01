@@ -6,6 +6,9 @@ from django.db import models
 
 class Config(TimeStampedModel, SingletonModel):
     sublink_header_template = models.TextField(null=True, blank=False, help_text="{{ subscription_obj }}")
+    nginx_config_http_template = models.TextField(null=True, blank=False, help_text="{{ subscription_obj }}")
+    nginx_config_stream_template = models.TextField(null=True, blank=False, help_text="{{ subscription_obj }}")
+    xray_config_template = models.TextField(null=True, blank=False, help_text="{{ subscription_obj }}")
 
 
 class Subscription(TimeStampedModel, models.Model):
@@ -37,9 +40,11 @@ class SubscriptionNodeUsage(TimeStampedModel, models.Model):
 
 
 class Inbound(TimeStampedModel, models.Model):
+    is_active = models.BooleanField(default=True)
     name = models.SlugField()
     inbound_template = models.TextField(help_text="{{ node_obj }}")
-    link_template = models.TextField(help_text="{{ subscription_obj }}")
+    link_template = models.TextField(blank=True, help_text="{{ subscription_obj }}")
+    nginx_path_config = models.TextField(blank=False)
 
     def __str__(self):
         return f"{self.pk}-{self.name}"

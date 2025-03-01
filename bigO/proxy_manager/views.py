@@ -20,7 +20,7 @@ async def sublink_view(request, subscription_uuid: uuid.UUID):
         context=django.template.Context({"subscription_obj": subscription_obj})
     )
     res_lines.append(sublink_header_content)
-    async for i in models.Inbound.objects.all():
+    async for i in models.Inbound.objects.filter(is_active=True):
         run_opt = django.template.Template(i.link_template).render(
             context=django.template.Context({"subscription_obj": subscription_obj})
         )

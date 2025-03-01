@@ -16,7 +16,6 @@ urlpatterns = [
     # Telegram webhook handler
     # path("", include(bigO.telegram_bot.urls)),
     # local apps
-    bigO.proxy_manager.urls.sublink_view_path,
     path("core/", include("bigO.core.urls")),
     path("node-manager/", include("bigO.node_manager.urls")),
     # Graphql url
@@ -35,6 +34,8 @@ urlpatterns = [
         SpectacularSwaggerView.as_view(url_name="api-schema"),
         name="api-docs",
     ),
+
+    bigO.proxy_manager.urls.sublink_view_path,
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
 

@@ -16,6 +16,7 @@ from django.utils import timezone
 from rest_framework.request import Request
 
 from . import models, tasks, typing
+from bigO.proxy_manager import services as services_models
 
 logger = logging.getLogger(__name__)
 
@@ -249,7 +250,90 @@ def create_default_cert_for_node(node: models.Node) -> core_models.Certificate:
     return certificate_obj
 
 
+def get_global_haproxy_conf(node: models.Node) -> tuple[str, str, dict] | None:
+    context = django.template.Context({})
+    res = django.template.Template("""global
+        log /dev/log local0
+
+    defaults
+        log global
+        retry-on all-retryable-errors
+
+        timeout connect 5s
+        timeout client 50s
+        timeout client-fin 50s
+        timeout server 50s
+        timeout tunnel 1h
+        default-server init-addr none
+        default-server inter 15s fastinter 2s downinter 5s rise 3 fall 3
+        mode tcp
+
+    frontend https-in
+        bind :443,:::443 v4v6
+        bind :443,:::443 v4v6 tfo
+        # option tcplog
+        # option dontlognull
+        tcp-request inspect-delay 5s
+        tcp-request content accept if { req.ssl_hello_type 1 }
+        use_backend xray_force
+
+    backend xray_force
+        # server xray unix@/dev/shm/hiddify-xtls-main.sock
+        server xray unix@/var/run/o_xtls_main.sock send-proxy-v2
+    """).render(context=context)
+
+    run_opt = django.template.Template('-f *#path:main#* -d').render(context=context)
+    return run_opt, res, context.get("deps", {"globals": []})
+
+
 def get_global_nginx_conf(node: models.Node) -> tuple[str, str, dict] | None:
+    usage = False
+    deps = {}
+    http_part = ""
+    stream_part = ""
+
+    supervisor_nginx_conf = get_supervisor_nginx_conf(node=node)
+    if supervisor_nginx_conf:
+        http_part += supervisor_nginx_conf[0]
+        deps = supervisor_nginx_conf[1]
+        usage = True
+    proxy_manager_nginx_conf = services_models.get_proxy_manager_nginx_conf(node_obj=node)
+    if proxy_manager_nginx_conf[0] or proxy_manager_nginx_conf[1]:
+        http_part += proxy_manager_nginx_conf[0]
+        stream_part += proxy_manager_nginx_conf[1]
+        deps = proxy_manager_nginx_conf[2]
+        usage = True
+
+    if not usage:
+        return None
+
+    res = django.template.Template("""
+user root;
+include /etc/nginx/modules-enabled/*.conf;
+worker_processes  auto;
+
+events {
+    worker_connections  1024;
+}
+stream {
+    {{ stream|safe }}
+    log_format dns '$remote_addr - - [$time_local] $protocol $status $bytes_sent $bytes_received $session_time "$upstream_addr"';
+
+    error_log stderr warn;
+    access_log /dev/stdout dns;
+}
+http {
+    {{ http|safe }}
+    error_log stderr warn;
+    access_log /dev/stdout;
+}
+    """).render(django.template.Context({"stream": stream_part, "http": http_part}))
+
+    run_opt = django.template.Template('-c *#path:main#* -g "daemon off;"').render(context=django.template.Context({}))
+    return run_opt, res, deps
+
+
+def get_supervisor_nginx_conf(node: models.Node) -> tuple[str, dict] | None:
     nodesupervisorconfig_obj: models.NodeSupervisorConfig | None = models.NodeSupervisorConfig.objects.filter(
         node=node
     ).first()
@@ -263,44 +347,32 @@ def get_global_nginx_conf(node: models.Node) -> tuple[str, str, dict] | None:
     context = django.template.Context(context)
     cnfg = """
 {% load node_manager %}
-user root;
-include /etc/nginx/modules-enabled/*.conf;
-worker_processes  auto;
-
-events {
-    worker_connections  1024;
+upstream supervisor {
+    server  unix:/var/run/supervisor.sock;
+    keepalive 2;
 }
-http {
-    upstream supervisor {
-        server  unix:/var/run/supervisor.sock;
-        keepalive 2;
-    }
-    server {
-        listen {{ supervisor_xml_rpc_api_expose_port }} ssl http2;
-        listen [::]:{{ supervisor_xml_rpc_api_expose_port }} ssl http2;
-        server_name  {{ servername }};
-        ssl_certificate {% default_cert node %};
-        ssl_certificate_key {% default_cert_key node %};
-        ssl_protocols TLSv1.3;
-        location / {
-            auth_basic           "closed site";
-            auth_basic_user_file {% default_basic_http_file node %};
+server {
+    listen {{ supervisor_xml_rpc_api_expose_port }} ssl http2;
+    listen [::]:{{ supervisor_xml_rpc_api_expose_port }} ssl http2;
+    server_name  {{ servername }};
+    ssl_certificate {% default_cert node %};
+    ssl_certificate_key {% default_cert_key node %};
+    ssl_protocols TLSv1.3;
+    location / {
+        auth_basic           "closed site";
+        auth_basic_user_file {% default_basic_http_file node %};
 
-            proxy_pass http://supervisor;
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_http_version 1.1;
-            proxy_set_header Connection 'upgrade';
-        }
+        proxy_pass http://supervisor;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_http_version 1.1;
+        proxy_set_header Connection 'upgrade';
     }
-    error_log stderr warn;
-    access_log /dev/stdout ;
 }
     """
     result = django.template.Template(cnfg).render(context=django.template.Context(context))
-    run_opt = django.template.Template('-c *#path:main#* -g "daemon off;"').render(context=context)
-    return run_opt, result, context.get("deps", {"globals": []})
+    return result, context.get("deps", {"globals": []})
 
 
 def get_telegraf_conf(node: models.Node) -> tuple[str, str, dict] | None:
