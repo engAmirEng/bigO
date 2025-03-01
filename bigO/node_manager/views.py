@@ -199,7 +199,7 @@ class NodeBaseSyncAPIView(APIView):
                 influential_global_deps = [
                     i["content"] for i in global_deps if i["key"] in telegraf_conf[2]["globals"]
                 ]
-                global_nginx_conf_hash = sha256(
+                global_telegraf_conf_hash = sha256(
                     (telegraf_conf[0] + telegraf_conf[1] + "".join(influential_global_deps)).encode("utf-8")
                 ).hexdigest()
                 configs.append(
@@ -211,7 +211,7 @@ class NodeBaseSyncAPIView(APIView):
                             "new_run_opts": telegraf_conf[0],
                             "configfile_content": telegraf_conf[1],
                             "config_file_ext": None,
-                            "hash": global_nginx_conf_hash,
+                            "hash": global_telegraf_conf_hash,
                             "dependant_files": ConfigDependantFileSerializer(
                                 [{"key": "main", "content": telegraf_conf[1], "extension": None}], many=True
                             ).data,
@@ -220,7 +220,7 @@ class NodeBaseSyncAPIView(APIView):
                 )
 
         xray_conf = proxy_manager_services.get_xray_conf(node_obj=node_obj)
-        xray_program = models.ProgramBinary.objects.get(program_version=5)  # todo
+        xray_program = site_config.main_xray.get_program_for_node(node_obj)
         if xray_conf:
             if xray_program is None:
                 logger.critical("no program found for xray_conf")
@@ -249,10 +249,10 @@ class NodeBaseSyncAPIView(APIView):
                 )
 
         global_haproxy_conf = services.get_global_haproxy_conf(node=node_obj)
-        haproxy_program = models.NodeInnerProgram.objects.get(node=node_obj, program_version=8)  # todo
+        haproxy_program = site_config.main_haproxy.get_program_for_node(node_obj)
         if global_haproxy_conf:
             if haproxy_program is None:
-                logger.critical("no program found for global_nginx_conf")
+                logger.critical("no program found for global_haproxy_conf")
             else:
                 influential_global_deps = [
                     i["content"] for i in global_deps if i["key"] in global_haproxy_conf[2]["globals"]
