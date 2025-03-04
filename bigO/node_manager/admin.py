@@ -2,6 +2,7 @@ from decimal import ROUND_HALF_DOWN, Decimal
 
 import admin_extra_buttons.decorators
 import admin_extra_buttons.mixins
+from django.template.defaultfilters import filesizeformat
 from render_block import render_block_to_string
 from rest_framework_api_key.admin import APIKeyModelAdmin
 
@@ -230,6 +231,11 @@ class EasyTierNodeModelAdmin(admin.ModelAdmin):
 class ProgramBinaryModelAdmin(admin.ModelAdmin):
     form = forms.ProgramBinaryModelForm
     readonly_fields = ["hash"]
+    list_display = ("__str__", "file_size_display")
+
+    @admin.display(description="file size")
+    def file_size_display(self, obj: models.ProgramBinary):
+        return filesizeformat(obj.file.size)
 
     def save_model(self, request, obj, form, change):
         if file_hash := form.cleaned_data.get("file_hash"):
