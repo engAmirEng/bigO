@@ -239,6 +239,7 @@ class NodeBaseSyncAPIView(APIView):
                             "program": xray_program,
                             "run_opts": xray_conf[0],
                             "new_run_opts": xray_conf[0],
+                            "comma_separated_environment": "XRAY_LOCATION_ASSET=/home/ubuntu",  # todo
                             "configfile_content": xray_conf[1],
                             "config_file_ext": ".json",
                             "hash": xray_conf_hash,
