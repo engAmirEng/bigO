@@ -61,6 +61,7 @@ class ConfigSerializer(serializers.Serializer):
     program = ProgramSerializer()
     run_opts = serializers.CharField(required=True)
     new_run_opts = serializers.CharField(required=True)
+    comma_separated_environment = serializers.CharField(required=False)
     configfile_content = serializers.CharField(allow_null=True)
     config_file_ext = serializers.CharField(allow_null=True)
     hash = serializers.CharField()
