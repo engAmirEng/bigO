@@ -34,7 +34,6 @@ urlpatterns = [
         SpectacularSwaggerView.as_view(url_name="api-schema"),
         name="api-docs",
     ),
-
     bigO.proxy_manager.urls.sublink_view_path,
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 

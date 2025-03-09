@@ -12,6 +12,7 @@ from asgiref.sync import sync_to_async
 
 import bigO.utils.exceptions
 from bigO.core import models as core_models
+from bigO.proxy_manager import services as proxy_manager_services
 from bigO.utils.decorators import xframe_options_sameorigin
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.core.exceptions import PermissionDenied
@@ -23,7 +24,6 @@ from rest_framework import serializers, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from bigO.proxy_manager import services as proxy_manager_services
 from . import models, services, typing
 from .permissions import HasNodeAPIKey
 
@@ -226,14 +226,12 @@ class NodeBaseSyncAPIView(APIView):
             if xray_program is None:
                 logger.critical("no program found for xray_conf")
             else:
-                influential_global_deps = [
-                    i["content"] for i in global_deps if i["key"] in xray_conf[2]["globals"]
-                ]
+                influential_global_deps = [i["content"] for i in global_deps if i["key"] in xray_conf[2]["globals"]]
                 xray_conf_hash = sha256(
                     (xray_conf[0] + xray_conf[1] + "".join(influential_global_deps)).encode("utf-8")
                 ).hexdigest()
                 configs.append(
-                        ConfigSerializer(
+                    ConfigSerializer(
                         {
                             "id": "xray_conf",
                             "program": xray_program,
@@ -259,7 +257,9 @@ class NodeBaseSyncAPIView(APIView):
                     i["content"] for i in global_deps if i["key"] in global_haproxy_conf[2]["globals"]
                 ]
                 global_haproxy_conf_hash = sha256(
-                    (global_haproxy_conf[0] + global_haproxy_conf[1] + "".join(influential_global_deps)).encode("utf-8")
+                    (global_haproxy_conf[0] + global_haproxy_conf[1] + "".join(influential_global_deps)).encode(
+                        "utf-8"
+                    )
                 ).hexdigest()
                 configs.append(
                     ConfigSerializer(

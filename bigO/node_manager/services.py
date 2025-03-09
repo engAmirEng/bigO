@@ -9,6 +9,7 @@ from datetime import timedelta
 
 import django.template
 from bigO.core import models as core_models
+from bigO.proxy_manager import services as services_models
 from config import settings
 from django.db import transaction
 from django.db.models import Subquery
@@ -16,7 +17,6 @@ from django.utils import timezone
 from rest_framework.request import Request
 
 from . import models, tasks, typing
-from bigO.proxy_manager import services as services_models
 
 logger = logging.getLogger(__name__)
 
@@ -252,7 +252,8 @@ def create_default_cert_for_node(node: models.Node) -> core_models.Certificate:
 
 def get_global_haproxy_conf(node: models.Node) -> tuple[str, str, dict] | None:
     context = django.template.Context({})
-    res = django.template.Template("""global
+    res = django.template.Template(
+        """global
         log /dev/log local0
 
     defaults
@@ -280,9 +281,10 @@ def get_global_haproxy_conf(node: models.Node) -> tuple[str, str, dict] | None:
     backend xray_force
         # server xray unix@/dev/shm/hiddify-xtls-main.sock
         server xray unix@/var/run/o_xtls_main.sock send-proxy-v2
-    """).render(context=context)
+    """
+    ).render(context=context)
 
-    run_opt = django.template.Template('-f *#path:main#* -d').render(context=context)
+    run_opt = django.template.Template("-f *#path:main#* -d").render(context=context)
     return run_opt, res, context.get("deps", {"globals": []})
 
 
@@ -307,7 +309,8 @@ def get_global_nginx_conf(node: models.Node) -> tuple[str, str, dict] | None:
     if not usage:
         return None
 
-    res = django.template.Template("""
+    res = django.template.Template(
+        """
 user root;
 include /etc/nginx/modules-enabled/*.conf;
 worker_processes  auto;
@@ -327,7 +330,8 @@ http {
     error_log stderr warn;
     access_log /dev/stdout;
 }
-    """).render(django.template.Context({"stream": stream_part, "http": http_part}))
+    """
+    ).render(django.template.Context({"stream": stream_part, "http": http_part}))
 
     run_opt = django.template.Template('-c *#path:main#* -g "daemon off;"').render(context=django.template.Context({}))
     return run_opt, res, deps

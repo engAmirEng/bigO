@@ -104,6 +104,12 @@ class PublicIP(TimeStampedModel):
     name = models.CharField(max_length=255, null=True, blank=True)
     ip = netfields.InetAddressField(unique=True)
     is_cdn = models.BooleanField(default=False)
+    isp = models.ForeignKey(
+        "proxy_manager.ISP", on_delete=models.PROTECT, related_name="isp_publicips", null=True, blank=True
+    )
+    region = models.ForeignKey(
+        "proxy_manager.Region", on_delete=models.PROTECT, related_name="region_publicips", null=True, blank=True
+    )
 
     def __str__(self):
         return f"{self.pk}-{self.ip.ip}"

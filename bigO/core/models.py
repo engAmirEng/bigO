@@ -13,7 +13,9 @@ class LogActionType(models.IntegerChoices):
 
 class SiteConfiguration(SingletonModel):
     nodes_ca_cert = models.ForeignKey("Certificate", on_delete=models.PROTECT, null=True, blank=False)
-    main_nginx = models.ForeignKey("node_manager.ProgramVersion", on_delete=models.PROTECT, related_name="+", null=True, blank=False)
+    main_nginx = models.ForeignKey(
+        "node_manager.ProgramVersion", on_delete=models.PROTECT, related_name="+", null=True, blank=False
+    )
     main_telegraf = models.ForeignKey(
         "node_manager.ProgramVersion", on_delete=models.PROTECT, related_name="+", null=True, blank=False
     )
@@ -23,8 +25,12 @@ class SiteConfiguration(SingletonModel):
     main_nginx_stderr_action_type = models.PositiveSmallIntegerField(
         choices=LogActionType.choices, default=LogActionType.NOTHING
     )
-    main_haproxy = models.ForeignKey("node_manager.ProgramVersion", on_delete=models.PROTECT, related_name="+", null=True, blank=False)
-    main_xray = models.ForeignKey("node_manager.ProgramVersion", on_delete=models.PROTECT, related_name="+", null=True, blank=False)
+    main_haproxy = models.ForeignKey(
+        "node_manager.ProgramVersion", on_delete=models.PROTECT, related_name="+", null=True, blank=False
+    )
+    main_xray = models.ForeignKey(
+        "node_manager.ProgramVersion", on_delete=models.PROTECT, related_name="+", null=True, blank=False
+    )
     loki_batch_size = models.PositiveBigIntegerField(default=1 * 1024 * 1024)
     basic_username = models.CharField(max_length=255, blank=False, null=True)
     basic_password = models.CharField(max_length=255, blank=False, null=True)
