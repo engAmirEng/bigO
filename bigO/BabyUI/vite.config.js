@@ -12,18 +12,18 @@ export default defineConfig((mode) => {
 
   return {
     plugins: [
-    react({
-      include: '**/*.disabled',
-    }),
+      react({
+        include: '**/*.disabled',
+      }),
     ],
     root: resolve(INPUT_DIR),
     base: join('/static/', STATIC_URL_PREFIX),
     server: {
-      host: "127.0.0.1",
+      host: '127.0.0.1',
       port: DEV_SERVER_PORT,
     },
     build: {
-      manifest: "manifest.json",
+      manifest: 'manifest.json',
       emptyOutDir: true,
       outDir: resolve(OUTPUT_DIR),
       rollupOptions: {

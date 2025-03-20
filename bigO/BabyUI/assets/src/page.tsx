@@ -1,5 +1,5 @@
-import {createRoot} from 'react-dom/client';
-import {createInertiaApp} from '@inertiajs/react';
+import { createRoot } from 'react-dom/client';
+import { createInertiaApp } from '@inertiajs/react';
 import CssBaseline from '@mui/material/CssBaseline';
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -10,8 +10,11 @@ document.addEventListener('DOMContentLoaded', () => {
     },
     setup({ el, App, props }) {
       createRoot(el).render(
-        <><CssBaseline /><App {...props} /></>
+        <>
+          <CssBaseline />
+          <App {...props} />
+        </>
       );
-    }
+    },
   }).then(() => {});
 });
