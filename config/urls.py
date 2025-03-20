@@ -18,6 +18,7 @@ urlpatterns = [
     # local apps
     path("core/", include("bigO.core.urls")),
     path("node-manager/", include("bigO.node_manager.urls")),
+    path("BabyUI/", include("bigO.BabyUI.urls")),
     # Graphql url
     path("graphql/", csrf_exempt(GraphQLView.as_view(graphiql=settings.GRAPHIQL, schema=schema))),
     # REST API base url

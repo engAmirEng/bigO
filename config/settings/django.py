@@ -119,6 +119,7 @@ LOCAL_APPS = [
     "bigO.proxy_manager",
     "bigO.users",
     "bigO.utils",
+    "bigO.BabyUI",
 ]
 THIRD_PARTY_APPS = clean_ellipsis(
     [
@@ -132,6 +133,7 @@ THIRD_PARTY_APPS = clean_ellipsis(
         "django_filters",
         "django_htmx",
         "django_jsonform",
+        'django_vite',
         "drf_spectacular",
         "graphene_django",
         "graphql_jwt.refresh_token",
@@ -218,6 +220,9 @@ MIDDLEWARE = clean_ellipsis(
 # STATIC
 # ------------------------------------------------------------------------------
 STATIC_ROOT = str(BASE_DIR / "staticfiles")
+STATICFILES_DIRS = [
+    BASE_DIR / "BabyUI" / "dist",
+]
 STATIC_URL = "/static/"
 STATICFILES_FINDERS = [
     "django.contrib.staticfiles.finders.FileSystemFinder",
