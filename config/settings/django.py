@@ -133,10 +133,11 @@ THIRD_PARTY_APPS = clean_ellipsis(
         "django_filters",
         "django_htmx",
         "django_jsonform",
-        'django_vite',
+        "django_vite",
         "drf_spectacular",
         "graphene_django",
         "graphql_jwt.refresh_token",
+        "inertia",
         "netfields",
         "polymorphic",
         "rest_framework",
@@ -209,6 +210,7 @@ MIDDLEWARE = clean_ellipsis(
         "django.contrib.messages.middleware.MessageMiddleware",
         "django.middleware.clickjacking.XFrameOptionsMiddleware",
         "django_htmx.middleware.HtmxMiddleware",
+        "inertia.middleware.InertiaMiddleware",
         # It only formats user lockout messages and renders Axes lockout responses
         # on failed user authentication attempts from login views.
         # If you do not want Axes to override the authentication response

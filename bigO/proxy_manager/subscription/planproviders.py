@@ -1,16 +1,10 @@
 import pydantic
 
-from django.db.models import (
-    Case,
-    DateTimeField,
-    F,
-    PositiveBigIntegerField,
-    When,
-)
+from bigO.utils.models import MakeInterval
+from django.db.models import Case, DateTimeField, F, PositiveBigIntegerField, When
 from django.db.models.functions import Cast, Now
 
 from .base import BaseSubscriptionPlanProvider
-from bigO.utils.models import MakeInterval
 
 
 class TypeSimpleStrict1(BaseSubscriptionPlanProvider):

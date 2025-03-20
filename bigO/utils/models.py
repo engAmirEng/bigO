@@ -10,6 +10,7 @@ class MakeInterval(models.Func):
     function = "make_interval"
     template = "%(function)s(secs => %(expressions)s)"
 
+
 def validate_regex_pattern(value):
     try:
         re.compile(value)

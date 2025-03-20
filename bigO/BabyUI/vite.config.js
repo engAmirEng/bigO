@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv } from 'vite';
 import { resolve, join } from 'path';
+import react from '@vitejs/plugin-react';
 
 export default defineConfig((mode) => {
   const env = loadEnv(mode, '.', '');
@@ -10,6 +11,11 @@ export default defineConfig((mode) => {
   const OUTPUT_DIR = join('dist', STATIC_URL_PREFIX);
 
   return {
+    plugins: [
+    react({
+      include: '**/*.disabled',
+    }),
+    ],
     root: resolve(INPUT_DIR),
     base: join('/static/', STATIC_URL_PREFIX),
     server: {
@@ -23,6 +29,7 @@ export default defineConfig((mode) => {
       rollupOptions: {
         input: {
           aaa: join(INPUT_DIR, 'src/aaa.ts'),
+          main: join(INPUT_DIR, 'src/main.tsx'),
         },
       },
     },
