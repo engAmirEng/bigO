@@ -4,7 +4,7 @@ import { resolve, join } from 'path';
 export default defineConfig((mode) => {
   const env = loadEnv(mode, '.', '');
   const STATIC_URL_PREFIX = env.STATIC_URL_PREFIX;
-  const DEV_SERVER_PORT = env.STATIC_URL_PREFIX;
+  const DEV_SERVER_PORT = env.DEV_SERVER_PORT;
 
   const INPUT_DIR = './assets';
   const OUTPUT_DIR = join('dist', STATIC_URL_PREFIX);
@@ -14,7 +14,7 @@ export default defineConfig((mode) => {
     base: join('/static/', STATIC_URL_PREFIX),
     server: {
       host: "127.0.0.1",
-      port: parseInt(DEV_SERVER_PORT),
+      port: DEV_SERVER_PORT,
     },
     build: {
       manifest: "manifest.json",
