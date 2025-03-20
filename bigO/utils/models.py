@@ -5,6 +5,11 @@ from django.core.validators import RegexValidator
 from django.db import models
 
 
+class MakeInterval(models.Func):
+    _output_field_resolved_to_none = models.DurationField
+    function = "make_interval"
+    template = "%(function)s(secs => %(expressions)s)"
+
 def validate_regex_pattern(value):
     try:
         re.compile(value)

@@ -1,13 +1,17 @@
+import datetime
+
 from solo.models import SingletonModel
 
+from bigO.proxy_manager.subscription import AVAILABLE_SUBSCRIPTION_PLAN_PROVIDERS
+from bigO.proxy_manager.subscription.base import BaseSubscriptionPlanProvider
 from bigO.utils.models import TimeStampedModel
 from django.db import models
-from django.db.models import UniqueConstraint
+from django.db.models import Case, F, OuterRef, Q, Subquery, UniqueConstraint, When
 
 
 class Config(TimeStampedModel, SingletonModel):
-    nginx_config_http_template = models.TextField(null=True, blank=False, help_text="{{ subscription_obj }}")
-    nginx_config_stream_template = models.TextField(null=True, blank=False, help_text="{{ subscription_obj }}")
+    nginx_config_http_template = models.TextField(null=True, blank=False, help_text="{{ node_obj }}")
+    nginx_config_stream_template = models.TextField(null=True, blank=False, help_text="{{ node_obj }}")
     xray_config_template = models.TextField(
         null=True, blank=False, help_text="{{ node, inbound_parts, rule_parts, balancer_parts }}"
     )
@@ -61,40 +65,146 @@ class ConnectionRule(TimeStampedModel, models.Model):
 
 class Agency(TimeStampedModel, models.Model):
     name = models.SlugField()
-    sublink_header_template = models.TextField(null=True, blank=False, help_text="{{ subscription_obj }}")
+    sublink_header_template = models.TextField(null=True, blank=False, help_text="{{ subscription_obj, expires_at }}")
 
     def __str__(self):
         return f"{self.pk}-{self.name}"
 
 
-class Subscription(TimeStampedModel, models.Model):
+class SubscriptionPlan(TimeStampedModel, models.Model):
+    name = models.SlugField()
+    plan_provider_key = models.SlugField(max_length=127, db_index=True)
+    plan_provider_args = models.JSONField(null=True, blank=True)
     connection_rule = models.ForeignKey(
         ConnectionRule,
         on_delete=models.PROTECT,
-        related_name="connectionrule_subscriptions",
-        null=True,
-        blank=False,  # nonull
+        related_name="connectionrule_subscriptionplans",
     )
-    agency = models.ForeignKey(
-        Agency, on_delete=models.PROTECT, related_name="agency_subscriptions", null=True, blank=False
+
+    @property
+    def plan_provider_cls(self) -> type[BaseSubscriptionPlanProvider]:
+        return [i for i in AVAILABLE_SUBSCRIPTION_PLAN_PROVIDERS if i.TYPE_IDENTIFIER == self.plan_provider_key][0]
+
+    def __str__(self):
+        return f"{self.pk}-{self.name}"
+
+
+class SubscriptionPeriod(TimeStampedModel, models.Model):
+    class SubscriptionPeriodQuerySet(models.QuerySet):
+        def ann_expires_at(self):
+            whens = []
+            for i in AVAILABLE_SUBSCRIPTION_PLAN_PROVIDERS:
+                ann_expr = i.get_expires_at_ann_expr()
+                whens.append(When(plan__plan_provider_key=i.TYPE_IDENTIFIER, then=ann_expr))
+            return self.annotate(expires_at=Case(*whens, output_field=models.DateTimeField()))
+
+        def ann_up_bytes_remained(self):
+            whens = []
+            for i in AVAILABLE_SUBSCRIPTION_PLAN_PROVIDERS:
+                ann_expr = i.get_up_bytes_remained_expr()
+                whens.append(When(plan__plan_provider_key=i.TYPE_IDENTIFIER, then=ann_expr))
+            return self.annotate(up_bytes_remained=Case(*whens, output_field=models.PositiveBigIntegerField()))
+
+        def ann_dl_bytes_remained(self):
+            whens = []
+            for i in AVAILABLE_SUBSCRIPTION_PLAN_PROVIDERS:
+                ann_expr = i.get_up_bytes_remained_expr()
+                whens.append(When(plan__plan_provider_key=i.TYPE_IDENTIFIER, then=ann_expr))
+            return self.annotate(dl_bytes_remained=Case(*whens, output_field=models.PositiveBigIntegerField()))
+
+    plan = models.ForeignKey("SubscriptionPlan", on_delete=models.PROTECT, related_name="+")
+    plan_args = models.JSONField(null=True, blank=True)
+    profile = models.ForeignKey("SubscriptionProfile", on_delete=models.PROTECT, related_name="periods")
+
+    selected_as_current = models.BooleanField()
+
+    last_sublink_at = models.DateTimeField(null=True, blank=True)
+    first_usage_at = models.DateTimeField(null=True, blank=True)
+    last_usage_at = models.DateTimeField(null=True, blank=True)
+    current_download_bytes = models.PositiveBigIntegerField(default=0)
+    current_upload_bytes = models.PositiveBigIntegerField(default=0)
+
+    objects = SubscriptionPeriodQuerySet.as_manager()
+
+    class Meta:
+        constraints = [
+            UniqueConstraint(
+                fields=("profile",), condition=Q(selected_as_current=True), name="one_selected_as_current_each_profile"
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.pk}-{self.plan}"
+
+    @property
+    def expires_at(self) -> datetime.datetime:
+        return self._expires_at
+
+    @expires_at.setter
+    def expires_at(self, value):
+        self._expires_at = value
+
+    @property
+    def dl_bytes_remained(self) -> int:
+        return self._dl_bytes_remained
+
+    @dl_bytes_remained.setter
+    def dl_bytes_remained(self, value):
+        self._dl_bytes_remained = value
+
+    @property
+    def up_bytes_remained(self) -> int:
+        return self._up_bytes_remained
+
+    @up_bytes_remained.setter
+    def up_bytes_remained(self, value):
+        self._up_bytes_remained = value
+
+
+class SubscriptionProfile(TimeStampedModel, models.Model):
+    class SubscriptionProfileQuerySet(models.QuerySet):
+        def ann_last_usage_at(self):
+            subscriptionperiod_sub_qs = SubscriptionPeriod.objects.filter(profile=OuterRef("id")).order_by(
+                F("last_usage_at").desc(nulls_last=True)
+            )
+            return self.annotate(last_usage_at=Subquery(subscriptionperiod_sub_qs.values("last_usage_at")[:1]))
+
+        def ann_last_sublink_at(self):
+            subscriptionperiod_sub_qs = SubscriptionPeriod.objects.filter(profile=OuterRef("id")).order_by(
+                F("last_sublink_at").desc(nulls_last=True)
+            )
+            return self.annotate(last_sublink_at=Subquery(subscriptionperiod_sub_qs.values("last_sublink_at")[:1]))
+
+    initial_agency = models.ForeignKey(
+        Agency, on_delete=models.PROTECT, related_name="initialagency_subscriptionprofiles", null=True, blank=False
     )  # nonull
     title = models.CharField(max_length=127)
     uuid = models.UUIDField(unique=True)
     user = models.ForeignKey("users.User", on_delete=models.PROTECT, null=True, blank=True)
     xray_uuid = models.UUIDField(blank=True, unique=True)
-    expiry = models.DurationField(null=True, blank=True)
-    upload_limit_bytes = models.PositiveBigIntegerField()
-    download_limit_bytes = models.PositiveBigIntegerField()
-    total_limit_bytes = models.PositiveBigIntegerField()
     description = models.TextField(max_length=4095, null=True, blank=True)
     is_active = models.BooleanField()
-    # data_limit_reset_strategy
-    # sub_last_user_agent
-    # online_at
-    # on_hold_expire_durationon_hold_expire_duration
-    # on_hold_timeout
-    current_download_bytes = models.PositiveBigIntegerField(default=0)
-    current_upload_bytes = models.PositiveBigIntegerField(default=0)
+
+    objects = SubscriptionProfileQuerySet.as_manager()
+
+    def __str__(self):
+        return f"{self.pk}-{self.title}"
+
+    @property
+    def last_sublink_at(self):
+        return self._last_sublink_at
+
+    @last_sublink_at.setter
+    def last_sublink_at(self, value):
+        self._last_sublink_at = value
+
+    @property
+    def last_usage_at(self):
+        return self._last_usage_at
+
+    @last_usage_at.setter
+    def last_usage_at(self, value):
+        self._last_usage_at = value
 
 
 class SubscriptionNodeUsage(TimeStampedModel, models.Model):
@@ -110,8 +220,8 @@ class Inbound(TimeStampedModel, models.Model):
     is_template = models.BooleanField(default=False)
     name = models.SlugField()
     inbound_template = models.TextField(help_text="{{ node_obj, inbound_tag, consumers_part }}")
-    consumer_obj_template = models.TextField(help_text="{{ subscription_obj }}")
-    link_template = models.TextField(blank=True, help_text="{{ subscription_obj }}")
+    consumer_obj_template = models.TextField(help_text="{{ subscriptionperiod_obj }}")
+    link_template = models.TextField(blank=True, help_text="{{ subscriptionperiod_obj }}")
     nginx_path_config = models.TextField(blank=False)
 
     def __str__(self):

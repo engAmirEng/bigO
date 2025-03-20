@@ -2,6 +2,8 @@ from collections import defaultdict
 
 import django.template
 from bigO.node_manager import models as node_manager_models
+from django.db.models import Q
+from django.utils import timezone
 
 from . import models
 
@@ -76,6 +78,18 @@ def get_xray_outbounds(node_obj):
     return res, balancers_res
 
 
+def get_connectable_subscriptionperiod_qs():
+    return (
+        models.SubscriptionPeriod.objects.ann_expires_at()
+        .ann_dl_bytes_remained()
+        .ann_up_bytes_remained()
+        .filter(
+            Q(selected_as_current=True, profile__is_active=True, expires_at__gt=timezone.now())
+            & Q(Q(up_bytes_remained__gt=0) | Q(dl_bytes_remained__gt=0))
+        )
+    )
+
+
 def get_xray_conf(node_obj) -> tuple[str, str, dict]:
     proxy_manager_config = models.Config.objects.get()
     inbound_parts = ""
@@ -90,17 +104,17 @@ def get_xray_conf(node_obj) -> tuple[str, str, dict]:
         inbound_parts += xray_inbound
     xray_outbounds, balancer_parts = get_xray_outbounds(node_obj=node_obj)
     for connection_rule in models.ConnectionRule.objects.filter():
-        subscriptions_obj_list = list(
-            models.Subscription.objects.filter(connection_rule=connection_rule, is_active=True)
+        subscriptionperiods_obj_list = list(
+            get_connectable_subscriptionperiod_qs().filter(plan__connection_rule=connection_rule)
         )
         inbound_tags = []
         for inbound in models.Inbound.objects.filter(is_active=True, is_template=True):
             inbound_tag = f"{inbound.name}-{connection_rule.id}"
             consumers_part = ""
-            for subscription_obj in subscriptions_obj_list:
+            for subscriptionperiod_obj in subscriptionperiods_obj_list:
                 consumer_obj = django.template.Template(
                     "{% load node_manager proxy_manager %}" + inbound.consumer_obj_template
-                ).render(context=django.template.Context({"subscription_obj": subscription_obj}))
+                ).render(context=django.template.Context({"subscriptionperiod_obj": subscriptionperiod_obj}))
                 if consumers_part:
                     consumers_part += ",\n"
                 consumers_part += consumer_obj

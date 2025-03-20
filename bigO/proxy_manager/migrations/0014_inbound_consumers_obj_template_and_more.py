@@ -13,7 +13,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='inbound',
             name='consumers_obj_template',
-            field=models.TextField(default='hello', help_text='{{ subscription_obj }}'),
+            field=models.TextField(default='hello', help_text='{{ subscriptionperiod_obj }}'),
             preserve_default=False,
         ),
         migrations.AlterField(

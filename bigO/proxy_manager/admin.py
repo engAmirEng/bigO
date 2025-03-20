@@ -1,11 +1,10 @@
-import uuid
-
 from solo.admin import SingletonModelAdmin
 
-from django import forms
 from django.contrib import admin
+from django.contrib.humanize.templatetags.humanize import naturaltime
+from django.template.defaultfilters import filesizeformat
 
-from . import models
+from . import forms, models
 
 
 @admin.register(models.Config)
@@ -23,29 +22,101 @@ class ISPAdmin(admin.ModelAdmin):
     list_display = ("__str__",)
 
 
-class SubscriptionModelForm(forms.ModelForm):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields["xray_uuid"].initial = uuid.uuid4()
-        self.fields["uuid"].initial = uuid.uuid4()
-
-    class Meta:
-        model = models.Subscription
-        fields = "__all__"
-
-
 @admin.register(models.Agency)
 class AgencyModelAdmin(admin.ModelAdmin):
     list_display = ("__str__",)
 
 
-@admin.register(models.Subscription)
-class SubscriptionModelAdmin(admin.ModelAdmin):
-    list_display = ("__str__",)
+@admin.register(models.SubscriptionProfile)
+class SubscriptionProfileModelAdmin(admin.ModelAdmin):
+    list_display = ("__str__", "initial_agency", "user", "last_usage_at", "last_sublink_at")
     list_editable = []
-    form = SubscriptionModelForm
+    form = forms.SubscriptionProfileModelForm
     autocomplete_fields = ("user",)
-    search_fields = ("user__name", "description")
+    search_fields = ("title", "user__name", "description", "uuid", "xray_uuid")
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).ann_last_usage_at().ann_last_sublink_at()
+
+    @admin.display(ordering="last_usage_at")
+    def last_usage_at(self, obj):
+        if obj.last_usage_at is None:
+            return "never"
+        return naturaltime(obj.last_usage_at)
+
+    @admin.display(ordering="last_sublink_at")
+    def last_sublink_at(self, obj):
+        if obj.last_sublink_at is None:
+            return "never"
+        return naturaltime(obj.last_sublink_at)
+
+
+@admin.register(models.SubscriptionPlan)
+class SubscriptionPlanModelAdmin(admin.ModelAdmin):
+    list_display = ("__str__",)
+    form = forms.SubscriptionPlanModelForm
+
+
+@admin.register(models.SubscriptionPeriod)
+class SubscriptionPeriodModelAdmin(admin.ModelAdmin):
+    list_display = (
+        "__str__",
+        "selected_as_current",
+        "first_usage_at_display",
+        "last_usage_at_display",
+        "last_sublink_at_display",
+        "current_download_bytes",
+        "current_upload_bytes",
+        "expires_at",
+        "up_bytes_remained",
+        "dl_bytes_remained",
+    )
+    form = forms.SubscriptionPeriodModelAdmin
+    autocomplete_fields = ("profile",)
+    search_fields = (
+        "profile__title",
+        "profile__user__name",
+        "profile__description",
+        "profile__uuid",
+        "profile__xray_uuid",
+    )
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).ann_expires_at().ann_dl_bytes_remained().ann_up_bytes_remained()
+
+    @admin.display(ordering="dl_bytes_remained")
+    def dl_bytes_remained(self, obj):
+        return filesizeformat(obj.dl_bytes_remained)
+
+    @admin.display(ordering="up_bytes_remained")
+    def up_bytes_remained(self, obj):
+        return filesizeformat(obj.up_bytes_remained)
+
+    @admin.display(ordering="current_upload_bytes")
+    def current_upload_bytes(self, obj):
+        return filesizeformat(obj.current_upload_bytes)
+
+    @admin.display(ordering="current_download_bytes")
+    def current_download_bytes(self, obj):
+        return filesizeformat(obj.current_download_bytes)
+
+    @admin.display(ordering="first_usage_at", description="first usage at")
+    def first_usage_at_display(self, obj):
+        if obj.first_usage_at is None:
+            return "never"
+        return naturaltime(obj.first_usage_at)
+
+    @admin.display(ordering="last_usage_at", description="last usage at")
+    def last_usage_at_display(self, obj):
+        if obj.last_usage_at is None:
+            return "never"
+        return naturaltime(obj.last_usage_at)
+
+    @admin.display(ordering="last_sublink_at", description="last sublink at")
+    def last_sublink_at_display(self, obj):
+        if obj.last_sublink_at is None:
+            return "never"
+        return naturaltime(obj.last_sublink_at)
 
 
 @admin.register(models.OutboundGroup)

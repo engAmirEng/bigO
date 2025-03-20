@@ -13,7 +13,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='config',
             name='nginx_config_template',
-            field=models.TextField(help_text='{{ subscription_obj }}', null=True),
+            field=models.TextField(help_text='{{ node_obj }}', null=True),
         ),
         migrations.AlterField(
             model_name='inbound',

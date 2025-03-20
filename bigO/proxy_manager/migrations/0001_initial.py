@@ -35,7 +35,7 @@ class Migration(migrations.Migration):
                 ('updated_at', models.DateTimeField(auto_now=True)),
                 ('name', models.SlugField()),
                 ('inbound_template', models.TextField(help_text='{{ subscription_obj }}')),
-                ('link_template', models.TextField(help_text='{{ subscription_obj }}')),
+                ('link_template', models.TextField(help_text='{{ subscriptionperiod_obj }}')),
             ],
             options={
                 'abstract': False,

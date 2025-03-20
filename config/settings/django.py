@@ -131,6 +131,7 @@ THIRD_PARTY_APPS = clean_ellipsis(
         "django_celery_results",
         "django_filters",
         "django_htmx",
+        "django_jsonform",
         "drf_spectacular",
         "graphene_django",
         "graphql_jwt.refresh_token",
@@ -245,6 +246,7 @@ TEMPLATES = [
         "DIRS": [str(APPS_DIR / "templates")],
         "APP_DIRS": True,
         "OPTIONS": {
+            "string_if_invalid": "error",
             "context_processors": [
                 "django.template.context_processors.debug",
                 "django.template.context_processors.request",
