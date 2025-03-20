@@ -9,4 +9,6 @@ def aaa(request):
 
 @inertia("Home/Index", layout="BabyUI/page.html")
 def index(request):
-    return {}
+    return {
+        "title": f"hello {request.user.username}"
+    }
