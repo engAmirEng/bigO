@@ -17,7 +17,7 @@ export default defineConfig((mode) => {
       port: parseInt(DEV_SERVER_PORT),
     },
     build: {
-      manifest: true,
+      manifest: "manifest.json",
       emptyOutDir: true,
       outDir: resolve(OUTPUT_DIR),
       rollupOptions: {
