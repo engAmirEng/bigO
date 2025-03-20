@@ -96,6 +96,3 @@ if sentry_dsn := env.url("SENTRY_DSN", default=None):
 
 # django-vite
 DJANGO_VITE = {"BabyUI": {"dev_mode": True, "dev_server_port": 5225, "static_url_prefix": "BabyUI"}}  # todo  # todo
-
-# INERTIA
-INERTIA_LAYOUT = "BabyUI/page.html"
