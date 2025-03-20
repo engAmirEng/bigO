@@ -1,6 +1,8 @@
 from functools import wraps
-from django.template.loader import render_to_string
+
 import inertia as base_inertia
+
+from django.template.loader import render_to_string
 
 
 class InertiaResponse(base_inertia.InertiaResponse):
@@ -14,13 +16,12 @@ class InertiaResponse(base_inertia.InertiaResponse):
         return render_to_string(
             template,
             {
-                'inertia_layout': self.inertia_layout,
+                "inertia_layout": self.inertia_layout,
                 **context,
             },
             self.request,
             using=None,
         )
-
 
 
 def render(request, component, inertia_layout, props=None, template_data=None):

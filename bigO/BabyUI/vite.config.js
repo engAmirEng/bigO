@@ -29,7 +29,7 @@ export default defineConfig((mode) => {
       rollupOptions: {
         input: {
           aaa: join(INPUT_DIR, 'src/aaa.ts'),
-          main: join(INPUT_DIR, 'src/page.jsx'),
+          main: join(INPUT_DIR, 'src/page.tsx'),
         },
       },
     },
