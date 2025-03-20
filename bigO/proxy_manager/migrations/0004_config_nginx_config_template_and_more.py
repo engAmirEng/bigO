@@ -18,6 +18,6 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='inbound',
             name='link_template',
-            field=models.TextField(blank=True, help_text='{{ subscription_obj }}'),
+            field=models.TextField(blank=True, help_text='{{ subscriptionperiod_obj }}'),
         ),
     ]
