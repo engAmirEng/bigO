@@ -28,8 +28,8 @@ export default defineConfig((mode) => {
       outDir: resolve(OUTPUT_DIR),
       rollupOptions: {
         input: {
-          aaa: join(INPUT_DIR, 'src/aaa.ts'),
-          main: join(INPUT_DIR, 'src/page.tsx'),
+          aaa: join(INPUT_DIR, 'aaa.ts'),
+          main: join(INPUT_DIR, 'page.tsx'),
         },
       },
     },

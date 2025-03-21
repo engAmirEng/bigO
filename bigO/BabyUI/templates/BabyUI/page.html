@@ -3,7 +3,7 @@
 
 {% block head %}
 <meta name="viewport" content="initial-scale=1, width=device-width" />
-{% vite_asset 'src/page.tsx' app="BabyUI" %}
+{% vite_asset 'page.tsx' app="BabyUI" %}
 {% vite_react_refresh nonce="{{ request.csp_nonce }}" app="BabyUI" %}
 {% endblock head %}
 

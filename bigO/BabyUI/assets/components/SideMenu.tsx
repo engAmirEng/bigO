@@ -9,7 +9,7 @@ import SelectContent from './SelectContent';
 import MenuContent from './MenuContent';
 import CardAlert from './CardAlert';
 import OptionsMenu from './OptionsMenu';
-import viteLogo from '../../public/vite.jpg';
+import viteLogo from '/vite.jpg';
 
 const drawerWidth = 240;
 

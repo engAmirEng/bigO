@@ -9,7 +9,7 @@ import NotificationsRoundedIcon from '@mui/icons-material/NotificationsRounded';
 import MenuButton from './MenuButton';
 import MenuContent from './MenuContent';
 import CardAlert from './CardAlert';
-import viteLogo from '../../public/vite.jpg';
+import viteLogo from '/vite.jpg';
 
 interface SideMenuMobileProps {
   open: boolean | undefined;
