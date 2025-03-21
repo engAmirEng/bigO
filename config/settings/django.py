@@ -224,7 +224,7 @@ MIDDLEWARE = clean_ellipsis(
 STATIC_ROOT = str(BASE_DIR / "staticfiles")
 STATICFILES_DIRS = [
     BASE_DIR / "bigO" / "BabyUI" / "dist",
-    BASE_DIR / "bigO" / "BabyUI" / "public",
+    ("BabyUI", BASE_DIR / "bigO" / "BabyUI" / "assets" / "public",)
 ]
 STATIC_URL = "/static/"
 STATICFILES_FINDERS = [
