@@ -30,6 +30,7 @@ type ExtendedTreeItemProps = {
   id: string;
   label: string;
 };
+import type {} from '@mui/material/themeCssVarsAugmentation';
 
 const ITEMS: TreeViewBaseItem<ExtendedTreeItemProps>[] = [
   {

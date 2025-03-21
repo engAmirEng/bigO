@@ -8,6 +8,7 @@ import CardContent from '@mui/material/CardContent';
 import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
 import LinearProgress, { linearProgressClasses } from '@mui/material/LinearProgress';
+import type {} from '@mui/material/themeCssVarsAugmentation';
 
 import {
   IndiaFlag,
