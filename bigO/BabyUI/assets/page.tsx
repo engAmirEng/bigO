@@ -1,7 +1,10 @@
 import { createRoot } from 'react-dom/client';
 import { createInertiaApp } from '@inertiajs/react';
 import CssBaseline from '@mui/material/CssBaseline';
+import axios from 'axios';
 
+axios.defaults.xsrfHeaderName = 'X-CSRFToken';
+axios.defaults.xsrfCookieName = 'csrftoken';
 document.addEventListener('DOMContentLoaded', () => {
   createInertiaApp({
     resolve: (name) => {
