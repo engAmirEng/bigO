@@ -12,9 +12,7 @@ export default defineConfig((mode) => {
 
   return {
     plugins: [
-      react({
-        include: '**/*.disabled',
-      }),
+      react(),
     ],
     root: resolve(INPUT_DIR),
     base: join('/static/', STATIC_URL_PREFIX),
