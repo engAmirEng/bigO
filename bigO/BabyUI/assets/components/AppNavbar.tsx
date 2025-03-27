@@ -28,7 +28,20 @@ const Toolbar = styled(MuiToolbar)({
   },
 });
 
-export default function AppNavbar() {
+interface Agency {
+  id: string;
+  name: string;
+}
+interface Props {
+  current_agency_id: string;
+  agencies: Agency[];
+  logout_url: string;
+}
+export default function AppNavbar({
+  agencies,
+  current_agency_id,
+  logout_url,
+}: Props) {
   const [open, setOpen] = React.useState(false);
 
   const toggleDrawer = (newOpen: boolean) => () => {
@@ -64,7 +77,11 @@ export default function AppNavbar() {
             sx={{ justifyContent: 'center', mr: 'auto' }}
           >
             <CustomIcon />
-            <Typography variant="h4" component="h1" sx={{ color: 'text.primary' }}>
+            <Typography
+              variant="h4"
+              component="h1"
+              sx={{ color: 'text.primary' }}
+            >
               Dashboard
             </Typography>
           </Stack>
@@ -72,7 +89,13 @@ export default function AppNavbar() {
           <MenuButton aria-label="menu" onClick={toggleDrawer(true)}>
             <MenuRoundedIcon />
           </MenuButton>
-          <SideMenuMobile open={open} toggleDrawer={toggleDrawer} />
+          <SideMenuMobile
+            open={open}
+            toggleDrawer={toggleDrawer}
+            agencies={agencies}
+            current_agency_id={current_agency_id}
+            logout_url={logout_url}
+          />
         </Stack>
       </Toolbar>
     </AppBar>

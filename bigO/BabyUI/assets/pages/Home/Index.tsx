@@ -7,7 +7,6 @@ interface Propps {
 }
 
 const Index = ({ title }: Propps): React.ReactNode => {
-  console.log(title);
   let [count, setCount] = React.useState(0);
   return (
     <>

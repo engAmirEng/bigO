@@ -26,13 +26,39 @@ const xThemeComponents = {
   ...treeViewCustomizations,
 };
 
-export default function Dashboard(props: { disableCustomTheme?: boolean }) {
+interface Agency {
+  id: string;
+  name: string;
+}
+interface Props {
+  disableCustomTheme?: boolean;
+  current_agency_id: string;
+  agencies: Agency[];
+  logout_url: string;
+}
+export default function Dashboard({
+  disableCustomTheme,
+  current_agency_id,
+  agencies,
+  logout_url,
+}: Props) {
   return (
-    <AppTheme {...props} themeComponents={xThemeComponents}>
+    <AppTheme
+      disableCustomTheme={disableCustomTheme}
+      themeComponents={xThemeComponents}
+    >
       <CssBaseline enableColorScheme />
       <Box sx={{ display: 'flex' }}>
-        <SideMenu />
-        <AppNavbar />
+        <SideMenu
+          agencies={agencies}
+          current_agency_id={current_agency_id}
+          logout_url={logout_url}
+        />
+        <AppNavbar
+          agencies={agencies}
+          current_agency_id={current_agency_id}
+          logout_url={logout_url}
+        />
         {/* Main content */}
         <Box
           component="main"

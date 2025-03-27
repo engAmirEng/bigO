@@ -10,13 +10,35 @@ import MenuButton from './MenuButton';
 import MenuContent from './MenuContent';
 import CardAlert from './CardAlert';
 import viteLogo from '/vite.jpg';
+import Box from '@mui/material/Box';
+import SelectContent from './SelectContent.tsx';
+import { router } from '@inertiajs/react';
+import * as React from 'react';
 
-interface SideMenuMobileProps {
+interface Agency {
+  id: string;
+  name: string;
+}
+interface Props {
   open: boolean | undefined;
   toggleDrawer: (newOpen: boolean) => () => void;
+  current_agency_id: string;
+  agencies: Agency[];
+  logout_url: string;
 }
 
-export default function SideMenuMobile({ open, toggleDrawer }: SideMenuMobileProps) {
+export default function SideMenuMobile({
+  open,
+  toggleDrawer,
+  current_agency_id,
+  agencies,
+  logout_url,
+}: Props) {
+  let [isLoggingOut, setIsLoggingOut] = React.useState(false);
+  const handleLogOut = () => {
+    setIsLoggingOut(true);
+    router.post(logout_url);
+  };
   return (
     <Drawer
       anchor="right"
@@ -44,7 +66,7 @@ export default function SideMenuMobile({ open, toggleDrawer }: SideMenuMobilePro
             <Avatar
               sizes="small"
               alt="Riley Carter"
-              src={ viteLogo }
+              src={viteLogo}
               sx={{ width: 24, height: 24 }}
             />
             <Typography component="p" variant="h6">
@@ -57,13 +79,32 @@ export default function SideMenuMobile({ open, toggleDrawer }: SideMenuMobilePro
         </Stack>
         <Divider />
         <Stack sx={{ flexGrow: 1 }}>
+          <Box
+            sx={{
+              display: 'flex',
+              mt: 'calc(var(--template-frame-height, 0px) + 4px)',
+              p: 1.5,
+            }}
+          >
+            <SelectContent
+              agencies={agencies}
+              current_agency_id={current_agency_id}
+            />
+          </Box>
+          <Divider />
           <MenuContent />
           <Divider />
         </Stack>
         <CardAlert />
         <Stack sx={{ p: 2 }}>
-          <Button variant="outlined" fullWidth startIcon={<LogoutRoundedIcon />}>
-            Logout
+          <Button
+            variant="outlined"
+            fullWidth
+            startIcon={<LogoutRoundedIcon />}
+            onClick={handleLogOut}
+            disabled={isLoggingOut}
+          >
+            {isLoggingOut ? 'logging you out ...' : 'Logout'}
           </Button>
         </Stack>
       </Stack>

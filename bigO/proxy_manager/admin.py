@@ -25,6 +25,13 @@ class ISPAdmin(admin.ModelAdmin):
 @admin.register(models.Agency)
 class AgencyModelAdmin(admin.ModelAdmin):
     list_display = ("__str__",)
+    search_fields = ("name",)
+
+
+@admin.register(models.Agent)
+class AgentModelAdmin(admin.ModelAdmin):
+    list_display = ("__str__",)
+    autocomplete_fields = ("user", "agency")
 
 
 @admin.register(models.SubscriptionProfile)

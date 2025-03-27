@@ -63,14 +63,6 @@ class ConnectionRule(TimeStampedModel, models.Model):
         return f"{self.pk}-{self.name}"
 
 
-class Agency(TimeStampedModel, models.Model):
-    name = models.SlugField()
-    sublink_header_template = models.TextField(null=True, blank=False, help_text="{{ subscription_obj, expires_at }}")
-
-    def __str__(self):
-        return f"{self.pk}-{self.name}"
-
-
 class SubscriptionPlan(TimeStampedModel, models.Model):
     name = models.SlugField()
     plan_provider_key = models.SlugField(max_length=127, db_index=True)
@@ -176,7 +168,7 @@ class SubscriptionProfile(TimeStampedModel, models.Model):
             return self.annotate(last_sublink_at=Subquery(subscriptionperiod_sub_qs.values("last_sublink_at")[:1]))
 
     initial_agency = models.ForeignKey(
-        Agency, on_delete=models.PROTECT, related_name="initialagency_subscriptionprofiles", null=True, blank=False
+        "Agency", on_delete=models.PROTECT, related_name="initialagency_subscriptionprofiles", null=True, blank=False
     )  # nonull
     title = models.CharField(max_length=127)
     uuid = models.UUIDField(unique=True)

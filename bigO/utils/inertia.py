@@ -66,3 +66,37 @@ def inertia(component, layout):
         return inner
 
     return decorator
+
+def prop_messages():
+    def decorator(func):
+        if asyncio.iscoroutinefunction(func):
+
+            @wraps(func)
+            async def inner(request, *args, **kwargs):
+                props = await func(request, *args, **kwargs)
+                # if something other than a dict is returned, the user probably wants to return a specific response
+                if not isinstance(props, dict):
+                    return props
+                storage = messages.get_messages(request)
+                props["messages"] = [
+                    {"message": i.message, "level": i.level, "level_tag": i.level_tag} for i in storage
+                ]
+                return props
+
+        else:
+
+            @wraps(func)
+            def inner(request, *args, **kwargs):
+                props = func(request, *args, **kwargs)
+                # if something other than a dict is returned, the user probably wants to return a specific response
+                if not isinstance(props, dict):
+                    return props
+                storage = messages.get_messages(request)
+                props["messages"] = [
+                    {"message": i.message, "level": i.level, "level_tag": i.level_tag} for i in storage
+                ]
+                return props
+
+        return inner
+
+    return decorator

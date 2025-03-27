@@ -24,7 +24,20 @@ const Drawer = styled(MuiDrawer)({
   },
 });
 
-export default function SideMenu() {
+interface Agency {
+  id: string;
+  name: string;
+}
+interface Props {
+  current_agency_id: string;
+  agencies: Agency[];
+  logout_url: string;
+}
+export default function SideMenu({
+  agencies,
+  current_agency_id,
+  logout_url,
+}: Props) {
   return (
     <Drawer
       variant="permanent"
@@ -42,7 +55,10 @@ export default function SideMenu() {
           p: 1.5,
         }}
       >
-        <SelectContent />
+        <SelectContent
+          agencies={agencies}
+          current_agency_id={current_agency_id}
+        />
       </Box>
       <Divider />
       <Box
@@ -73,14 +89,17 @@ export default function SideMenu() {
           sx={{ width: 36, height: 36 }}
         />
         <Box sx={{ mr: 'auto' }}>
-          <Typography variant="body2" sx={{ fontWeight: 500, lineHeight: '16px' }}>
+          <Typography
+            variant="body2"
+            sx={{ fontWeight: 500, lineHeight: '16px' }}
+          >
             Riley Carter
           </Typography>
           <Typography variant="caption" sx={{ color: 'text.secondary' }}>
             riley@email.com
           </Typography>
         </Box>
-        <OptionsMenu />
+        <OptionsMenu logout_url={logout_url} />
       </Stack>
     </Drawer>
   );

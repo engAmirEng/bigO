@@ -1,4 +1,3 @@
-import * as React from 'react';
 import MuiAvatar from '@mui/material/Avatar';
 import MuiListItemAvatar from '@mui/material/ListItemAvatar';
 import MenuItem from '@mui/material/MenuItem';
@@ -9,10 +8,10 @@ import Select, { SelectChangeEvent, selectClasses } from '@mui/material/Select';
 import Divider from '@mui/material/Divider';
 import { styled } from '@mui/material/styles';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
-import DevicesRoundedIcon from '@mui/icons-material/DevicesRounded';
 import SmartphoneRoundedIcon from '@mui/icons-material/SmartphoneRounded';
 import ConstructionRoundedIcon from '@mui/icons-material/ConstructionRounded';
 import type {} from '@mui/material/themeCssVarsAugmentation';
+import { router, usePage } from '@inertiajs/react';
 
 const Avatar = styled(MuiAvatar)(({ theme }) => ({
   width: 28,
@@ -27,18 +26,27 @@ const ListItemAvatar = styled(MuiListItemAvatar)({
   marginRight: 12,
 });
 
-export default function SelectContent() {
-  const [company, setCompany] = React.useState('');
-
+interface Agency {
+  id: string;
+  name: string;
+}
+interface Props {
+  current_agency_id: string;
+  agencies: Agency[];
+}
+export default function SelectContent({ agencies, current_agency_id }: Props) {
+  const { url } = usePage();
   const handleChange = (event: SelectChangeEvent) => {
-    setCompany(event.target.value as string);
+    let data = new FormData();
+    data.append('set_to_agency_id', event.target.value);
+    router.post(url, data);
   };
 
   return (
     <Select
       labelId="company-select"
       id="company-simple-select"
-      value={company}
+      value={current_agency_id}
       onChange={handleChange}
       displayEmpty
       inputProps={{ 'aria-label': 'Select company' }}
@@ -58,30 +66,22 @@ export default function SelectContent() {
       }}
     >
       <ListSubheader sx={{ pt: 0 }}>Production</ListSubheader>
-      <MenuItem value="">
-        <ListItemAvatar>
-          <Avatar alt="Sitemark web">
-            <DevicesRoundedIcon sx={{ fontSize: '1rem' }} />
-          </Avatar>
-        </ListItemAvatar>
-        <ListItemText primary="Sitemark-web" secondary="Web app" />
-      </MenuItem>
-      <MenuItem value={10}>
-        <ListItemAvatar>
-          <Avatar alt="Sitemark App">
-            <SmartphoneRoundedIcon sx={{ fontSize: '1rem' }} />
-          </Avatar>
-        </ListItemAvatar>
-        <ListItemText primary="Sitemark-app" secondary="Mobile application" />
-      </MenuItem>
-      <MenuItem value={20}>
-        <ListItemAvatar>
-          <Avatar alt="Sitemark Store">
-            <DevicesRoundedIcon sx={{ fontSize: '1rem' }} />
-          </Avatar>
-        </ListItemAvatar>
-        <ListItemText primary="Sitemark-Store" secondary="Web app" />
-      </MenuItem>
+      {agencies.map((agency) => {
+        return (
+          <MenuItem key={agency.id} value={agency.id}>
+            <ListItemAvatar>
+              <Avatar alt="Sitemark App">
+                <SmartphoneRoundedIcon sx={{ fontSize: '1rem' }} />
+              </Avatar>
+            </ListItemAvatar>
+            <ListItemText
+              primary={agency.name}
+              secondary="Mobile application"
+            />
+          </MenuItem>
+        );
+      })}
+
       <ListSubheader>Development</ListSubheader>
       <MenuItem value={30}>
         <ListItemAvatar>

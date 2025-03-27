@@ -8,6 +8,7 @@ import Divider from '@mui/material/Divider';
 import FormLabel from '@mui/material/FormLabel';
 import FormControl from '@mui/material/FormControl';
 import Link from '@mui/material/Link';
+import Alert from '@mui/material/Alert';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import Stack from '@mui/material/Stack';
@@ -21,6 +22,8 @@ import {
   FacebookIcon,
   SitemarkIcon,
 } from '../../components/CustomIcons';
+import { router, usePage } from '@inertiajs/react';
+import { Messages } from '../../services/types.ts';
 
 const Card = styled(MuiCard)(({ theme }) => ({
   display: 'flex',
@@ -64,11 +67,20 @@ const SignInContainer = styled(Stack)(({ theme }) => ({
   },
 }));
 
-export default function SignIn(props: { disableCustomTheme?: boolean }) {
-  const [emailError, setEmailError] = React.useState(false);
-  const [emailErrorMessage, setEmailErrorMessage] = React.useState('');
-  const [passwordError, setPasswordError] = React.useState(false);
-  const [passwordErrorMessage, setPasswordErrorMessage] = React.useState('');
+interface Props {
+  disableCustomTheme?: boolean;
+  messages?: Messages;
+}
+
+export default function SignIn({ disableCustomTheme, messages }: Props) {
+  const {
+    url,
+    props: { errors },
+  } = usePage();
+  let usernameErrorMessage = errors.username;
+  let usernameError = usernameErrorMessage ? true : false;
+  let passwordErrorMessage = errors.password;
+  let passwordError = passwordErrorMessage ? true : false;
   const [open, setOpen] = React.useState(false);
 
   const handleClickOpen = () => {
@@ -80,46 +92,17 @@ export default function SignIn(props: { disableCustomTheme?: boolean }) {
   };
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    if (emailError || passwordError) {
-      event.preventDefault();
-      return;
-    }
+    event.preventDefault();
     const data = new FormData(event.currentTarget);
     console.log({
-      email: data.get('email'),
+      username: data.get('username'),
       password: data.get('password'),
     });
-  };
-
-  const validateInputs = () => {
-    const email = document.getElementById('email') as HTMLInputElement;
-    const password = document.getElementById('password') as HTMLInputElement;
-
-    let isValid = true;
-
-    if (!email.value || !/\S+@\S+\.\S+/.test(email.value)) {
-      setEmailError(true);
-      setEmailErrorMessage('Please enter a valid email address.');
-      isValid = false;
-    } else {
-      setEmailError(false);
-      setEmailErrorMessage('');
-    }
-
-    if (!password.value || password.value.length < 6) {
-      setPasswordError(true);
-      setPasswordErrorMessage('Password must be at least 6 characters long.');
-      isValid = false;
-    } else {
-      setPasswordError(false);
-      setPasswordErrorMessage('');
-    }
-
-    return isValid;
+    router.post(url, data);
   };
 
   return (
-    <AppTheme {...props}>
+    <AppTheme disableCustomTheme={disableCustomTheme}>
       <CssBaseline enableColorScheme />
       <SignInContainer direction="column" justifyContent="space-between">
         <ColorModeSelect
@@ -134,6 +117,11 @@ export default function SignIn(props: { disableCustomTheme?: boolean }) {
           >
             Sign in
           </Typography>
+          {messages?.map((message) => (
+            <Alert key={message.message} severity={message.level_tag}>
+              {message.message}
+            </Alert>
+          ))}
           <Box
             component="form"
             onSubmit={handleSubmit}
@@ -145,21 +133,24 @@ export default function SignIn(props: { disableCustomTheme?: boolean }) {
               gap: 2,
             }}
           >
+            <Typography color="error" sx={{ mt: 1 }}>
+              {errors.__all__}
+            </Typography>
             <FormControl>
-              <FormLabel htmlFor="email">Email</FormLabel>
+              <FormLabel htmlFor="username">Username</FormLabel>
               <TextField
-                error={emailError}
-                helperText={emailErrorMessage}
-                id="email"
-                type="email"
-                name="email"
-                placeholder="your@email.com"
-                autoComplete="email"
+                error={usernameError}
+                helperText={usernameErrorMessage}
+                id="username"
+                type="username"
+                name="username"
+                placeholder="your@username.com"
+                autoComplete="username"
                 autoFocus
                 required
                 fullWidth
                 variant="outlined"
-                color={emailError ? 'error' : 'primary'}
+                color={usernameError ? 'error' : 'primary'}
               />
             </FormControl>
             <FormControl>
@@ -184,12 +175,7 @@ export default function SignIn(props: { disableCustomTheme?: boolean }) {
               label="Remember me"
             />
             <ForgotPassword open={open} handleClose={handleClose} />
-            <Button
-              type="submit"
-              fullWidth
-              variant="contained"
-              onClick={validateInputs}
-            >
+            <Button type="submit" fullWidth variant="contained">
               Sign in
             </Button>
             <Link
