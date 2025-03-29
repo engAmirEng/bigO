@@ -7,7 +7,10 @@ import ColorModeIconDropdown from '../theme/ColorModeIconDropdown';
 
 import Search from './Search';
 
-export default function Header() {
+interface Props {
+  breadCrumb: string[];
+}
+export default function Header({ breadCrumb }: Props) {
   return (
     <Stack
       direction="row"
@@ -21,7 +24,7 @@ export default function Header() {
       }}
       spacing={2}
     >
-      <NavbarBreadcrumbs />
+      <NavbarBreadcrumbs levels={breadCrumb} />
       <Stack direction="row" sx={{ gap: 1 }}>
         <Search />
         <CustomDatePicker />

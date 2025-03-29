@@ -170,53 +170,53 @@ export default function SignIn({ disableCustomTheme, messages }: Props) {
                 color={passwordError ? 'error' : 'primary'}
               />
             </FormControl>
-            <FormControlLabel
-              control={<Checkbox value="remember" color="primary" />}
-              label="Remember me"
-            />
+            {/*<FormControlLabel*/}
+            {/*  control={<Checkbox value="remember" color="primary" />}*/}
+            {/*  label="Remember me"*/}
+            {/*/>*/}
             <ForgotPassword open={open} handleClose={handleClose} />
             <Button type="submit" fullWidth variant="contained">
               Sign in
             </Button>
-            <Link
-              component="button"
-              type="button"
-              onClick={handleClickOpen}
-              variant="body2"
-              sx={{ alignSelf: 'center' }}
-            >
-              Forgot your password?
-            </Link>
+            {/*<Link*/}
+            {/*  component="button"*/}
+            {/*  type="button"*/}
+            {/*  onClick={handleClickOpen}*/}
+            {/*  variant="body2"*/}
+            {/*  sx={{ alignSelf: 'center' }}*/}
+            {/*>*/}
+            {/*  Forgot your password?*/}
+            {/*</Link>*/}
           </Box>
-          <Divider>or</Divider>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <Button
-              fullWidth
-              variant="outlined"
-              onClick={() => alert('Sign in with Google')}
-              startIcon={<GoogleIcon />}
-            >
-              Sign in with Google
-            </Button>
-            <Button
-              fullWidth
-              variant="outlined"
-              onClick={() => alert('Sign in with Facebook')}
-              startIcon={<FacebookIcon />}
-            >
-              Sign in with Facebook
-            </Button>
-            <Typography sx={{ textAlign: 'center' }}>
-              Don&apos;t have an account?{' '}
-              <Link
-                href="/material-ui/getting-started/templates/sign-in/"
-                variant="body2"
-                sx={{ alignSelf: 'center' }}
-              >
-                Sign up
-              </Link>
-            </Typography>
-          </Box>
+          {/*<Divider>or</Divider>*/}
+          {/*<Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>*/}
+          {/*  <Button*/}
+          {/*    fullWidth*/}
+          {/*    variant="outlined"*/}
+          {/*    onClick={() => alert('Sign in with Google')}*/}
+          {/*    startIcon={<GoogleIcon />}*/}
+          {/*  >*/}
+          {/*    Sign in with Google*/}
+          {/*  </Button>*/}
+          {/*  <Button*/}
+          {/*    fullWidth*/}
+          {/*    variant="outlined"*/}
+          {/*    onClick={() => alert('Sign in with Facebook')}*/}
+          {/*    startIcon={<FacebookIcon />}*/}
+          {/*  >*/}
+          {/*    Sign in with Facebook*/}
+          {/*  </Button>*/}
+          {/*  <Typography sx={{ textAlign: 'center' }}>*/}
+          {/*    Don&apos;t have an account?{' '}*/}
+          {/*    <Link*/}
+          {/*      href="/material-ui/getting-started/templates/sign-in/"*/}
+          {/*      variant="body2"*/}
+          {/*      sx={{ alignSelf: 'center' }}*/}
+          {/*    >*/}
+          {/*      Sign up*/}
+          {/*    </Link>*/}
+          {/*  </Typography>*/}
+          {/*</Box>*/}
         </Card>
       </SignInContainer>
     </AppTheme>

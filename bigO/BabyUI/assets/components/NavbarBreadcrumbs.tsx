@@ -15,16 +15,24 @@ const StyledBreadcrumbs = styled(Breadcrumbs)(({ theme }) => ({
   },
 }));
 
-export default function NavbarBreadcrumbs() {
+interface Props {
+  levels: string[];
+}
+export default function NavbarBreadcrumbs({ levels }: Props) {
   return (
     <StyledBreadcrumbs
       aria-label="breadcrumb"
       separator={<NavigateNextRoundedIcon fontSize="small" />}
     >
-      <Typography variant="body1">Dashboard</Typography>
-      <Typography variant="body1" sx={{ color: 'text.primary', fontWeight: 600 }}>
-        Home
-      </Typography>
+      {levels.map((value, index) => (
+        <Typography key={index} variant="body1">
+          {value}
+        </Typography>
+      ))}
+
+      {/*<Typography variant="body1" sx={{ color: 'text.primary', fontWeight: 600 }}>*/}
+      {/*  Home*/}
+      {/*</Typography>*/}
     </StyledBreadcrumbs>
   );
 }

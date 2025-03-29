@@ -10,7 +10,7 @@ import MenuContent from './MenuContent';
 import CardAlert from './CardAlert';
 import OptionsMenu from './OptionsMenu';
 import viteLogo from '/vite.jpg';
-
+import { UrlReverse } from '../services/types.ts';
 const drawerWidth = 240;
 
 const Drawer = styled(MuiDrawer)({
@@ -32,11 +32,13 @@ interface Props {
   current_agency_id: string;
   agencies: Agency[];
   logout_url: string;
+  urls: UrlReverse[];
 }
 export default function SideMenu({
   agencies,
   current_agency_id,
   logout_url,
+  urls,
 }: Props) {
   return (
     <Drawer
@@ -69,7 +71,7 @@ export default function SideMenu({
           flexDirection: 'column',
         }}
       >
-        <MenuContent />
+        <MenuContent urls={urls} />
         <CardAlert />
       </Box>
       <Stack

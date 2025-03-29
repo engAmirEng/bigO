@@ -12,7 +12,6 @@ import Header from '../../components/Header';
 import MainGrid from '../../components/MainGrid';
 import SideMenu from '../../components/SideMenu';
 import AppTheme from '../../theme/AppTheme';
-import { UrlReverse } from '../services/types.ts';
 import {
   chartsCustomizations,
   dataGridCustomizations,
@@ -20,6 +19,11 @@ import {
   treeViewCustomizations,
 } from '../../theme/customizations';
 import { UsersListPage } from '../../services/types.ts';
+import Typography from '@mui/material/Typography';
+import Grid from '@mui/material/Grid2';
+import Copyright from '../../internals/components/Copyright.tsx';
+import UsersDataGrid from '../../components/UsersDataGrid.tsx';
+import { UrlReverse } from '../services/types.ts';
 
 const xThemeComponents = {
   ...chartsCustomizations,
@@ -40,7 +44,7 @@ interface Props {
   users_list_page: UsersListPage;
   urls: UrlReverse[];
 }
-export default function Dashboard({
+export default function Users({
   disableCustomTheme,
   current_agency_id,
   agencies,
@@ -87,8 +91,17 @@ export default function Dashboard({
               mt: { xs: 8, md: 0 },
             }}
           >
-            <Header breadCrumb={['Dashboard', 'Home']} />
-            <MainGrid users_list_page={users_list_page} />
+            <Header breadCrumb={['Dashboard', 'Users']} />
+            <Box sx={{ width: '100%', maxWidth: { sm: '100%', md: '1700px' } }}>
+              {/* cards */}
+              <Typography component="h2" variant="h6" sx={{ mb: 2 }}>
+                Users
+              </Typography>
+              <Grid container spacing={2} columns={12}>
+                <UsersDataGrid users_list_page={users_list_page} />
+              </Grid>
+              <Copyright sx={{ my: 4 }} />
+            </Box>
           </Stack>
         </Box>
       </Box>
