@@ -154,3 +154,9 @@ def get_xray_conf(node_obj) -> tuple[str, str, dict]:
     result = django.template.Template(xray_config_template).render(context=context)
     run_opt = django.template.Template("-c *#path:main#*").render(context=context)
     return run_opt, result, context.get("deps", {"globals": []})
+
+
+def get_agent_current_subscriptionperiods_qs(agent: models.Agent):
+    return models.SubscriptionPeriod.objects.filter(
+        profile__initial_agency_id=agent.agency_id, selected_as_current=True
+    )

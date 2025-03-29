@@ -41,6 +41,10 @@ class TypeSimpleStrict1(BaseSubscriptionPlanProvider):
             - F("current_upload_bytes")
         )
 
+    @classmethod
+    def get_total_limit_bytes_expr(cls):
+        return Cast("plan__plan_provider_args__total_usage_limit_bytes", PositiveBigIntegerField())
+
 
 class TypeSimpleDynamic1(BaseSubscriptionPlanProvider):
     TYPE_IDENTIFIER = "type_simple_dynamic1"
@@ -79,3 +83,7 @@ class TypeSimpleDynamic1(BaseSubscriptionPlanProvider):
             - F("current_download_bytes")
             - F("current_upload_bytes")
         )
+
+    @classmethod
+    def get_total_limit_bytes_expr(cls):
+        return Cast("plan_args__total_usage_limit_bytes", PositiveBigIntegerField())

@@ -1,7 +1,12 @@
 import { DataGrid } from '@mui/x-data-grid';
-import { columns, rows } from '../internals/data/gridData';
+import { GridRowsProp } from '@mui/x-data-grid/models/gridRows';
+import { GridColDef } from '@mui/x-data-grid/models/colDef/gridColDef';
 
-export default function CustomizedDataGrid() {
+interface Props {
+  columns: GridColDef[];
+  rows: GridRowsProp;
+}
+export default function CustomizedDataGrid({ rows, columns }: Props) {
   return (
     <DataGrid
       checkboxSelection

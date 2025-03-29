@@ -22,3 +22,8 @@ class BaseSubscriptionPlanProvider(abc.ABC):
     @abc.abstractmethod
     def get_up_bytes_remained_expr(cls):
         ...
+
+    @classmethod
+    @abc.abstractmethod
+    def get_total_limit_bytes_expr(cls):
+        ...

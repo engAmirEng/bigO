@@ -67,6 +67,7 @@ def inertia(component, layout):
 
     return decorator
 
+
 def prop_messages():
     def decorator(func):
         if asyncio.iscoroutinefunction(func):

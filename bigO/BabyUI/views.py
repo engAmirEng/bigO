@@ -1,8 +1,10 @@
 import logging
+from datetime import timedelta
 
 from asgiref.sync import sync_to_async
 
 from bigO.proxy_manager import models as proxy_manager_models
+from bigO.proxy_manager import services as proxy_manager_services
 from bigO.utils.inertia import inertia, prop_messages
 from django.contrib import messages
 from django.contrib.auth import REDIRECT_FIELD_NAME
@@ -10,9 +12,12 @@ from django.contrib.auth import alogin as auth_login
 from django.contrib.auth import alogout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import AuthenticationForm
+from django.contrib.humanize.templatetags.humanize import naturaltime
+from django.core.paginator import Paginator
 from django.http import HttpResponseRedirect
 from django.shortcuts import redirect, render
 from django.urls import reverse, reverse_lazy
+from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.translation import gettext
 from django.views.decorators.http import require_POST
@@ -80,18 +85,50 @@ async def dashboard(request):
     if not agent_accounts:
         messages.add_message(request, messages.ERROR, gettext("you do not have access to any Agency"))
         return redirect("BabyUI:signin")
+
     if request.POST.get("set_to_agency_id"):
         set_to_agency_id = request.POST["set_to_agency_id"]
         if agent_accounts_qs.filter(agency_id=set_to_agency_id).aexists():
             await request.session.aset(CURRENT_AGENCY_KEY, set_to_agency_id)
         else:
             messages.add_message(request, messages.ERROR, gettext("you cannot access this agency."))
+
     current_agency_id = await request.session.aget(CURRENT_AGENCY_KEY)
-    if not current_agency_id or not await agent_accounts_qs.filter(agency_id=current_agency_id).aexists():
+    if not current_agency_id or not (
+        agent_obj := await agent_accounts_qs.filter(agency_id=current_agency_id).afirst()
+    ):
         current_agency_id = agent_accounts[0].id
+        agent_obj = await agent_accounts_qs.filter(agency_id=current_agency_id).afirst()
         await request.session.aset(CURRENT_AGENCY_KEY, current_agency_id)
+
+    users_qs = proxy_manager_services.get_agent_current_subscriptionperiods_qs(agent=agent_obj)
+    users_qs = users_qs.select_related("profile").ann_expires_at().ann_total_limit_bytes().order_by("-pk").distinct()
+    users_paginator = Paginator(users_qs, 25)
+    users_page_number = request.GET.get("users_page_number", 1)
+    users_page = await sync_to_async(users_paginator.get_page)(users_page_number)
+
     return {
         "current_agency_id": current_agency_id,
         "agencies": [{"id": i.agency.id, "name": i.agency.name} for i in agent_accounts],
         "logout_url": reverse("BabyUI:logout"),
+        "users_list_page": {
+            "num_pages": users_page.paginator.num_pages,
+            "current_page_num": users_page.number,
+            "users": [
+                {
+                    "id": str(i.profile_id),
+                    "title": i.profile.title,
+                    "last_usage_at_repr": naturaltime(i.last_usage_at),
+                    "online_status": "online"
+                    if i.last_usage_at and (timezone.now() - i.last_usage_at < timedelta(minutes=2))
+                    else "offline"
+                    if i.last_usage_at
+                    else "never",
+                    "used_bytes": i.current_download_bytes + i.current_upload_bytes,
+                    "total_limit_bytes": i.total_limit_bytes,
+                    "expires_in_seconds": (i.expires_at - timezone.now()).total_seconds(),
+                }
+                for i in await sync_to_async(list)(users_page)
+            ],
+        },
     }

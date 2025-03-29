@@ -104,6 +104,13 @@ class SubscriptionPeriod(TimeStampedModel, models.Model):
                 whens.append(When(plan__plan_provider_key=i.TYPE_IDENTIFIER, then=ann_expr))
             return self.annotate(dl_bytes_remained=Case(*whens, output_field=models.PositiveBigIntegerField()))
 
+        def ann_total_limit_bytes(self):
+            whens = []
+            for i in AVAILABLE_SUBSCRIPTION_PLAN_PROVIDERS:
+                ann_expr = i.get_total_limit_bytes_expr()
+                whens.append(When(plan__plan_provider_key=i.TYPE_IDENTIFIER, then=ann_expr))
+            return self.annotate(total_limit_bytes=Case(*whens, output_field=models.PositiveBigIntegerField()))
+
     plan = models.ForeignKey("SubscriptionPlan", on_delete=models.PROTECT, related_name="+")
     plan_args = models.JSONField(null=True, blank=True)
     profile = models.ForeignKey("SubscriptionProfile", on_delete=models.PROTECT, related_name="periods")
@@ -126,7 +133,7 @@ class SubscriptionPeriod(TimeStampedModel, models.Model):
         ]
 
     def __str__(self):
-        return f"{self.pk}-{self.plan}"
+        return f"{self.pk}-|{self.profile}|{self.plan}"
 
     @property
     def expires_at(self) -> datetime.datetime:
@@ -151,6 +158,14 @@ class SubscriptionPeriod(TimeStampedModel, models.Model):
     @up_bytes_remained.setter
     def up_bytes_remained(self, value):
         self._up_bytes_remained = value
+
+    @property
+    def total_limit_bytes(self) -> int:
+        return self._total_limit_bytes
+
+    @total_limit_bytes.setter
+    def total_limit_bytes(self, value):
+        self._total_limit_bytes = value
 
 
 class SubscriptionProfile(TimeStampedModel, models.Model):

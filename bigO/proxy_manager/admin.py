@@ -67,7 +67,9 @@ class SubscriptionPlanModelAdmin(admin.ModelAdmin):
 @admin.register(models.SubscriptionPeriod)
 class SubscriptionPeriodModelAdmin(admin.ModelAdmin):
     list_display = (
-        "__str__",
+        "id",
+        "profile",
+        "plan",
         "selected_as_current",
         "first_usage_at_display",
         "last_usage_at_display",
@@ -89,7 +91,14 @@ class SubscriptionPeriodModelAdmin(admin.ModelAdmin):
     )
 
     def get_queryset(self, request):
-        return super().get_queryset(request).ann_expires_at().ann_dl_bytes_remained().ann_up_bytes_remained()
+        return (
+            super()
+            .get_queryset(request)
+            .select_related("profile", "plan")
+            .ann_expires_at()
+            .ann_dl_bytes_remained()
+            .ann_up_bytes_remained()
+        )
 
     @admin.display(ordering="dl_bytes_remained")
     def dl_bytes_remained(self, obj):

@@ -18,6 +18,7 @@ import {
   datePickersCustomizations,
   treeViewCustomizations,
 } from '../../theme/customizations';
+import { UsersListPage } from '../../services/types.ts';
 
 const xThemeComponents = {
   ...chartsCustomizations,
@@ -35,12 +36,14 @@ interface Props {
   current_agency_id: string;
   agencies: Agency[];
   logout_url: string;
+  users_list_page: UsersListPage;
 }
 export default function Dashboard({
   disableCustomTheme,
   current_agency_id,
   agencies,
   logout_url,
+  users_list_page,
 }: Props) {
   return (
     <AppTheme
@@ -80,7 +83,7 @@ export default function Dashboard({
             }}
           >
             <Header />
-            <MainGrid />
+            <MainGrid users_list_page={users_list_page} />
           </Stack>
         </Box>
       </Box>
