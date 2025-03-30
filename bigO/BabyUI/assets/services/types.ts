@@ -10,7 +10,10 @@ export type Messages = Message[];
 
 export interface ListPage {
   num_pages: number;
+  num_records: number;
+  num_per_page: number;
   current_page_num: number;
+  search_qs?: string;
 }
 
 export interface Users {
@@ -25,4 +28,9 @@ export interface Users {
 
 export interface UsersListPage extends ListPage {
   users: Users[];
+}
+
+export interface UrlReverse {
+  name: string;
+  url: string;
 }

@@ -11,6 +11,7 @@ import DashboardRoundedIcon from '@mui/icons-material/DashboardRounded';
 import SideMenuMobile from './SideMenuMobile';
 import MenuButton from './MenuButton';
 import ColorModeIconDropdown from '../theme/ColorModeIconDropdown';
+import { UrlReverse } from '../services/types.ts';
 
 const Toolbar = styled(MuiToolbar)({
   width: '100%',
@@ -36,11 +37,13 @@ interface Props {
   current_agency_id: string;
   agencies: Agency[];
   logout_url: string;
+  urls: UrlReverse[];
 }
 export default function AppNavbar({
   agencies,
   current_agency_id,
   logout_url,
+  urls,
 }: Props) {
   const [open, setOpen] = React.useState(false);
 
@@ -95,6 +98,7 @@ export default function AppNavbar({
             agencies={agencies}
             current_agency_id={current_agency_id}
             logout_url={logout_url}
+            urls={urls}
           />
         </Stack>
       </Toolbar>

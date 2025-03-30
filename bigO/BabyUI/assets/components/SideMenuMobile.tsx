@@ -14,6 +14,7 @@ import Box from '@mui/material/Box';
 import SelectContent from './SelectContent.tsx';
 import { router } from '@inertiajs/react';
 import * as React from 'react';
+import { UrlReverse } from '../services/types.ts';
 
 interface Agency {
   id: string;
@@ -25,6 +26,7 @@ interface Props {
   current_agency_id: string;
   agencies: Agency[];
   logout_url: string;
+  urls: UrlReverse[];
 }
 
 export default function SideMenuMobile({
@@ -33,6 +35,7 @@ export default function SideMenuMobile({
   current_agency_id,
   agencies,
   logout_url,
+  urls,
 }: Props) {
   let [isLoggingOut, setIsLoggingOut] = React.useState(false);
   const handleLogOut = () => {
@@ -92,7 +95,7 @@ export default function SideMenuMobile({
             />
           </Box>
           <Divider />
-          <MenuContent />
+          <MenuContent urls={urls} />
           <Divider />
         </Stack>
         <CardAlert />
