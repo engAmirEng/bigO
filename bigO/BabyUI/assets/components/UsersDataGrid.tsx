@@ -2,11 +2,12 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import LinearProgress from '@mui/material/LinearProgress';
 import { router, usePage } from '@inertiajs/react';
-import { UsersListPage } from '../services/types.ts';
+import { ListPage, UserRecord, UserRecordColumns } from '../services/types.ts';
 import * as React from 'react';
 import {
   GridColDef,
   GridFilterModel,
+  GridSortModel,
   GridPaginationModel,
   GridRowsProp,
 } from '@mui/x-data-grid';
@@ -14,22 +15,28 @@ import Chip, { ChipOwnProps } from '@mui/material/Chip';
 import { filesize } from 'filesize';
 import { LinearProgressProps } from '@mui/material/LinearProgress/LinearProgress';
 import { Duration } from 'luxon';
-import { DataGrid, GridToolbar } from '@mui/x-data-grid';
+import {
+  DataGrid,
+  GridToolbar,
+  GridPaginationInitialState,
+} from '@mui/x-data-grid';
 
 interface Props {
-  users_list_page: UsersListPage;
+  users_list_page: ListPage<UserRecord, UserRecordColumns>;
 }
 export default function UsersDataGrid({ users_list_page }: Props) {
   let columns: GridColDef[] = [
     {
       field: 'title',
       headerName: 'Title',
+      sortable: false,
       flex: 1,
       minWidth: 200,
     },
     {
       field: 'lastUsageAt',
       headerName: 'Last Usage',
+      sortable: false,
       flex: 1,
       minWidth: 200,
       renderCell: (params) => {
@@ -51,6 +58,7 @@ export default function UsersDataGrid({ users_list_page }: Props) {
     {
       field: 'usage',
       headerName: 'Usage',
+      sortable: users_list_page.columns?.used_bytes !== undefined,
       flex: 1,
       minWidth: 200,
       renderCell: (params) => {
@@ -99,6 +107,7 @@ export default function UsersDataGrid({ users_list_page }: Props) {
     {
       field: 'expiresInSeconds',
       headerName: 'Expires At',
+      sortable: false,
       flex: 1,
       minWidth: 200,
       renderCell: (params) => {
@@ -128,7 +137,7 @@ export default function UsersDataGrid({ users_list_page }: Props) {
       },
     },
   ];
-  let rows: GridRowsProp = users_list_page.users.map((user) => ({
+  let rows: GridRowsProp = users_list_page.records.map((user) => ({
     id: user.id,
     title: user.title,
     onlineStatus: user.online_status,
@@ -142,28 +151,70 @@ export default function UsersDataGrid({ users_list_page }: Props) {
 
   const setPaginationModel = (model: GridPaginationModel) => {
     setLoading(true);
-    router.get(
-      url,
-      { page: model.page + 1, pageSize: model.pageSize },
-      {
-        onFinish: () => setLoading(false),
-        preserveScroll: true,
-        preserveState: true,
-      }
-    );
+    let data: any = {};
+    data[(users_list_page.prefix || '') + '_page_number'] = model.page + 1;
+    data[(users_list_page.prefix || '') + '_per_page'] = model.pageSize;
+    router.get(url, data, {
+      onFinish: () => setLoading(false),
+      preserveScroll: true,
+      preserveState: true,
+    });
   };
   const setFilterModel = (model: GridFilterModel) => {
     setLoading(true);
-    router.get(
-      url,
-      { search: model.quickFilterValues?.join(' ') },
-      {
-        onFinish: () => setLoading(false),
-        preserveScroll: true,
-        preserveState: true,
-      }
-    );
+    let data: any = {};
+
+    data[(users_list_page.prefix || '') + '_search'] =
+      model.quickFilterValues?.join(' ');
+    router.get(url, data, {
+      onFinish: () => setLoading(false),
+      preserveScroll: true,
+      preserveState: true,
+    });
   };
+  const setSortModel = (model: GridSortModel) => {
+    setLoading(true);
+    let sortQ = '';
+    for (const gridSortItem of model) {
+      if (sortQ !== '') {
+        sortQ += ',';
+      }
+      let sortFieldName: keyof typeof users_list_page.columns;
+      if (gridSortItem.field == 'usage') {
+        sortFieldName = 'used_bytes';
+      } else {
+        throw new Error('cannot sort for ' + gridSortItem.field);
+      }
+      sortQ += (gridSortItem.sort == 'desc' ? '-' : '') + sortFieldName;
+    }
+    let data: any = {};
+    data[(users_list_page.prefix || '') + '_sort'] = sortQ;
+    router.get(url, data, {
+      onFinish: () => setLoading(false),
+      preserveScroll: true,
+      preserveState: true,
+    });
+  };
+  let sortModel: GridSortModel = [];
+  if (users_list_page.columns.used_bytes?.sorting?.is_asc) {
+    sortModel = [...sortModel, { field: 'usage', sort: 'asc' }];
+  } else if (users_list_page.columns.used_bytes?.sorting?.is_asc === false) {
+    sortModel = [...sortModel, { field: 'usage', sort: 'desc' }];
+  } else {
+    sortModel = [...sortModel, { field: 'usage', sort: null }];
+  }
+
+  let pagination: GridPaginationInitialState = users_list_page.pagination
+    ? {
+        paginationModel: {
+          page: users_list_page.pagination.current_page_num - 1,
+          pageSize: users_list_page.pagination.num_per_page,
+        },
+      }
+    : {};
+  let extra_prop = users_list_page.pagination
+    ? { rowCount: users_list_page.pagination.num_records }
+    : {};
 
   return (
     <>
@@ -185,20 +236,18 @@ export default function UsersDataGrid({ users_list_page }: Props) {
           },
         }}
         initialState={{
-          pagination: {
-            paginationModel: {
-              page: users_list_page.current_page_num - 1,
-              pageSize: users_list_page.num_per_page,
-            },
+          pagination: pagination,
+          sorting: {
+            sortModel: sortModel,
           },
           filter: {
             filterModel: {
               items: [],
-              quickFilterValues: users_list_page.search_qs?.split(' '),
+              quickFilterValues: users_list_page.search?.query?.split(' '),
             },
           },
         }}
-        rowCount={users_list_page.num_records}
+        {...extra_prop}
         pageSizeOptions={[15, 25, 50]}
         density="standard"
         paginationMode="server"
@@ -206,6 +255,7 @@ export default function UsersDataGrid({ users_list_page }: Props) {
         sortingMode="server"
         onPaginationModelChange={setPaginationModel}
         onFilterModelChange={setFilterModel}
+        onSortModelChange={setSortModel}
         loading={loading}
       />
     </>

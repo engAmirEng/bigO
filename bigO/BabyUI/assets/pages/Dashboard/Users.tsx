@@ -17,7 +17,12 @@ import {
   datePickersCustomizations,
   treeViewCustomizations,
 } from '../../theme/customizations';
-import { UsersListPage, UrlReverse } from '../../services/types.ts';
+import {
+  ListPage,
+  UserRecord,
+  UserRecordColumns,
+  UrlReverse,
+} from '../../services/types.ts';
 import Typography from '@mui/material/Typography';
 import Grid from '@mui/material/Grid2';
 import Copyright from '../../internals/components/Copyright.tsx';
@@ -39,7 +44,7 @@ interface Props {
   current_agency_id: string;
   agencies: Agency[];
   logout_url: string;
-  users_list_page: UsersListPage;
+  users_list_page: ListPage<UserRecord, UserRecordColumns>;
   urls: UrlReverse[];
 }
 export default function Users({

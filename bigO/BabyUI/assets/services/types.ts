@@ -8,15 +8,30 @@ interface Message {
 
 export type Messages = Message[];
 
-export interface ListPage {
+interface Pagination {
   num_pages: number;
   num_records: number;
   num_per_page: number;
   current_page_num: number;
-  search_qs?: string;
+}
+interface Search {
+  query: string | null;
+}
+interface Sorting {
+  is_asc: boolean | null;
+}
+interface Column {
+  sorting: Sorting | null;
+}
+export interface ListPage<RecordT, ColumnsT> {
+  prefix: string | null;
+  pagination: Pagination | null;
+  search: Search | null;
+  records: RecordT[];
+  columns: ColumnsT;
 }
 
-export interface Users {
+export interface UserRecord {
   id: string;
   title: string;
   last_usage_at_repr: string;
@@ -26,8 +41,8 @@ export interface Users {
   expires_in_seconds: string;
 }
 
-export interface UsersListPage extends ListPage {
-  users: Users[];
+export interface UserRecordColumns {
+  used_bytes?: Column;
 }
 
 export interface UrlReverse {

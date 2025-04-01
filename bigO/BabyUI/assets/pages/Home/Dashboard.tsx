@@ -19,7 +19,11 @@ import {
   datePickersCustomizations,
   treeViewCustomizations,
 } from '../../theme/customizations';
-import { UsersListPage } from '../../services/types.ts';
+import {
+  ListPage,
+  UserRecord,
+  UserRecordColumns,
+} from '../../services/types.ts';
 
 const xThemeComponents = {
   ...chartsCustomizations,
@@ -37,7 +41,7 @@ interface Props {
   current_agency_id: string;
   agencies: Agency[];
   logout_url: string;
-  users_list_page: UsersListPage;
+  users_list_page: ListPage<UserRecord, UserRecordColumns>;
   urls: UrlReverse[];
 }
 export default function Dashboard({

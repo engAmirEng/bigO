@@ -9,7 +9,7 @@ import HighlightedCard from './HighlightedCard';
 import PageViewsBarChart from './PageViewsBarChart';
 import SessionsChart from './SessionsChart';
 import StatCard, { StatCardProps } from './StatCard';
-import { UsersListPage } from '../services/types.ts';
+import { ListPage, UserRecord, UserRecordColumns } from '../services/types.ts';
 import UsersDataGrid from '../components/UsersDataGrid.tsx';
 
 const data: StatCardProps[] = [
@@ -46,7 +46,7 @@ const data: StatCardProps[] = [
   },
 ];
 interface Props {
-  users_list_page: UsersListPage;
+  users_list_page: ListPage<UserRecord, UserRecordColumns>;
 }
 export default function MainGrid({ users_list_page }: Props) {
   return (

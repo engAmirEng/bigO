@@ -3,7 +3,6 @@ import logging
 from datetime import timedelta
 from functools import wraps
 
-import pydantic
 from asgiref.sync import sync_to_async
 
 from bigO.proxy_manager import models as proxy_manager_models
@@ -16,7 +15,8 @@ from django.contrib.auth import alogout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.humanize.templatetags.humanize import naturaltime
-from django.core.paginator import Paginator
+from django.db.models import QuerySet
+from django.db.models.functions import Coalesce
 from django.http import HttpResponseRedirect
 from django.shortcuts import redirect, render
 from django.urls import reverse, reverse_lazy
@@ -24,6 +24,8 @@ from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.translation import gettext
 from django.views.decorators.http import require_POST
+
+from . import utils
 
 logger = logging.getLogger(__name__)
 
@@ -137,40 +139,55 @@ async def dashboard(request):
 
     users_qs = proxy_manager_services.get_agent_current_subscriptionperiods_qs(agent=agent_obj)
     users_qs = users_qs.select_related("profile").ann_expires_at().ann_total_limit_bytes().order_by("-pk")
-    if search_qs := request.GET.get("search"):
-        users_qs = users_qs.filter(profile__title__icontains=search_qs)
-    users_qs = users_qs.distinct()
-    users_paginator = Paginator(users_qs, request.GET.get("pageSize", 25))
-    users_page_number = request.GET.get("users_page_number", request.GET.get("page", 1))
-    users_page = await sync_to_async(users_paginator.get_page)(users_page_number)
+
+    async def users_search_callback(queryset: QuerySet[proxy_manager_models.SubscriptionPeriod], q: str):
+        return queryset.filter(profile__title__icontains=q)
+
+    async def users_render_record_callback(i: proxy_manager_models.SubscriptionPeriod) -> utils.User:
+        return utils.User(
+            id=str(i.profile_id),
+            title=i.profile.title,
+            last_usage_at_repr=naturaltime(i.last_usage_at),
+            online_status="online"
+            if i.last_usage_at and (timezone.now() - i.last_usage_at < timedelta(minutes=2))
+            else "offline"
+            if i.last_usage_at
+            else "never",
+            used_bytes=i.current_download_bytes + i.current_upload_bytes,
+            total_limit_bytes=i.total_limit_bytes,
+            expires_in_seconds=int((i.expires_at - timezone.now()).total_seconds()),
+        )
+
+    async def users_sort_callback(
+        queryset: QuerySet[proxy_manager_models.SubscriptionPeriod], orderings: list[tuple[str, bool]]
+    ):
+        order_bys = []
+        res_orderings = []
+        for key, is_asc in orderings:
+            if key == "used_bytes":
+                queryset = queryset.annotate(
+                    used_bytes=Coalesce("current_download_bytes", 0) + Coalesce("current_upload_bytes", 0)
+                )
+                order_bys.append(("" if is_asc else "-") + "used_bytes")
+            res_orderings.append((key, is_asc))
+        return queryset.order_by(*order_bys), res_orderings
+
+    user_listpagehandler = utils.ListPageHandler[proxy_manager_models.SubscriptionPeriod, utils.User](
+        request,
+        queryset=users_qs,
+        search_callback=users_search_callback,
+        render_record_callback=users_render_record_callback,
+        sort_callback=users_sort_callback,
+        sortables={"used_bytes"},
+        prefix="users",
+    )
+    users_res = await user_listpagehandler.to_response()
 
     return {
         "current_agency_id": current_agency_id,
         "agencies": [{"id": i.agency.id, "name": i.agency.name} for i in agent_accounts],
         "logout_url": reverse("BabyUI:logout"),
-        "users_list_page": {
-            "num_pages": users_page.paginator.num_pages,
-            "num_records": users_page.paginator.count,
-            "num_per_page": users_page.paginator.per_page,
-            "current_page_num": users_page.number,
-            "search_qs": search_qs,
-            "users": [
-                {
-                    "id": str(i.profile_id),
-                    "title": i.profile.title,
-                    "last_usage_at_repr": naturaltime(i.last_usage_at),
-                    "online_status": "online"
-                    if i.last_usage_at and (timezone.now() - i.last_usage_at < timedelta(minutes=2))
-                    else "offline"
-                    if i.last_usage_at
-                    else "never",
-                    "used_bytes": i.current_download_bytes + i.current_upload_bytes,
-                    "total_limit_bytes": i.total_limit_bytes,
-                    "expires_in_seconds": (i.expires_at - timezone.now()).total_seconds(),
-                }
-                for i in await sync_to_async(list)(users_page)
-            ],
-        },
+        "users_list_page": users_res.model_dump(),
     }
 
 
@@ -202,38 +219,53 @@ async def dashboard_users(request):
 
     users_qs = proxy_manager_services.get_agent_current_subscriptionperiods_qs(agent=agent_obj)
     users_qs = users_qs.select_related("profile").ann_expires_at().ann_total_limit_bytes().order_by("-pk")
-    if search_qs := request.GET.get("search"):
-        users_qs = users_qs.filter(profile__title__icontains=search_qs)
-    users_qs = users_qs.distinct()
-    users_paginator = Paginator(users_qs, request.GET.get("pageSize", 25))
-    users_page_number = request.GET.get("users_page_number", request.GET.get("page", 1))
-    users_page = await sync_to_async(users_paginator.get_page)(users_page_number)
+
+    async def users_search_callback(queryset: QuerySet[proxy_manager_models.SubscriptionPeriod], q: str):
+        return queryset.filter(profile__title__icontains=q)
+
+    async def users_render_record_callback(i: proxy_manager_models.SubscriptionPeriod) -> utils.User:
+        return utils.User(
+            id=str(i.profile_id),
+            title=i.profile.title,
+            last_usage_at_repr=naturaltime(i.last_usage_at),
+            online_status="online"
+            if i.last_usage_at and (timezone.now() - i.last_usage_at < timedelta(minutes=2))
+            else "offline"
+            if i.last_usage_at
+            else "never",
+            used_bytes=i.current_download_bytes + i.current_upload_bytes,
+            total_limit_bytes=i.total_limit_bytes,
+            expires_in_seconds=int((i.expires_at - timezone.now()).total_seconds()),
+        )
+
+    async def users_sort_callback(
+        queryset: QuerySet[proxy_manager_models.SubscriptionPeriod], orderings: list[tuple[str, bool]]
+    ):
+        order_bys = []
+        res_orderings = []
+        for key, is_asc in orderings:
+            if key == "used_bytes":
+                queryset = queryset.annotate(
+                    used_bytes=Coalesce("current_download_bytes", 0) + Coalesce("current_upload_bytes", 0)
+                )
+                order_bys.append(("" if is_asc else "-") + "used_bytes")
+            res_orderings.append((key, is_asc))
+        return queryset.order_by(*order_bys), res_orderings
+
+    user_listpagehandler = utils.ListPageHandler[proxy_manager_models.SubscriptionPeriod, utils.User](
+        request,
+        queryset=users_qs,
+        search_callback=users_search_callback,
+        render_record_callback=users_render_record_callback,
+        sort_callback=users_sort_callback,
+        sortables={"used_bytes"},
+        prefix="users",
+    )
+    users_res = await user_listpagehandler.to_response()
 
     return {
         "current_agency_id": current_agency_id,
         "agencies": [{"id": i.agency.id, "name": i.agency.name} for i in agent_accounts],
         "logout_url": reverse("BabyUI:logout"),
-        "users_list_page": {
-            "num_pages": users_page.paginator.num_pages,
-            "num_records": users_page.paginator.count,
-            "num_per_page": users_page.paginator.per_page,
-            "current_page_num": users_page.number,
-            "search_qs": search_qs,
-            "users": [
-                {
-                    "id": str(i.profile_id),
-                    "title": i.profile.title,
-                    "last_usage_at_repr": naturaltime(i.last_usage_at),
-                    "online_status": "online"
-                    if i.last_usage_at and (timezone.now() - i.last_usage_at < timedelta(minutes=2))
-                    else "offline"
-                    if i.last_usage_at
-                    else "never",
-                    "used_bytes": i.current_download_bytes + i.current_upload_bytes,
-                    "total_limit_bytes": i.total_limit_bytes,
-                    "expires_in_seconds": (i.expires_at - timezone.now()).total_seconds(),
-                }
-                for i in await sync_to_async(list)(users_page)
-            ],
-        },
+        "users_list_page": users_res.model_dump(),
     }
