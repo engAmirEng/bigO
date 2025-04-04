@@ -2,7 +2,6 @@ from decimal import ROUND_HALF_DOWN, Decimal
 
 import admin_extra_buttons.decorators
 import admin_extra_buttons.mixins
-from django.template.defaultfilters import filesizeformat
 from render_block import render_block_to_string
 from rest_framework_api_key.admin import APIKeyModelAdmin
 
@@ -12,6 +11,7 @@ from django.contrib.humanize.templatetags.humanize import naturaltime
 from django.db.models import Count
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, render
+from django.template.defaultfilters import filesizeformat
 from django.urls import reverse
 from django.utils.html import format_html
 
