@@ -90,7 +90,9 @@ def get_connectable_subscriptionperiod_qs():
     )
 
 
-def get_xray_conf(node_obj) -> tuple[str, str, dict]:
+def get_xray_conf(node_obj) -> tuple[str, str, dict] | None:
+    if not node_obj.tmp_xray:
+        return None
     proxy_manager_config = models.Config.objects.get()
     inbound_parts = ""
     rule_parts = ""
