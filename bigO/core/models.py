@@ -1,9 +1,16 @@
+from zoneinfo import ZoneInfo
+
 from solo.models import SingletonModel
 
 from bigO.utils.models import TimeStampedModel
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import CheckConstraint, Q
+from django.utils import timezone
+from django.utils.translation import gettext
+
+from .dns import AVAILABLE_DNS_PROVIDERS
+from .dns.base import BaseDNSProvider
 
 
 class LogActionType(models.IntegerChoices):
@@ -88,3 +95,98 @@ class Certificate(AbstractCryptographicObject, TimeStampedModel, models.Model):
             if not self.parent_certificate:
                 return f"parent_certificate does not exists on {str(self)}"
             return self.parent_certificate.is_chain_complete()
+
+
+class Domain(TimeStampedModel, models.Model):
+    name = models.CharField(max_length=255, db_index=True, unique=True)
+    dns_provider = models.ForeignKey(
+        "DNSProvider", on_delete=models.PROTECT, related_name="dnsprovider_domains", null=True, blank=True
+    )
+    is_root = models.BooleanField()
+    root = models.ForeignKey("self", on_delete=models.PROTECT, related_name="subdomains", null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            CheckConstraint(
+                check=Q(Q(root__isnull=True) | Q(is_root=False)),
+                name="either_root_or_isnotroot",
+            )
+        ]
+
+    def get_root(self):
+        if not self.root and self.is_root:
+            return self
+        if not self.root and not self.is_root:
+            return None
+        return self.root.get_root()
+
+    def clean(self):
+        if self.root:
+            if not self.name.endswith(self.root.name):
+                raise ValidationError(gettext("name does not match with root"))
+
+    def get_dns_provider(self):
+        if dns_provider := self.dns_provider:
+            return dns_provider
+        if self.root:
+            return self.root.get_dns_provider()
+
+    def __str__(self):
+        return f"{self.pk}-{self.name}"
+
+
+class DomainCertificate(TimeStampedModel, models.Model):
+    domain = models.ForeignKey(Domain, on_delete=models.CASCADE, related_name="domain_domaincertificates")
+    certificate = models.ForeignKey(
+        Certificate, on_delete=models.CASCADE, related_name="certificate_domaincertificates"
+    )
+
+    def __str__(self):
+        return f"{self.pk}-{self.domain}"
+
+
+class CertbotCert(TimeStampedModel, models.Model):
+    uuid = models.UUIDField(db_index=True, unique=True)
+    certificate = models.OneToOneField(Certificate, on_delete=models.CASCADE, related_name="certificate_certbot")
+    cert_name = models.CharField(max_length=255, unique=True, db_index=True)
+
+
+class CertificateTask(TimeStampedModel, models.Model):
+    class TaskTypeChoices(models.IntegerChoices):
+        ISSUE = 1
+        RENEWAL = 2
+
+    # celery_task_id = models.CharField(max_length=255, unique=True)
+    certbot_cert_uuid = models.UUIDField()
+    task_type = models.PositiveSmallIntegerField(choices=TaskTypeChoices.choices)
+    logs = models.TextField(blank=True)
+    is_closed = models.BooleanField()
+    is_success = models.BooleanField(null=True, blank=True)
+
+    def log(self, name: str, msg: str):
+        self.logs = self.logs or ""
+        time_str = timezone.now().astimezone(ZoneInfo("UTC"))
+        self.logs += "\n" + f"{name} {time_str}: {msg}"
+        self.save()
+
+
+#
+# class CertificateTaskDomain(TimeStampedModel, models.Model):
+#     certificate_task = models.ForeignKey(CertificateTask, on_delete=models.CASCADE, related_name="certificatetask_domains")
+#     domain = models.ForeignKey(Domain, on_delete=models.CASCADE, related_name="domain_certificatetasks")
+
+
+class DNSProvider(TimeStampedModel, models.Model):
+    name = models.SlugField()
+    provider_key = models.SlugField(max_length=127, db_index=True)
+    provider_args = models.JSONField(null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.pk}-{self.name}"
+
+    @property
+    def provider_cls(self) -> type[BaseDNSProvider]:
+        return [i for i in AVAILABLE_DNS_PROVIDERS if i.TYPE_IDENTIFIER == self.provider_key][0]
+
+    def get_provider(self) -> BaseDNSProvider:
+        return self.provider_cls(args=self.provider_args)

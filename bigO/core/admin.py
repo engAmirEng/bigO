@@ -2,15 +2,19 @@ import crypt
 
 import admin_extra_buttons.decorators
 import admin_extra_buttons.mixins
+from asgiref.sync import async_to_sync
+from django_jsonform.forms.fields import JSONFormField
 from solo.admin import SingletonModelAdmin
 
 from django import forms
 from django.contrib import admin, messages
 from django.contrib.admin import widgets
 from django.contrib.auth.decorators import login_required
+from django.db.models import QuerySet
 from django.shortcuts import redirect, render
-
-from . import models
+from django.utils.translation import gettext
+from .dns import AVAILABLE_DNS_PROVIDERS
+from . import models, tasks
 
 
 @admin.register(models.SiteConfiguration)
@@ -182,10 +186,21 @@ class PrivateKeyModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.M
         return render(request, "admin/change_form.html", context=context)
 
 
+class DomainCertificateInline(admin.StackedInline):
+    extra = 1
+    model = models.DomainCertificate
+
+
+class CertbotCertInline(admin.StackedInline):
+    extra = 1
+    model = models.CertbotCert
+
+
 @admin.register(models.Certificate)
 class CertificateModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.ModelAdmin):
     search_fields = ["slug"]
     autocomplete_fields = ["private_key", "parent_certificate"]
+    inlines = [CertbotCertInline, DomainCertificateInline]
 
     @admin_extra_buttons.decorators.button(
         decorators=[login_required(login_url="admin:login")],
@@ -216,3 +231,83 @@ class CertificateModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.
         context["media"] = media
         context["show_save_and_continue"] = False
         return render(request, "admin/change_form.html", context=context)
+
+@admin.register(models.Domain)
+class DomainModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.ModelAdmin):
+    list_display = ("__str__", "name", "root", "dns_provider")
+    inlines = [DomainCertificateInline]
+    actions = ["issue_certificate"]
+
+    @admin.action(description="Issue A valid Certificate")
+    def issue_certificate(self, request, queryset: QuerySet[models.Domain]):
+        count = 0
+        no_provider_count = 0
+        for i in queryset:
+            if i.get_dns_provider() is None:
+                no_provider_count += 1
+                continue
+            tasks.issue_certificate_for_domain(domain_id=i.id)  # todo delay
+            count += 1
+        self.message_user(
+            request,
+            gettext("issued for {0}").format(count),
+            messages.INFO,
+        )
+        self.message_user(
+            request,
+            gettext("{0} do not have dns provider").format(no_provider_count),
+            messages.ERROR,
+        )
+
+
+class DNSProviderModelForm(forms.ModelForm):
+    verify = forms.BooleanField(required=False)
+
+    class Meta:
+        model = models.DNSProvider
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["provider_key"] = forms.ChoiceField(
+            choices=[(i.TYPE_IDENTIFIER, i.TYPE_IDENTIFIER) for i in AVAILABLE_DNS_PROVIDERS]
+        )
+        if self.instance and self.instance.id:
+            self.fields["provider_key"].disabled = True
+            self.fields["provider_args"] = JSONFormField(
+                schema=self.instance.provider_cls.ProviderArgsModel.model_json_schema()
+            )
+        else:
+            if self.data.get("provider_key"):
+                dns_provider_cls = [
+                    i for i in AVAILABLE_DNS_PROVIDERS if i.TYPE_IDENTIFIER == self.data.get("provider_key")
+                ]
+                dns_provider_cls = dns_provider_cls[0] if dns_provider_cls else None
+                if dns_provider_cls:
+                    self.fields["provider_args"] = JSONFormField(
+                        schema=dns_provider_cls.ProviderArgsModel.model_json_schema()
+                    )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if (
+            cleaned_data.get("verify")
+            and (provider_key := cleaned_data.get("provider_key"))
+            and (provider_args := cleaned_data.get("provider_args"))
+        ):
+            dns_provider_cls = [i for i in AVAILABLE_DNS_PROVIDERS if i.TYPE_IDENTIFIER == provider_key][0]
+            try:
+                async_to_sync(dns_provider_cls(args=provider_args).verify)()
+            except Exception as e:
+                raise forms.ValidationError(e)
+        return cleaned_data
+
+
+@admin.register(models.DNSProvider)
+class DNSProviderModelAdmin(admin.ModelAdmin):
+    list_display = ("__str__", "name", "provider_key")
+    form = DNSProviderModelForm
+
+@admin.register(models.CertificateTask)
+class CertificateTaskModelAdmin(admin.ModelAdmin):
+    pass

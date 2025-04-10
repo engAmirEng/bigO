@@ -151,6 +151,8 @@ THIRD_PARTY_APPS = clean_ellipsis(
         "django_cleanup.apps.CleanupConfig",
     ]
 )
+import django_celery_results
+
 DJANGO_APPS = [
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -291,8 +293,8 @@ TEST_RUNNER = "django.test.runner.DiscoverRunner"
 
 # LOGGING
 # ------------------------------------------------------------------------------
-logs_dir = os.path.join(BASE_DIR, "logs")
-os.makedirs(logs_dir, exist_ok=True)
+LOGS_DIR = os.path.join(BASE_DIR, "logs")
+os.makedirs(LOGS_DIR, exist_ok=True)
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
@@ -313,7 +315,7 @@ LOGGING = {
         "file": {
             "level": "INFO",
             "class": "logging.handlers.RotatingFileHandler",
-            "filename": os.path.join(logs_dir, "info.log"),
+            "filename": os.path.join(LOGS_DIR, "info.log"),
             "backupCount": env.int("MAX_LOG_FILE_COUNT", default=1),
             "maxBytes": 50 * 1024 * 1024,
             "filters": ["ignore_autoreload"],
