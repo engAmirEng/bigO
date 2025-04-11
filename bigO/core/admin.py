@@ -10,11 +10,15 @@ from django import forms
 from django.contrib import admin, messages
 from django.contrib.admin import widgets
 from django.contrib.auth.decorators import login_required
+from django.contrib.humanize.templatetags.humanize import naturaltime
 from django.db.models import QuerySet
 from django.shortcuts import redirect, render
+from django.urls import reverse
+from django.utils.html import format_html
 from django.utils.translation import gettext
-from .dns import AVAILABLE_DNS_PROVIDERS
+
 from . import models, tasks
+from .dns import AVAILABLE_DNS_PROVIDERS
 
 
 @admin.register(models.SiteConfiguration)
@@ -191,16 +195,43 @@ class DomainCertificateInline(admin.StackedInline):
     model = models.DomainCertificate
 
 
-class CertbotCertInline(admin.StackedInline):
-    extra = 1
-    model = models.CertbotCert
-
-
 @admin.register(models.Certificate)
 class CertificateModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.ModelAdmin):
-    search_fields = ["slug"]
+    list_display = (
+        "__str__",
+        "private_key_display",
+        "parent_certificate_display",
+        "valid_from",
+        "valid_to_display",
+        "certbot_info",
+    )
+    search_fields = ["slug", "certbot_info__cert_name"]
     autocomplete_fields = ["private_key", "parent_certificate"]
-    inlines = [CertbotCertInline, DomainCertificateInline]
+    inlines = [DomainCertificateInline]
+
+    @admin.display(ordering="private_key")
+    def private_key_display(self, obj):
+        if obj.private_key is None:
+            return None
+        return format_html(
+            "<a href='{}'>{}</a>",
+            reverse("admin:core_privatekey_change", args=[obj.private_key.id]),
+            str(obj.private_key),
+        )
+
+    @admin.display(ordering="parent_certificate")
+    def parent_certificate_display(self, obj):
+        if obj.parent_certificate is None:
+            return None
+        return format_html(
+            "<a href='{}'>{}</a>",
+            reverse("admin:core_certificate_change", args=[obj.parent_certificate.id]),
+            str(obj.parent_certificate),
+        )
+
+    @admin.display(ordering="valid_to")
+    def valid_to_display(self, obj):
+        return naturaltime(obj.valid_to)
 
     @admin_extra_buttons.decorators.button(
         decorators=[login_required(login_url="admin:login")],
@@ -232,6 +263,39 @@ class CertificateModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.
         context["show_save_and_continue"] = False
         return render(request, "admin/change_form.html", context=context)
 
+
+@admin.register(models.CertbotInfo)
+class CertbotInfoModelAdmin(admin.ModelAdmin):
+    class CertificateInline(admin.StackedInline):
+        extra = 0
+        model = models.Certificate
+
+    list_display = ("__str__", "cert_name", "uuid", "valid_to")
+    inlines = [CertificateInline]
+    actions = ["issue_renew"]
+
+    def get_queryset(self, request):
+        return super().get_queryset(request=request).ann_valid_to()
+
+    @admin.display(ordering="valid_to")
+    def valid_to(self, obj):
+        if obj.valid_to is None:
+            return None
+        return naturaltime(obj.valid_to)
+
+    @admin.action(description="Issue A Renew")
+    def issue_renew(self, request, queryset: QuerySet[models.Domain]):
+        count = 0
+        for i in queryset:
+            tasks.certbot_renew_certificates(certbotinfo_id=i.id)
+            count += 1
+        self.message_user(
+            request,
+            gettext("issued for {0}").format(count),
+            messages.INFO,
+        )
+
+
 @admin.register(models.Domain)
 class DomainModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.ModelAdmin):
     list_display = ("__str__", "name", "root", "dns_provider")
@@ -246,7 +310,7 @@ class DomainModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.Model
             if i.get_dns_provider() is None:
                 no_provider_count += 1
                 continue
-            tasks.issue_certificate_for_domain(domain_id=i.id)  # todo delay
+            tasks.issue_certificate_for_domain(domain_id=i.id)
             count += 1
         self.message_user(
             request,
@@ -308,6 +372,18 @@ class DNSProviderModelAdmin(admin.ModelAdmin):
     list_display = ("__str__", "name", "provider_key")
     form = DNSProviderModelForm
 
+
 @admin.register(models.CertificateTask)
 class CertificateTaskModelAdmin(admin.ModelAdmin):
-    pass
+    list_display = ("__str__", "certbot_info", "task_type", "is_closed", "is_success", "created_at", "updated_at")
+
+    @admin.display()
+    def certbot_info(self, obj):
+        certbotinfo = models.CertbotInfo.objects.filter(uuid=obj.certbot_info_uuid).first()
+        if certbotinfo is None:
+            return obj.certbot_info_uuid
+        return format_html(
+            "<a href='{}'>{}</a>",
+            reverse("admin:core_certbotinfo_change", args=[certbotinfo.pk]),
+            obj.certbot_info_uuid,
+        )

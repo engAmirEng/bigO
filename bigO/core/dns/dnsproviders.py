@@ -31,7 +31,7 @@ class CloudflareDNS(BaseDNSProvider):
         else:
             raise AssertionError(f"domain {base_domain_name} not found")
         r = await self.client.dns.records.create(
-            zone_id=zone.id, name=name, content=content, type="TXT", comment=comment
+            zone_id=zone_id, name=name, content=content, type="TXT", comment=comment
         )
         if r is not None:
             return r.id

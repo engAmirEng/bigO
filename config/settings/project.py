@@ -1,6 +1,8 @@
 import pathlib
-from django.conf import settings
+
 from environ import environ
+
+from django.conf import settings
 
 from ._setup import env
 

@@ -3,9 +3,10 @@ from zoneinfo import ZoneInfo
 from solo.models import SingletonModel
 
 from bigO.utils.models import TimeStampedModel
+from django.core import validators
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.db.models import CheckConstraint, Q
+from django.db.models import CheckConstraint, OuterRef, Q, Subquery
 from django.utils import timezone
 from django.utils.translation import gettext
 
@@ -57,7 +58,7 @@ class AbstractCryptographicObject(models.Model):
         RSA = 1, "RSA"
         ECDSA = 2, "ECDSA"
 
-    slug = models.SlugField(unique=True)
+    slug = models.CharField(unique=True, max_length=255)
     algorithm = models.PositiveSmallIntegerField(AlgorithmChoices.choices)
     content = models.TextField()
 
@@ -80,6 +81,9 @@ class Certificate(AbstractCryptographicObject, TimeStampedModel, models.Model):
     parent_certificate = models.ForeignKey("self", on_delete=models.CASCADE, null=True, blank=True)
     valid_from = models.DateTimeField()
     valid_to = models.DateTimeField()
+    certbot_info = models.ForeignKey(
+        "CertbotInfo", on_delete=models.SET_NULL, related_name="certificates", null=True, blank=True
+    )
 
     class Meta:
         constraints = [
@@ -97,8 +101,31 @@ class Certificate(AbstractCryptographicObject, TimeStampedModel, models.Model):
             return self.parent_certificate.is_chain_complete()
 
 
+class CertbotInfo(TimeStampedModel, models.Model):
+    class CertbotInfoQuerySet(models.QuerySet):
+        def ann_valid_to(self):
+            certificate_qs = Certificate.objects.filter(certbot_info=OuterRef("id")).order_by("-valid_to")
+            return self.annotate(valid_to=Subquery(certificate_qs.values("valid_to")[:1]))
+
+    uuid = models.UUIDField(db_index=True, unique=True)
+    cert_name = models.CharField(max_length=255, unique=True, db_index=True)
+
+    objects = CertbotInfoQuerySet.as_manager()
+
+    def __str__(self):
+        return f"{self.pk}-{self.cert_name}"
+
+    @property
+    def valid_to(self):
+        return self._valid_to
+
+    @valid_to.setter
+    def valid_to(self, value):
+        self._valid_to = value
+
+
 class Domain(TimeStampedModel, models.Model):
-    name = models.CharField(max_length=255, db_index=True, unique=True)
+    name = models.CharField(max_length=255, db_index=True, unique=True, validators=[validators.validate_domain_name])
     dns_provider = models.ForeignKey(
         "DNSProvider", on_delete=models.PROTECT, related_name="dnsprovider_domains", null=True, blank=True
     )
@@ -112,6 +139,9 @@ class Domain(TimeStampedModel, models.Model):
                 name="either_root_or_isnotroot",
             )
         ]
+
+    def __str__(self):
+        return f"{self.pk}-{self.name}"
 
     def get_root(self):
         if not self.root and self.is_root:
@@ -131,9 +161,6 @@ class Domain(TimeStampedModel, models.Model):
         if self.root:
             return self.root.get_dns_provider()
 
-    def __str__(self):
-        return f"{self.pk}-{self.name}"
-
 
 class DomainCertificate(TimeStampedModel, models.Model):
     domain = models.ForeignKey(Domain, on_delete=models.CASCADE, related_name="domain_domaincertificates")
@@ -145,19 +172,12 @@ class DomainCertificate(TimeStampedModel, models.Model):
         return f"{self.pk}-{self.domain}"
 
 
-class CertbotCert(TimeStampedModel, models.Model):
-    uuid = models.UUIDField(db_index=True, unique=True)
-    certificate = models.OneToOneField(Certificate, on_delete=models.CASCADE, related_name="certificate_certbot")
-    cert_name = models.CharField(max_length=255, unique=True, db_index=True)
-
-
 class CertificateTask(TimeStampedModel, models.Model):
     class TaskTypeChoices(models.IntegerChoices):
         ISSUE = 1
         RENEWAL = 2
 
-    # celery_task_id = models.CharField(max_length=255, unique=True)
-    certbot_cert_uuid = models.UUIDField()
+    certbot_info_uuid = models.UUIDField()
     task_type = models.PositiveSmallIntegerField(choices=TaskTypeChoices.choices)
     logs = models.TextField(blank=True)
     is_closed = models.BooleanField()
@@ -168,12 +188,6 @@ class CertificateTask(TimeStampedModel, models.Model):
         time_str = timezone.now().astimezone(ZoneInfo("UTC"))
         self.logs += "\n" + f"{name} {time_str}: {msg}"
         self.save()
-
-
-#
-# class CertificateTaskDomain(TimeStampedModel, models.Model):
-#     certificate_task = models.ForeignKey(CertificateTask, on_delete=models.CASCADE, related_name="certificatetask_domains")
-#     domain = models.ForeignKey(Domain, on_delete=models.CASCADE, related_name="domain_certificatetasks")
 
 
 class DNSProvider(TimeStampedModel, models.Model):

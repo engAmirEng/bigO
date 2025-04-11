@@ -151,7 +151,6 @@ THIRD_PARTY_APPS = clean_ellipsis(
         "django_cleanup.apps.CleanupConfig",
     ]
 )
-import django_celery_results
 
 DJANGO_APPS = [
     "django.contrib.auth",
