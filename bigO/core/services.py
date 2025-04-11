@@ -118,6 +118,10 @@ def certbot_init_new(domains: list[models.Domain]) -> tuple[bool, str]:
             certificatetask_obj.is_closed = True
             certificatetask_obj.is_success = False
             certificatetask_obj.save()
+        if "failed to authenticate" in certbot_res:
+            certificatetask_obj.is_closed = True
+            certificatetask_obj.is_success = False
+            certificatetask_obj.save()
         if "Another instance of Certbot is already running" in certbot_err:
             certificatetask_obj.is_closed = True
             certificatetask_obj.is_success = False
@@ -167,7 +171,7 @@ def certbot_init_new(domains: list[models.Domain]) -> tuple[bool, str]:
 
     certbotinfo_obj = models.CertbotInfo()
     certbotinfo_obj.uuid = future_certbotinfo_uuid
-    certbotinfo_obj.cert_name = slugify(cert_name)
+    certbotinfo_obj.cert_name = cert_name
 
     certificate_obj = models.Certificate()
     certificate_obj.private_key = privatekey_obj

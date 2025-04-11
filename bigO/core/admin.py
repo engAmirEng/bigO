@@ -7,6 +7,7 @@ from django_jsonform.forms.fields import JSONFormField
 from solo.admin import SingletonModelAdmin
 
 from django import forms
+from django.conf import settings
 from django.contrib import admin, messages
 from django.contrib.admin import widgets
 from django.contrib.auth.decorators import login_required
@@ -287,7 +288,10 @@ class CertbotInfoModelAdmin(admin.ModelAdmin):
     def issue_renew(self, request, queryset: QuerySet[models.Domain]):
         count = 0
         for i in queryset:
-            tasks.certbot_renew_certificates(certbotinfo_id=i.id)
+            certbot_renew_certificates = (
+                tasks.certbot_renew_certificates if settings.DEBUG else tasks.certbot_renew_certificates.delay
+            )
+            certbot_renew_certificates(certbotinfo_id=i.id)
             count += 1
         self.message_user(
             request,
@@ -310,7 +314,10 @@ class DomainModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.Model
             if i.get_dns_provider() is None:
                 no_provider_count += 1
                 continue
-            tasks.issue_certificate_for_domain(domain_id=i.id)
+            issue_certificate_for_domain = (
+                tasks.issue_certificate_for_domain if settings.DEBUG else tasks.issue_certificate_for_domain.delay
+            )
+            issue_certificate_for_domain(domain_id=i.id)
             count += 1
         self.message_user(
             request,

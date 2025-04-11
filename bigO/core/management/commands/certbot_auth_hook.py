@@ -2,6 +2,7 @@ import os
 import time
 import uuid
 
+import dns.resolver
 from asgiref.sync import async_to_sync
 
 from django.core.management.base import BaseCommand
@@ -42,7 +43,8 @@ class Command(BaseCommand):
             raise e
 
     def fn(self, certificatetask, certbot_domain_name):
-        sleep_second_for_txt_record = 30
+        sleep_second_for_txt_record = 20
+        max_sleep_second_for_txt_record = 100
 
         certbot_validation = os.environ["CERTBOT_VALIDATION"]
         # os.environ["CERTBOT_TOKEN"]  # HTTP-01 only
@@ -56,9 +58,7 @@ class Command(BaseCommand):
         base_domain_name = domain_root_obj.name
 
         txt_name = f"_acme-challenge.{certbot_domain_name}"
-        certificatetask.log(
-            "auth_hook", f"auth_hook: doing txt record, _acme-challenge.{certbot_domain_name}: {certbot_validation}"
-        )
+        certificatetask.log("auth_hook", f"auth_hook: doing txt record, {txt_name}: {certbot_validation}")
 
         provider_record_id = async_to_sync(dns_provider.get_provider().create_record)(
             base_domain_name=base_domain_name,
@@ -73,4 +73,35 @@ class Command(BaseCommand):
             self.style.SUCCESS(f"txt_created#{provider_record_id}#")
         )  # this line is used by certbot_cleanup_hook to know to delete which record
 
+        t0 = time.perf_counter()
         time.sleep(sleep_second_for_txt_record)
+        dns_verified = False
+        counter = 0
+        while not dns_verified:
+            counter += 1
+            certificatetask.log(
+                "auth_hook", f"auth_hook: {counter}th try to verify the txt record, {txt_name}: {certbot_validation}"
+            )
+            dns_resolver = dns.resolver.Resolver()
+            dns_resolver.nameservers = ["1.1.1.1", "8.8.8.8"]
+            try:
+                dns_results = dns_resolver.resolve(txt_name, "TXT")
+            except dns.resolver.NXDOMAIN:
+                pass
+            else:
+                for dns_result in dns_results:
+                    for txt_value in dns_result.strings:
+                        if txt_value.decode() == certbot_validation:
+                            dns_verified = True
+                            certificatetask.log(
+                                "auth_hook", f"auth_hook: the txt record verified, {txt_name}: {certbot_validation}"
+                            )
+
+            tn = time.perf_counter()
+            if (tn - t0) > max_sleep_second_for_txt_record:
+                break
+            time.sleep(2)
+        if not dns_verified:
+            certificatetask.log(
+                "auth_hook", f"auth_hook: could not verify the txt record, {txt_name}: {certbot_validation}"
+            )
