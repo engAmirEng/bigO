@@ -100,6 +100,11 @@ class Certificate(AbstractCryptographicObject, TimeStampedModel, models.Model):
                 return f"parent_certificate does not exists on {str(self)}"
             return self.parent_certificate.is_chain_complete()
 
+    def get_fullchain_content(self):
+        if self.parent_certificate:
+            return self.content + "\n" +self.parent_certificate.content
+        return self.content
+
 
 class CertbotInfo(TimeStampedModel, models.Model):
     class CertbotInfoQuerySet(models.QuerySet):

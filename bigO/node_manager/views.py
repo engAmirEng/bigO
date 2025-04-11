@@ -111,7 +111,7 @@ class NodeBaseSyncAPIView(APIView):
         default_cert = node_obj.get_default_cert()
         global_deps.extend(
             [
-                {"key": "default_cert", "content": default_cert.content, "extension": None},
+                {"key": "default_cert", "content": default_cert.get_fullchain_content(), "extension": None},
                 {"key": "default_cert_key", "content": default_cert.private_key.content, "extension": None},
             ]
         )
