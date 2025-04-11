@@ -14,6 +14,10 @@ class BaseDNSProvider(abc.ABC):
         self.args: A = self.ProviderArgsModel(**args)
 
     @abc.abstractmethod
+    async def verify(self) -> None:
+        ...
+
+    @abc.abstractmethod
     async def create_record(
         self, base_domain_name: str, name: str, content: str, type: str, comment: str | None = None
     ) -> str:
