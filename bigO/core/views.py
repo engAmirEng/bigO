@@ -53,7 +53,9 @@ async def tmp_rz1(request):
         latest_df = latest_df.sort_values(by="_time", ascending=False)
 
         res = []
-        contracts = ["0119", "0120", "0121", "0122", "0123", "0124", "2015", "2016", "2017", "2018", "2019"]
+        contracts = ["0119", "0120", "0121", "0122", "0123", "0124",
+                     "2015", "2016", "2017", "2018", "2019",
+                     "3014", "3015", "3016", "3017", "3018", "3019"]
         for i in contracts:
             contract_info = latest_df[latest_df["contrace_number"] == i]
             if contract_info.empty:
