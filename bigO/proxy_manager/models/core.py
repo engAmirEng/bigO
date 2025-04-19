@@ -63,6 +63,19 @@ class ConnectionRule(TimeStampedModel, models.Model):
         return f"{self.pk}-{self.name}"
 
 
+class Inbound(TimeStampedModel, models.Model):
+    is_active = models.BooleanField(default=True)
+    is_template = models.BooleanField(default=False)
+    name = models.SlugField()
+    inbound_template = models.TextField(help_text="{{ node_obj, inbound_tag, consumers_part }}")
+    consumer_obj_template = models.TextField(help_text="{{ subscriptionperiod_obj }}")
+    link_template = models.TextField(blank=True, help_text="{{ subscriptionperiod_obj }}")
+    nginx_path_config = models.TextField(blank=False)
+
+    def __str__(self):
+        return f"{self.pk}-{self.name}"
+
+
 class SubscriptionPlan(TimeStampedModel, models.Model):
     name = models.SlugField()
     plan_provider_key = models.SlugField(max_length=127, db_index=True)
@@ -220,16 +233,3 @@ class SubscriptionNodeUsage(TimeStampedModel, models.Model):
     node_oid = models.PositiveIntegerField()
     upload_traffic = models.PositiveSmallIntegerField()
     download_traffic = models.PositiveSmallIntegerField()
-
-
-class Inbound(TimeStampedModel, models.Model):
-    is_active = models.BooleanField(default=True)
-    is_template = models.BooleanField(default=False)
-    name = models.SlugField()
-    inbound_template = models.TextField(help_text="{{ node_obj, inbound_tag, consumers_part }}")
-    consumer_obj_template = models.TextField(help_text="{{ subscriptionperiod_obj }}")
-    link_template = models.TextField(blank=True, help_text="{{ subscriptionperiod_obj }}")
-    nginx_path_config = models.TextField(blank=False)
-
-    def __str__(self):
-        return f"{self.pk}-{self.name}"

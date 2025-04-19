@@ -102,7 +102,7 @@ class Certificate(AbstractCryptographicObject, TimeStampedModel, models.Model):
 
     def get_fullchain_content(self):
         if self.parent_certificate:
-            return self.content + "\n" +self.parent_certificate.content
+            return self.content + "\n" + self.parent_certificate.content
         return self.content
 
 

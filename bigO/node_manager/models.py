@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from hashlib import sha256
-from typing import Self, TypedDict
+from typing import TYPE_CHECKING, Self, TypedDict
 
 import netfields
 from rest_framework_api_key.models import AbstractAPIKey
@@ -15,7 +15,10 @@ from bigO.utils.models import TimeStampedModel
 from django.core import validators
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
-from django.db.models import F, UniqueConstraint
+from django.db.models import CheckConstraint, F, UniqueConstraint
+
+if TYPE_CHECKING:
+    from . import typing
 
 logger = logging.getLogger(__name__)
 
@@ -161,7 +164,7 @@ class CustomConfig(TimeStampedModel, models.Model):
         on_delete=models.PROTECT,
         related_name="programversion_customconfigs",
     )
-    run_opts_template = models.TextField(help_text="{node_obj, configfile_path_placeholder}")
+    run_opts_template = models.TextField(help_text="{node_obj}, {% dep_path %}")
     tags = TaggableManager(related_name="tag_customconfigs", blank=True)
 
     def __str__(self):
@@ -172,10 +175,17 @@ class CustomConfigDependantFile(TimeStampedModel, models.Model):
     customconfig = models.ForeignKey(CustomConfig, on_delete=models.CASCADE, related_name="dependantfiles")
     key = models.SlugField()
     template = models.TextField(help_text="{node_obj}")
-    template_extension = models.CharField(max_length=15, null=True, blank=True)
+    file = models.ForeignKey(ProgramVersion, on_delete=models.PROTECT, related_name="customconfigdependants")
+    name_extension = models.CharField(max_length=15, null=True, blank=True)
 
     class Meta:
-        constraints = [UniqueConstraint(fields=("customconfig", "key"), name="unique_slug_customconfig")]
+        constraints = [
+            UniqueConstraint(fields=("customconfig", "key"), name="unique_slug_customconfig"),
+        ]
+
+    def clean(self):
+        if self.template and self.file:
+            return ValidationError("fiel or template not both")
 
     def __str__(self):
         return f"{self.pk}-{self.key}: for config {str(self.customconfig)}"
@@ -318,12 +328,7 @@ class EasyTierNode(TimeStampedModel):
         returns the appropriate program with priority of NodeInnerProgram and then ProgramBinary
         """
         program_version = self.preferred_program_version or self.network.program_version
-        res = self.node.node_nodeinnerbinary.filter(program_version=program_version).first()
-        if res is None:
-            res = ProgramBinary.objects.filter(
-                program_version=program_version, architecture=self.node.architecture
-            ).first()
-        return res
+        return program_version.get_program_for_node(self.node)
 
     def get_hash(self) -> str:
         influential = ""

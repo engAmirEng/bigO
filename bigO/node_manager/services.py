@@ -2,10 +2,14 @@ import datetime
 import ipaddress
 import json
 import logging
+import pathlib
 import random
 import re
+import tomllib
 import zoneinfo
 from datetime import timedelta
+
+from pyasn1_modules.rfc5990 import sha256
 
 import django.template
 from bigO.core import models as core_models
@@ -17,6 +21,7 @@ from django.utils import timezone
 from rest_framework.request import Request
 
 from . import models, tasks, typing
+from .typing import FileSchema
 
 logger = logging.getLogger(__name__)
 
@@ -379,7 +384,7 @@ server {
     return result, context.get("deps", {"globals": []})
 
 
-def get_telegraf_conf(node: models.Node) -> tuple[str, str, dict] | None:
+def get_telegraf_conf(node: models.Node) -> str | None:
     if not node.collect_metrics:
         return None
     context = {}
@@ -410,3 +415,224 @@ def get_telegraf_conf(node: models.Node) -> tuple[str, str, dict] | None:
     result = django.template.Template(cnfg).render(context=django.template.Context(context))
     run_opt = django.template.Template("-config *#path:main#*").render(context=context)
     return run_opt, result, context.get("deps", {"globals": []})
+
+
+### o2 style
+
+
+class IncorrectTemplateFormat(Exception):
+    pass
+
+
+class ProgramNotFound(Exception):
+    def __init__(self, *args, program_version, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.program_version = program_version
+
+
+def get_configdependentcontents_from_context(context: django.template.Context) -> list[FileSchema]:
+    return context.get("deps", {}).get("dependents", [])
+
+
+def add_configdependentcontent_to_context(
+    context: django.template.Context, configdependentcontent: typing.FileSchema
+):
+    deps = context.get("deps", {"dependents": []})
+    deps["dependents"].append(configdependentcontent)
+
+
+def get_deps(template: str) -> list[tuple[str, str]]:
+    matches = re.findall(r"\*#(\w+):(\w+)#\*", template)
+    return [tuple(i.split(":")) for i in matches]
+
+
+def render_deps(template: str, deps: set[str], proccessed_dependantfiles_map: dict[str, FileSchema]):
+    for dep in deps:
+        template = template.replace(f"*#path:{dep}#*", proccessed_dependantfiles_map[dep].dest_path)
+    return template
+
+
+def get_customconfig_proccessname(customconfig: models.CustomConfig):
+    return f"custom_{custom_config.id}"
+
+
+all_permission = 744
+
+
+async def get_custom(
+    node: models.Node, customconfig: models.CustomConfig, node_work_dir: pathlib.Path, host_name: str
+) -> tuple[str, list[FileSchema]]:
+    files = []
+    unproccessed_dependantfiles_map = {}
+    proccessed_dependantfiles_map = {}
+    template_context = {
+        "node_obj": node,
+    }
+    async for dependantfile in customconfig.dependantfiles.all():
+        if dependantfile.template:
+            template = django.template.Template("{% load node_manager %}" + dependantfile.template)
+            rendered_template = template.render(context=django.template.Context(template_context))
+            unproccessed_dependantfiles_map[dependantfile.name] = rendered_template
+        elif dependantfile.file:
+            file = dependantfile.file.get_program_for_node(node)
+            if file is None:
+                raise ProgramNotFound()
+            elif isinstance(file, models.ProgramBinary):
+                dest_path = node_work_dir.joinpath("bin", f"{file.program_version_id}_{file.hash[:6]}")
+                url = get_absolute_url(reverse("node_manager:node_program_binary_content_by_hash", args=[content_hash]))
+                proccessed_dependantfiles_map[dependantfile.name] = FileSchema(
+                    dest_path=dest_path, url=url, pepermission=all_permission, hash=file.hash
+                )
+            elif isinstance(file, models.NodeInnerProgram):
+                dest_path = file.path
+                proccessed_dependantfiles_map[dependantfile.name] = FileSchema(
+                    dest_path=dest_path, pepermission=all_permission
+                )
+            else:
+                raise AssertionError
+        else:
+            raise AssertionError
+
+    dependantfiles_deps = defaultdict(set)
+    for key, template in unproccessed_dependantfiles_map.items():
+        deps = get_deps(template)
+        for dep in deps:
+            dependantfiles_deps[key].add(dep[1])
+
+    while unproccessed_dependantfiles_map:
+        next_to_resolve_key = [
+            key
+            for key, deps in unproccessed_dependantfiles_map.items()
+            if not (dependantfiles_deps[key] - proccessed_dependantfiles_map.keys())
+        ]
+        if not next_to_resolve_key:
+            raise AssertionError
+        next_to_resolve_key = next_to_resolve_key[0]
+        template = unproccessed_dependantfiles_map[next_to_resolve_key]
+        deps = dependantfiles_deps[next_to_resolve_key]
+        content = render_deps(template, deps, proccessed_dependantfiles_map)
+        content_hash = sha256(content.encode("utf-8")).hexdigest()
+        proccessed_dependantfiles_map[next_to_resolve_key] = FileSchema(
+            dest_path=node_work_dir.joinpath("conf", f"{customconfig.id}_{content_hash[:6]}_{next_to_resolve_key}"), content=content, hash=content_hash, pepermission=all_permission
+        )
+        unproccessed_dependantfiles_map.pop(next_to_resolve_key)
+
+    run_opts_template = django.template.Template("{% load node_manager %}" + custom_config.run_opts_template)
+    run_opts_rendered_template = run_opts_template.render(context=django.template.Context(template_context))
+    run_opts_content = render_deps(
+        run_opts_rendered_template, {i[1] for i in get_deps(run_opts_rendered_template)}, proccessed_dependantfiles_map
+    )
+    proccessname = get_customconfig_proccessname(customconfig)
+    supervisor_config = f"""
+# config={timezone.now()}
+[program:{proccessname}]
+command={run_opts_content}
+autostart=true
+autorestart=true
+priority=10
+"""
+    additional_files = get_configdependentcontents_from_context(template_context)
+    files.extend(additional_files)
+    return supervisor_config, [*files, *proccessed_dependantfiles_map.values()]
+
+
+def get_easytier(
+    easytiernode_obj: models.EasyTierNode, node_work_dir: pathlib.Path, host_name: str
+) -> tuple[str, list[FileSchema]]:
+    toml_config_content = easytiernode_obj.get_toml_config_content()
+    try:
+        tomllib.loads(toml_config_content)
+    except tomllib.TOMLDecodeError as e:
+        raise IncorrectTemplateFormat(e)
+    files = []
+    toml_config_content_hash = sha256(toml_config_content.encode("utf-8")).hexdigest()
+    files.append(
+        FileSchema(
+            dest_path=node_work_dir.joinpath("conf", f"eati_{easytiernode_obj.id}_{toml_config_content_hash[:6]}.toml"),
+            content=toml_config_content,
+            hash=toml_config_content_hash,
+            permission=all_permission,
+        )
+    )
+    program_version = self.preferred_program_version or self.network.program_version
+    program = program_version.get_program_for_node(easytiernode_obj.node)
+    if program is None:
+        raise ProgramNotFound(program_version=program_version)
+    elif isinstance(program, models.ProgramBinary):
+        easytier_program_file = FileSchema(
+            dest_path=node_work_dir.joinpath("bin", f"{program.program_version_id}_{program.hash[:6]}"),
+            url=get_absolute_url(reverse("node_manager:node_program_binary_content_by_hash", args=[content.hash])),
+            permission=all_permission,
+            hash=program.hash,
+        )
+    elif isinstance(program, models.NodeInnerProgram):
+        easytier_program_file = FileSchema(
+            dest_path=program.path,
+            permission=all_permission,
+        )
+    else:
+        raise AssertionError
+    files.append(easytier_program_file)
+    conf_file = FileSchema(
+        content=toml_config_content,
+        hash=sha256(toml_config_content.encode("utf-8")).hexdigest(),
+        permission=all_permission,
+    )
+    files.append(conf_file)
+    run_opts = easytiernode_obj.get_run_opts()
+    supervisor_config = f"""
+# config={timezone.now()}
+[program:eati_{easytiernode_obj.id}]
+command={easytier_program_file.dest_path} {run_opts}
+autostart=true
+autorestart=true
+priority=10
+"""
+    return supervisor_config, files
+
+
+async def get_telegraf(node_obj: models.Node, node_work_dir: pathlib.Path, host_name: str) -> tuple[str, list[
+    FileSchema]] | None:
+    site_config: core_models.SiteConfiguration = await core_models.SiteConfiguration.objects.aget()
+    telegraf_conf = get_telegraf_conf(node=node_obj)
+    if telegraf_conf is None:
+        return None
+    elif telegraf_conf and site_config.main_telegraf is None:
+        logger.critical("no program found for telegraf_conf")
+        return None
+    telegraf_program = site_config.main_telegraf.get_program_for_node(node_obj)
+    if telegraf_program is None:
+        raise ProgramNotFound(program_version=site_config.main_telegraf)
+    elif isinstance(telegraf_program, models.ProgramBinary):
+        dest_path = node_work_dir.joinpath("bin", f"telegraf_{telegraf_program.id}_{telegraf_program.hash[:6]}")
+        telegraf_program_file = FileSchema(
+            dest_path=dest_path,
+            url=get_absolute_url(
+                reverse("node_manager:node_program_binary_content_by_hash", args=[telegraf_program.hash])
+            ),
+            permission=all_permission,
+            hash=telegraf_program.hash,
+        )
+    elif isinstance(telegraf_program, models.NodeInnerProgram):
+        telegraf_program_file = FileSchema(
+            dest_path=telegraf_program.path,
+            permission=all_permission,
+        )
+    else:
+        raise AssertionError
+    files = []
+    files.append(telegraf_program_file)
+    telegraf_conf_hash = sha256(telegraf_conf.encode("utf-8")).hexdigest()
+    conf_file = FileSchema(
+        dest_path=node_work_dir.joinpath("conf", f"telegraf_{telegraf_conf_hash[:6]}"), content=telegraf_conf, hash=telegraf_conf_hash, permission=all_permission
+    )
+    files.append(conf_file)
+    supervisor_config = f"""
+# config={timezone.now()}
+[program:telegraf_conf]
+command={telegraf_program_file.dest_path} {telegraf_conf}
+autostart=true
+autorestart=true
+priority=10
+"""
+    return supervisor_config, files

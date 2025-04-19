@@ -1,3 +1,4 @@
+import json
 import logging
 import socket
 import ssl
@@ -11,6 +12,7 @@ import sentry_sdk
 from asgiref.sync import sync_to_async
 
 import bigO.utils.exceptions
+import django.template
 from bigO.core import models as core_models
 from bigO.proxy_manager import services as proxy_manager_services
 from bigO.utils.decorators import xframe_options_sameorigin
@@ -19,6 +21,7 @@ from django.core.exceptions import PermissionDenied
 from django.http import FileResponse, HttpResponse, JsonResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
+from django.utils import timezone
 from django.views import View
 from rest_framework import serializers, status
 from rest_framework.response import Response
@@ -115,6 +118,24 @@ class NodeBaseSyncAPIView(APIView):
                 {"key": "default_cert_key", "content": default_cert.private_key.content, "extension": None},
             ]
         )
+        certificate_qs = core_models.Certificate.objects.filter(
+            certificate_domaincertificates__isnull=False, valid_to__gt=timezone.now()
+        )
+        for certificate_obj in certificate_qs:
+            global_deps.extend(
+                [
+                    {
+                        "key": f"{certificate_obj.slug}",
+                        "content": certificate_obj.get_fullchain_content(),
+                        "extension": None,
+                    },
+                    {
+                        "key": f"{certificate_obj.slug}_key",
+                        "content": certificate_obj.private_key.content,
+                        "extension": None,
+                    },
+                ]
+            )
         if site_config.htpasswd_content:
             global_deps.append(
                 {"key": "default_basic_http_file", "content": site_config.htpasswd_content, "extension": None}
@@ -126,10 +147,10 @@ class NodeBaseSyncAPIView(APIView):
             if program is None:
                 logger.critical(f"no program found for {i}")
                 continue
-            config_depandant_content = i.get_config_depandant_content()
+            config_dependent_content = i.get_config_dependent_content()
             run_opts = i.get_run_opts()
-            if len(config_depandant_content) == 1:
-                new_run_opts = run_opts.replace("CONFIGFILEPATH", f"*#path:{config_depandant_content[0]['key']}#*")
+            if len(config_dependent_content) == 1:
+                new_run_opts = run_opts.replace("CONFIGFILEPATH", f"*#path:{config_dependent_content[0]['key']}#*")
             else:
                 new_run_opts = run_opts
             configs.append(
@@ -139,17 +160,17 @@ class NodeBaseSyncAPIView(APIView):
                         "program": ProgramSerializer(program).data,
                         "run_opts": run_opts,
                         "new_run_opts": new_run_opts,
-                        "configfile_content": config_depandant_content[0]["content"]
-                        if config_depandant_content
+                        "configfile_content": config_dependent_content[0]["content"]
+                        if config_dependent_content
                         else None,
-                        "config_file_ext": config_depandant_content[0]["extension"]
-                        if config_depandant_content
+                        "config_file_ext": config_dependent_content[0]["extension"]
+                        if config_dependent_content
                         else None,
                         "hash": i.get_hash(),
                         "dependant_files": ConfigDependantFileSerializer(
                             [
                                 {"key": i["key"], "content": i["content"], "extension": i["extension"]}
-                                for i in config_depandant_content
+                                for i in config_dependent_content
                             ],
                             many=True,
                         ).data,
@@ -159,9 +180,9 @@ class NodeBaseSyncAPIView(APIView):
 
         etn_qs = models.EasyTierNode.objects.filter(node=node_obj)
         for i in etn_qs:
-            configfile_content = i.get_toml_config_content()
+            toml_config_content = i.get_toml_config_content()
             try:
-                tomllib.loads(configfile_content)
+                tomllib.loads(toml_config_content)
             except tomllib.TOMLDecodeError as e:
                 logger.critical(f"toml parsing {i} failed: {str(e)}")
                 continue
@@ -169,7 +190,6 @@ class NodeBaseSyncAPIView(APIView):
             if program is None:
                 logger.critical(f"no program found for {i}")
                 continue
-            toml_config_content = i.get_toml_config_content()
             run_opts = i.get_run_opts()
             new_run_opts = run_opts.replace("CONFIGFILEPATH", "*#path:main#*")
             configs.append(
@@ -310,6 +330,76 @@ class NodeBaseSyncAPIView(APIView):
         response_payload = self.OutputSerializer({"configs": configs, "global_deps": global_deps}).data
         services.complete_node_sync_stat(obj=node_sync_stat_obj, response_payload=response_payload)
         return Response(response_payload, status=status.HTTP_200_OK)
+
+
+class ConfigSchema(pydantic.BaseModel):
+    sync_url: pydantic.HttpUrl
+    api_key: str
+    interval_sec: int
+    work_dir: pydantic.DirectoryPath
+
+
+class SupervisorConfigSchema(pydantic.BaseModel):
+    config_content: str
+
+
+class NodeBaseSyncV2OutputSchema(pydantic.BaseModel):
+    supervisor_config: SupervisorConfigSchema
+    files: list[typing.FileSchema]
+    config: ConfigSchema
+
+
+class NodeBaseSyncV2InputSchema(pydantic.BaseModel):
+    metrics: typing.MetricSchema
+    configs_states: list[typing.ConfigStateSchema] | None = None
+    smallo2_logs: typing.SupervisorProcessTailLogSerializerSchema | None = None
+    config: ConfigSchema
+
+
+async def node_base_sync_v2(request):
+    perm = HasNodeAPIKey()
+    has_perm = perm.has_permission(request=request, view=None)
+    if not has_perm:
+        return JsonResponse({"error_info": "invalid api key"}, status=403)
+    node_obj = perm.api_key.node
+    node_sync_stat_obj = services.create_node_sync_stat(request=request, node=node_obj)
+
+    try:
+        input_json = json.loads(request.body)
+        input_data = NodeBaseSyncV2InputSchema(**input_json)
+    except pydantic.ValidationError as e:
+        sentry_sdk.capture_exception(e)
+        return JsonResponse(e.errors(), status=400)
+    await sync_to_async(services.node_process_stats)(
+        node_obj=node_obj, configs_states=input_data.configs_states, smallo1_logs=input_data.smallo1_logs
+    )
+    await sync_to_async(services.node_spec_create)(node=node_obj, ip_a=input_data.metrics.ip_a)
+
+    site_config: core_models.SiteConfiguration = await core_models.SiteConfiguration.objects.aget()
+    node_config = input_data.config
+    supervisor_config = ""
+    files = []
+
+    async for node_customconfig in node_obj.node_customconfigs.all():
+        try:
+            supervisor_part, part_files = services.get_custom(node_customconfig)
+        except services.ProgramNotFound as e:
+            logger.critical(f"no inner program found for {node_customconfig=} {e.program_version=}")
+            continue
+        supervisor_config += "\n" + supervisor_part
+        files.extend(part_files)
+
+    async for easytiernode in models.EasyTierNode.objects.filter(node=node_obj):
+        try:
+            supervisor_part, part_files = services.get_easytier(easytiernode)
+        except services.IncorrectTemplateFormat as e:
+            logger.critical(f"toml parsing {easytiernode_obj=} failed: {str(e)}")
+            continue
+        except services.ProgramNotFound as e:
+            logger.critical(f"no program found for {easytiernode_obj=} {e.program_version=}")
+            continue
+        supervisor_config += "\n" + supervisor_part
+        files.extend(part_files)
 
 
 class NodeProgramBinaryContentByHashAPIView(UserPassesTestMixin, View):
