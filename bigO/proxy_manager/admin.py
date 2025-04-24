@@ -135,9 +135,15 @@ class SubscriptionPeriodModelAdmin(admin.ModelAdmin):
         return naturaltime(obj.last_sublink_at)
 
 
+class NodeOutboundInline(admin.StackedInline):
+    extra = 0
+    model = models.NodeOutbound
+
+
 @admin.register(models.OutboundGroup)
 class OutboundGroupModelAdmin(admin.ModelAdmin):
     list_display = ("__str__",)
+    inlines = [NodeOutboundInline]
 
 
 @admin.register(models.NodeOutbound)

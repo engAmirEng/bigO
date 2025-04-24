@@ -15,6 +15,8 @@ class Config(TimeStampedModel, SingletonModel):
     xray_config_template = models.TextField(
         null=True, blank=False, help_text="{{ node, inbound_parts, rule_parts, balancer_parts }}"
     )
+    geosite = models.ForeignKey("node_manager.ProgramVersion", related_name="geosite_xrayconfig", on_delete=models.PROTECT, null=True, blank=True)
+    geoip = models.ForeignKey("node_manager.ProgramVersion", related_name="geoip_xrayconfig", on_delete=models.PROTECT, null=True, blank=True)
 
 
 class Region(TimeStampedModel, models.Model):
@@ -58,6 +60,19 @@ class ConnectionRule(TimeStampedModel, models.Model):
         Region, on_delete=models.CASCADE, related_name="destinationregion_connectionrules"
     )
     xray_rules_template = models.TextField(help_text="[RuleObject], {{ node, inbound_tags }}")
+
+    def __str__(self):
+        return f"{self.pk}-{self.name}"
+
+
+class Inbound(TimeStampedModel, models.Model):
+    is_active = models.BooleanField(default=True)
+    is_template = models.BooleanField(default=False)
+    name = models.SlugField()
+    inbound_template = models.TextField(help_text="{{ node_obj, inbound_tag, consumers_part }}")
+    consumer_obj_template = models.TextField(help_text="{{ subscriptionperiod_obj }}")
+    link_template = models.TextField(blank=True, help_text="{{ subscriptionperiod_obj }}")
+    nginx_path_config = models.TextField(blank=False)
 
     def __str__(self):
         return f"{self.pk}-{self.name}"
@@ -220,16 +235,3 @@ class SubscriptionNodeUsage(TimeStampedModel, models.Model):
     node_oid = models.PositiveIntegerField()
     upload_traffic = models.PositiveSmallIntegerField()
     download_traffic = models.PositiveSmallIntegerField()
-
-
-class Inbound(TimeStampedModel, models.Model):
-    is_active = models.BooleanField(default=True)
-    is_template = models.BooleanField(default=False)
-    name = models.SlugField()
-    inbound_template = models.TextField(help_text="{{ node_obj, inbound_tag, consumers_part }}")
-    consumer_obj_template = models.TextField(help_text="{{ subscriptionperiod_obj }}")
-    link_template = models.TextField(blank=True, help_text="{{ subscriptionperiod_obj }}")
-    nginx_path_config = models.TextField(blank=False)
-
-    def __str__(self):
-        return f"{self.pk}-{self.name}"

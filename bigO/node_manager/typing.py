@@ -1,3 +1,4 @@
+import pathlib
 from typing import Annotated, Any, TypedDict
 
 import pydantic
@@ -53,3 +54,11 @@ class ConfigStateSchema(pydantic.BaseModel):
     supervisorprocessinfo: SupervisorProcessInfoSchema
     stdout: SupervisorProcessTailLogSerializerSchema
     stderr: SupervisorProcessTailLogSerializerSchema
+
+
+class FileSchema(pydantic.BaseModel):
+    dest_path: pathlib.Path
+    content: str | None = None
+    url: pydantic.HttpUrl | None = None
+    permission: int
+    hash: str | None = None

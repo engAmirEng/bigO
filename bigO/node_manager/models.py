@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from hashlib import sha256
-from typing import Self, TypedDict
+from typing import TYPE_CHECKING, Self, TypedDict
 
 import netfields
 from rest_framework_api_key.models import AbstractAPIKey
@@ -11,11 +11,14 @@ from taggit.managers import TaggableManager
 
 import django.template.loader
 from bigO.core import models as core_models
-from bigO.utils.models import TimeStampedModel
+from bigO.utils.models import TimeStampedModel, async_related_obj_str
 from django.core import validators
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
-from django.db.models import F, UniqueConstraint
+from django.db.models import CheckConstraint, F, UniqueConstraint
+
+if TYPE_CHECKING:
+    from . import typing
 
 logger = logging.getLogger(__name__)
 
@@ -151,7 +154,8 @@ class ProgramVersion(TimeStampedModel):
         return res
 
     def __str__(self):
-        return f"{self.pk}-{self.program} ({self.version})"
+        program_str = async_related_obj_str(self, ProgramVersion.program)
+        return f"{self.pk}-{program_str} ({self.version})"
 
 
 class CustomConfig(TimeStampedModel, models.Model):
@@ -160,8 +164,11 @@ class CustomConfig(TimeStampedModel, models.Model):
         ProgramVersion,
         on_delete=models.PROTECT,
         related_name="programversion_customconfigs",
+        null=True,
+        blank=True,
+        help_text="depracated"
     )
-    run_opts_template = models.TextField(help_text="{node_obj, configfile_path_placeholder}")
+    run_opts_template = models.TextField(help_text="{node_obj}, *#path:key#*")
     tags = TaggableManager(related_name="tag_customconfigs", blank=True)
 
     def __str__(self):
@@ -171,11 +178,18 @@ class CustomConfig(TimeStampedModel, models.Model):
 class CustomConfigDependantFile(TimeStampedModel, models.Model):
     customconfig = models.ForeignKey(CustomConfig, on_delete=models.CASCADE, related_name="dependantfiles")
     key = models.SlugField()
-    template = models.TextField(help_text="{node_obj}")
-    template_extension = models.CharField(max_length=15, null=True, blank=True)
+    template = models.TextField(null=True, blank=True, help_text="{node_obj}")
+    file = models.ForeignKey(ProgramVersion, on_delete=models.PROTECT, related_name="customconfigdependants", null=True, blank=True)
+    name_extension = models.CharField(max_length=15, null=True, blank=True)
 
     class Meta:
-        constraints = [UniqueConstraint(fields=("customconfig", "key"), name="unique_slug_customconfig")]
+        constraints = [
+            UniqueConstraint(fields=("customconfig", "key"), name="unique_slug_customconfig"),
+        ]
+
+    def clean(self):
+        if self.template and self.file:
+            return ValidationError("file or template not both")
 
     def __str__(self):
         return f"{self.pk}-{self.key}: for config {str(self.customconfig)}"
@@ -318,12 +332,7 @@ class EasyTierNode(TimeStampedModel):
         returns the appropriate program with priority of NodeInnerProgram and then ProgramBinary
         """
         program_version = self.preferred_program_version or self.network.program_version
-        res = self.node.node_nodeinnerbinary.filter(program_version=program_version).first()
-        if res is None:
-            res = ProgramBinary.objects.filter(
-                program_version=program_version, architecture=self.node.architecture
-            ).first()
-        return res
+        return program_version.get_program_for_node(self.node)
 
     def get_hash(self) -> str:
         influential = ""
@@ -473,13 +482,6 @@ class EasyTierNodePeer(TimeStampedModel):
             and self.peer_listener_id == other.peer_listener_id
             and self.peer_public_ip == other.peer_public_ip
         )
-
-
-class XrayConfig(TimeStampedModel, SingletonModel):
-    program_version = models.ForeignKey(
-        ProgramVersion, on_delete=models.PROTECT, related_name="programversion_xrayconfig"
-    )
-    content = models.TextField()
 
 
 class GostClientNode(TimeStampedModel):

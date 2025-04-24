@@ -5,6 +5,7 @@ from . import views
 app_name = "node_manager"
 urlpatterns = [
     path("node/base-sync/", views.NodeBaseSyncAPIView.as_view(), name="node_base_sync"),
+    path("node/base-sync/v2/", views.node_base_sync_v2, name="node_base_sync_v2"),
     path(
         "node/program-binary/hash/<str:hash>/content/",
         views.NodeProgramBinaryContentByHashAPIView.as_view(),
