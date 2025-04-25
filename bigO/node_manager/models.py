@@ -5,6 +5,7 @@ from hashlib import sha256
 from typing import TYPE_CHECKING, Self, TypedDict
 
 import netfields
+from django.urls import reverse
 from rest_framework_api_key.models import AbstractAPIKey
 from solo.models import SingletonModel
 from taggit.managers import TaggableManager
@@ -52,6 +53,22 @@ class ContainerSpec(TimeStampedModel):
     )
 
 
+class O2Spec(TimeStampedModel, models.Model):
+    node = models.OneToOneField("Node", on_delete=models.CASCADE, related_name="o2spec")
+    program = models.ForeignKey("ProgramVersion", on_delete=models.PROTECT, related_name="program_o2spec")
+    ansible_deploy_snippet = models.ForeignKey("Snippet", on_delete=models.PROTECT, related_name="ansibledeploysnippet_o2specs")
+    sync_domain = models.URLField(max_length=255)
+    api_key = models.CharField(max_length=255)
+    interval_sec = models.PositiveSmallIntegerField()
+    working_dir = models.CharField(max_length=255)
+    sentry_dsn = models.URLField(max_length=255, null=True, blank=True)
+    full_control_supervisord = models.BooleanField(default=False)
+
+    @property
+    def sync_url(self):
+        return self.sync_domain + reverse("node_manager:node_base_sync_v2")
+
+
 class SystemArchitectureTextChoices(models.TextChoices):
     AMD64 = "amd64"
 
@@ -67,6 +84,9 @@ class Node(TimeStampedModel, models.Model):
     collect_metrics = models.BooleanField(default=False)
     collect_logs = models.BooleanField(default=False)
     tmp_xray = models.BooleanField(default=False)
+    ssh_port = models.PositiveSmallIntegerField(null=True, blank=True)
+    ssh_user = models.CharField(max_length=255, null=True, blank=True)
+    ssh_pass = models.CharField(max_length=255, null=True, blank=True)
 
     class NodeQuerySet(models.QuerySet):
         def support_ipv6(self):
@@ -89,6 +109,31 @@ class Node(TimeStampedModel, models.Model):
         self.default_cert = cert
         self.save()
         return self.default_cert
+
+
+class AnsibleTask(TimeStampedModel, models.Model):
+    class StatusChoices(models.IntegerChoices):
+        STARTED = 1, "started"
+        FINISHED = 2, "finished"
+    name = models.CharField(max_length=255)
+    playbook_snippet = models.ForeignKey("Snippet", on_delete=models.SET_NULL, related_name="playbooksnippet_ansibletasks", null=True, blank=True)
+    playbook_content = models.TextField()
+    status = models.PositiveSmallIntegerField(choices=StatusChoices)
+    logs = models.TextField(blank=True)
+    result = models.JSONField(null=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.pk}-{self.name}"
+
+class AnsibleTaskNode(TimeStampedModel, models.Model):
+    node = models.ForeignKey(Node, on_delete=models.CASCADE, related_name="node_ansibletasks")
+    task = models.ForeignKey(AnsibleTask, on_delete=models.CASCADE, related_name="task_nodes")
+    ok = models.PositiveSmallIntegerField(null=True, blank=True)
+    dark = models.PositiveSmallIntegerField(null=True, blank=True)
+    changed = models.PositiveSmallIntegerField(null=True, blank=True)
+    failures = models.PositiveSmallIntegerField(null=True, blank=True)
+    result = models.JSONField(null=True)
 
 
 class NodeSupervisorConfig(TimeStampedModel, models.Model):
@@ -128,6 +173,15 @@ class NodePublicIP(TimeStampedModel):
 
     def __str__(self):
         return f"{self.pk}-{self.node}|{self.ip}"
+
+
+
+class Snippet(TimeStampedModel, models.Model):
+    name = models.SlugField()
+    template = models.TextField()
+
+    def __str__(self):
+        return f"{self.pk}-{self.name}"
 
 
 class Program(TimeStampedModel):

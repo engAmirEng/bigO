@@ -233,6 +233,7 @@ func makeSyncAPIRequest(config Config, payload APIRequest) (APIResponse, error) 
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Api-Key "+config.APIKey)
+	req.Header.Set("User-Agent", fmt.Sprintf("smallO2:%v", Release))
 
 	client := &http.Client{Timeout: 15 * time.Second}
 	if config.IsDev {
@@ -280,6 +281,7 @@ func downloadAndVerifyFile(fileInfo FileSchema, config Config) error {
 	}
 
 	req.Header.Set("Authorization", "Api-Key "+config.APIKey)
+	req.Header.Set("User-Agent", fmt.Sprintf("smallO2:%v", Release))
 
 	client := &http.Client{}
 	resp, err := client.Do(req)

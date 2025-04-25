@@ -2,19 +2,21 @@ from decimal import ROUND_HALF_DOWN, Decimal
 
 import admin_extra_buttons.decorators
 import admin_extra_buttons.mixins
+from django.conf import settings
 from render_block import render_block_to_string
 from rest_framework_api_key.admin import APIKeyModelAdmin
-
-from django.contrib import admin
+from django_json_widget.widgets import JSONEditorWidget
+from django.utils.translation import gettext
+from django.contrib import admin, messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.humanize.templatetags.humanize import naturaltime
-from django.db.models import Count
+from django.db.models import Count, QuerySet, Q, JSONField
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.utils.html import format_html
 
-from . import forms, models
+from . import forms, models, tasks
 
 
 class NodeLatestSyncStatInline(admin.StackedInline):
@@ -39,10 +41,13 @@ class ContainerSpecModelAdmin(admin.ModelAdmin):
 class NodeSupervisorConfigInline(admin.StackedInline):
     model = models.NodeSupervisorConfig
 
+class O2SpecInline(admin.StackedInline):
+    model = models.O2Spec
+
 
 @admin.register(models.Node)
 class NodeModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.ModelAdmin):
-    inlines = [NodePublicIPInline, NodeSupervisorConfigInline, NodeInnerProgramInline, NodeLatestSyncStatInline]
+    inlines = [NodePublicIPInline, O2SpecInline, NodeSupervisorConfigInline, NodeInnerProgramInline, NodeLatestSyncStatInline]
     list_display = (
         "__str__",
         "agent_spec_display",
@@ -55,6 +60,33 @@ class NodeModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.ModelAd
         "view_supervisor_page_display",
     )
     list_editable = ["collect_metrics", "collect_logs"]
+    actions = ["do_deploy"]
+
+    @admin.action(description="Do Deploy")
+    def do_deploy(self, request, queryset: QuerySet[models.Node]):
+        invalid_queryset = queryset.filter(Q(
+            Q(ssh_port__isnull=True) |
+            Q(ssh_user__isnull=True) | Q(ssh_user='') |
+            Q(ssh_pass__isnull=True) | Q(ssh_pass='') |
+            Q(o2spec__isnull=True)
+        ))
+        if invalid_record_count := invalid_queryset.count():
+            self.message_user(
+                request,
+                gettext("cannot be done becuase of {0} records").format(invalid_record_count),
+                messages.ERROR,
+            )
+            return
+        for i in queryset:
+            ansible_deploy_node = (
+                tasks.ansible_deploy_node if settings.DEBUG else tasks.ansible_deploy_node.delay
+            )
+            ansible_deploy_node(node_id=i.id)
+        self.message_user(
+            request,
+            gettext("started for {0} records").format(queryset.count()),
+            messages.INFO,
+        )
 
     @admin_extra_buttons.decorators.view(
         pattern="<int:node_pk>/basic_supervisor/",
@@ -138,6 +170,23 @@ class NodeModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.ModelAd
         )
 
 
+class AnsibleTaskNodeInline(admin.StackedInline):
+    model = models.AnsibleTaskNode
+    extra = 0
+    formfield_overrides = {
+        JSONField: {'widget': JSONEditorWidget},
+    }
+
+@admin.register(models.AnsibleTask)
+class AnsibleTaskModelAdmin(admin.ModelAdmin):
+    inlines = [AnsibleTaskNodeInline]
+    list_display = ("__str__", "name", "status", "created_at", "finished_at")
+
+    formfield_overrides = {
+        JSONField: {'widget': JSONEditorWidget},
+    }
+
+
 @admin.register(models.NodeAPIKey)
 class NodeAPIKeyModelAdmin(APIKeyModelAdmin):
     pass
@@ -152,6 +201,10 @@ class ProgramVersionInline(admin.StackedInline):
     extra = 1
     model = models.ProgramVersion
 
+
+@admin.register(models.Snippet)
+class SnippetModelAdmin(admin.ModelAdmin):
+    pass
 
 @admin.register(models.Program)
 class ProgramModelAdmin(admin.ModelAdmin):

@@ -453,7 +453,9 @@ async def node_base_sync_v2(request: HttpRequest):
     supervisorconfigschema = SupervisorConfigSchema(config_content=supervisor_config)
     output_schema = NodeBaseSyncV2OutputSchema(
         supervisor_config=supervisorconfigschema, files=files, config=node_config, runtime=RuntimeSchema(node_id=str(node_obj.id), node_name=node_obj.name))
-    return HttpResponse(output_schema.model_dump_json(), content_type="application/json", status=status.HTTP_200_OK)
+    response_data = output_schema.model_dump_json()
+    await sync_to_async(services.complete_node_sync_stat)(obj=node_sync_stat_obj, response_payload=json.loads(response_data))
+    return HttpResponse(response_data, content_type="application/json", status=status.HTTP_200_OK)
 
 
 class NodeProgramBinaryContentByHashAPIView(UserPassesTestMixin, View):

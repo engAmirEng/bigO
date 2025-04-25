@@ -1,0 +1,136 @@
+---
+- name: Install and start smallO2
+  hosts: all
+  become: no
+  vars_prompt:
+    - name: install_dir
+      prompt: "Enter the install_dir"
+      private: no
+
+    - name: smallO2_binary_download_url
+      prompt: "Enter the smallO2_binary_download_url"
+      private: no
+
+    - name: smallO2_binary_sha256
+      prompt: "Enter the smallO2_binary_sha256"
+      private: no
+
+    - name: api_key
+      prompt: "Enter the api_key"
+      private: no
+
+    - name: interval_sec
+      prompt: "Enter the interval_sec"
+      private: no
+
+    - name: sync_url
+      prompt: "Enter the sync_url"
+      private: no
+
+    - name: sentry_dsn
+      prompt: "Enter the sentry_dsn"
+      private: no
+
+  tasks:
+    - name: Ensure the system is updated
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+        upgrade: dist
+
+    - name: Install Supervisor
+      ansible.builtin.package:
+        name: supervisor
+        state: present
+    - name: Ensure Supervisor service is enabled and started
+      systemd:
+        name: supervisor
+        enabled: yes
+        state: started
+
+    - name: Ensure the install directory exists
+      file:
+        path: {% verbatim %}"{{ install_dir }}"{% endverbatim %}
+        state: directory
+        mode: '0755'
+    - name: Ensure required packages are installed for Python venv
+      ansible.builtin.package:
+        name: python3-venv
+        state: present
+    - name: Install git for pip installing from it
+      ansible.builtin.package:
+        name: git
+        state: present
+    - name: Install python requests package
+      pip:
+        name: "requests"
+        virtualenv: {% verbatim %}"{{ install_dir }}/venv"{% endverbatim %}
+        virtualenv_command: "python3 -m venv"
+    - name: Create the config.toml file
+      copy:
+        dest: {% verbatim %}"{{ install_dir }}/config.toml"{% endverbatim %}
+        content: |
+          sync_url = {% verbatim %}{{ sync_url }}{% endverbatim %}
+          api_key = {% verbatim %}{{ api_key }}{% endverbatim %}
+          interval_sec = {% verbatim %}{{ interval_sec }}{% endverbatim %}
+          working_dir = {% verbatim %}{{ install_dir }}/workdir{% endverbatim %}
+          is_dev = false
+          full_control_supervisord = false
+          {% if sentry_dsn %}
+          sentry_dsn = {% verbatim %}{{ sentry_dsn }}{% endverbatim %}
+          {% endif %}
+
+        mode: '0644'
+    - name: Download binary with checksum verification
+      ansible.builtin.get_url:
+        url: {% verbatim %}"{{ smallO2_binary_download_url }}"{% endverbatim %}
+        dest: {% verbatim %}"{{ install_dir }}/bigO2_{{ smallO2_binary_sha256[:6] }}"{% endverbatim %}
+        checksum: {% verbatim %}"sha256:{{ smallO2_binary_sha256 }}"{% endverbatim %}
+        timeout: 600
+        force: no
+    - name: Fix Supervisor main config
+      copy:
+        dest: /etc/supervisor/supervisord.conf
+        content: |
+          ; supervisor config file
+
+          [unix_http_server]
+          file=/var/run/supervisor.sock   ; (the path to the socket file)
+          chmod=0700                       ; sockef file mode (default 0700)
+
+          [supervisord]
+          logfile=/var/log/supervisor/supervisord.log ; (main log file;default $CWD/supervisord.log)
+          pidfile=/var/run/supervisord.pid ; (supervisord pidfile;default supervisord.pid)
+          childlogdir=/var/log/supervisor            ; ('AUTO' child log dir, default $TEMP)
+
+          ; the below section must remain in the config file for RPC
+          ; (supervisorctl/web interface) to work, additional interfaces may be
+          ; added by defining them in separate rpcinterface: sections
+          [rpcinterface:supervisor]
+          supervisor.rpcinterface_factory = supervisor.rpcinterface:make_main_rpcinterface
+
+          [supervisorctl]
+          serverurl=unix:///var/run/supervisor.sock ; use a unix:// URL  for a unix socket
+
+          ; The [include] section can just contain the "files" setting.  This
+          ; setting can list multiple files (separated by whitespace or
+          ; newlines).  It can also contain wildcards.  The filenames are
+          ; interpreted as relative to this file.  Included files *cannot*
+          ; include files themselves.
+
+
+          [include]
+          files = {% verbatim %}/etc/supervisor/conf.d/*.conf {{ install_dir }}/workdir/supervisor/supervisor.conf{% endverbatim %}
+    - name: Add smallO2 process to supervisor
+      copy:
+        dest: /etc/supervisor/conf.d/smallO2.conf
+        content: |
+          [program:smallO2]
+          command={% verbatim %}{{ install_dir }}/bigO2_{{ smallO2_binary_sha256[:6] }} --config {{ install_dir }}/config.toml{% endverbatim %}
+          autostart=true
+          autorestart=true
+          priority=20
+    - name: Apply new configuration to Supervisor
+      community.general.supervisorctl:
+        name: all
+        state: restarted
