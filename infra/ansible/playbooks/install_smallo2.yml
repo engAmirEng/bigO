@@ -70,10 +70,10 @@
       copy:
         dest: {% verbatim %}"{{ install_dir }}/config.toml"{% endverbatim %}
         content: |
-          sync_url = {% verbatim %}{{ sync_url }}{% endverbatim %}
-          api_key = {% verbatim %}{{ api_key }}{% endverbatim %}
+          sync_url = '{% verbatim %}{{ sync_url }}{% endverbatim %}'
+          api_key = '{% verbatim %}{{ api_key }}{% endverbatim %}'
           interval_sec = {% verbatim %}{{ interval_sec }}{% endverbatim %}
-          working_dir = {% verbatim %}{{ install_dir }}/workdir{% endverbatim %}
+          working_dir = '{% verbatim %}{{ install_dir }}/workdir{% endverbatim %}'
           is_dev = false
           full_control_supervisord = false
           {% if sentry_dsn %}
@@ -86,8 +86,11 @@
         url: {% verbatim %}"{{ smallO2_binary_download_url }}"{% endverbatim %}
         dest: {% verbatim %}"{{ install_dir }}/bigO2_{{ smallO2_binary_sha256[:6] }}"{% endverbatim %}
         checksum: {% verbatim %}"sha256:{{ smallO2_binary_sha256 }}"{% endverbatim %}
+        mode: "a+x"
         timeout: 600
         force: no
+        headers:
+          Authorization: {% verbatim %}"Api-Key {{ api_key }}"{% endverbatim %}
     - name: Fix Supervisor main config
       copy:
         dest: /etc/supervisor/supervisord.conf
