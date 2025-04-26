@@ -20,6 +20,11 @@ CERTBOT_LOGS_DIR.mkdir(exist_ok=True)
 CERTBOT_CONFIG_DIR = pathlib.Path(settings.MEDIA_ROOT) / "protected" / "certbot"
 CERTBOT_CONFIG_DIR.mkdir(exist_ok=True)
 
+# ansible
+# ------------------------------------------------------------------------------
+ANSIBLE_WORKING_DIR = pathlib.Path(settings.MEDIA_ROOT) / "protected" / "ansible"
+ANSIBLE_WORKING_DIR.mkdir(exist_ok=True)
+
 
 # other
 TELEGRAM_BOT_TOKEN = env.str("TELEGRAM_BOT_TOKEN")

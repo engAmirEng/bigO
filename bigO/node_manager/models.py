@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Self, TypedDict
 import netfields
 from django.urls import reverse
 from rest_framework_api_key.models import AbstractAPIKey
-from solo.models import SingletonModel
 from taggit.managers import TaggableManager
 
 import django.template.loader
@@ -16,7 +15,8 @@ from bigO.utils.models import TimeStampedModel, async_related_obj_str
 from django.core import validators
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
-from django.db.models import CheckConstraint, F, UniqueConstraint
+from django.db.models import CheckConstraint, F, UniqueConstraint, Sum
+import urllib.parse
 
 if TYPE_CHECKING:
     from . import typing
@@ -66,7 +66,7 @@ class O2Spec(TimeStampedModel, models.Model):
 
     @property
     def sync_url(self):
-        return self.sync_domain + reverse("node_manager:node_base_sync_v2")
+        return urllib.parse.urljoin(self.sync_domain, reverse("node_manager:node_base_sync_v2"))
 
 
 class SystemArchitectureTextChoices(models.TextChoices):
@@ -112,10 +112,19 @@ class Node(TimeStampedModel, models.Model):
 
 
 class AnsibleTask(TimeStampedModel, models.Model):
+    class AnsibleTaskQuerySet(models.QuerySet):
+        def ann_stats(self):
+            return self.annotate(
+                ok=Sum("task_nodes__ok"),
+                dark=Sum("task_nodes__dark"),
+                changed=Sum("task_nodes__changed"),
+                failures=Sum("task_nodes__failures"),
+            )
     class StatusChoices(models.IntegerChoices):
         STARTED = 1, "started"
         FINISHED = 2, "finished"
     name = models.CharField(max_length=255)
+    celery_task_id = models.UUIDField(null=True, blank=True)
     playbook_snippet = models.ForeignKey("Snippet", on_delete=models.SET_NULL, related_name="playbooksnippet_ansibletasks", null=True, blank=True)
     playbook_content = models.TextField()
     status = models.PositiveSmallIntegerField(choices=StatusChoices)
@@ -123,8 +132,46 @@ class AnsibleTask(TimeStampedModel, models.Model):
     result = models.JSONField(null=True)
     finished_at = models.DateTimeField(null=True, blank=True)
 
+    objects = AnsibleTaskQuerySet.as_manager()
+
     def __str__(self):
         return f"{self.pk}-{self.name}"
+
+    @property
+    def ok(self) -> int:
+        return self._ok
+
+    @ok.setter
+    def ok(self, value):
+        self._ok = value
+
+    @property
+    def dark(self) -> int:
+        return self._dark
+
+    @dark.setter
+    def dark(self, value):
+        self._dark = value
+
+
+    @property
+    def changed(self) -> int:
+        return self._changed
+
+    @changed.setter
+    def changed(self, value):
+        self._changed = value
+
+
+    @property
+    def failures(self) -> int:
+        return self._failures
+
+    @failures.setter
+    def failures(self, value):
+        self._failures = value
+
+
 
 class AnsibleTaskNode(TimeStampedModel, models.Model):
     node = models.ForeignKey(Node, on_delete=models.CASCADE, related_name="node_ansibletasks")

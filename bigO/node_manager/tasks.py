@@ -2,10 +2,10 @@ import os
 import sys
 import json
 import pathlib
-import tempfile
 from datetime import timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
+import urllib.parse
 
 import django.template
 import influxdb_client.domain.write_precision
@@ -14,6 +14,7 @@ import requests.auth
 from asgiref.sync import async_to_sync
 
 import aiogram
+from celery import current_task
 from django.db import transaction
 import ansible_runner
 from django.urls import reverse
@@ -137,6 +138,8 @@ def send_to_loki(streams: list[typing.LokiStram]):
 
 @app.task
 def ansible_deploy_node(node_id: int):
+    celery_task_id = current_task.request.id
+
     node_obj = models.Node.objects.get(id=node_id)
     o2spec = node_obj.o2spec
     deploy_snippet = o2spec.ansible_deploy_snippet
@@ -147,7 +150,7 @@ def ansible_deploy_node(node_id: int):
 
     extravars = {
         "install_dir": str(pathlib.Path(o2spec.working_dir).parent),
-        "smallO2_binary_download_url": o2spec.sync_domain + reverse("node_manager:node_program_binary_content_by_hash", args=[o2_binary.hash]),
+        "smallO2_binary_download_url": urllib.parse.urljoin(o2spec.sync_domain, reverse("node_manager:node_program_binary_content_by_hash", args=[o2_binary.hash])),
         "smallO2_binary_sha256": o2_binary.hash,
         "api_key": o2spec.api_key,
         "interval_sec": o2spec.interval_sec,
@@ -155,71 +158,75 @@ def ansible_deploy_node(node_id: int):
         "sentry_dsn": o2spec.sentry_dsn
     }
 
-    time_str = timezone.now().astimezone(ZoneInfo("UTC")).strftime("%Y%m%d_%H%M%S")
-    with tempfile.TemporaryDirectory() as tmpdir:
-        # Create inventory file
-        inventory_path = pathlib.Path(tmpdir, f"inventory_{time_str}")
-        with open(inventory_path, "w") as f:
-            ip = node_obj.node_nodepublicips.first().ip.ip.ip
-            username = node_obj.ssh_user
-            passwd = node_obj.ssh_pass
-            line = f"{ip} ansible_user={username} ansible_password={passwd} ansible_become_pass={passwd} ansible_port={node_obj.ssh_port} ansible_ssh_common_args='-o StrictHostKeyChecking=no'\n"
-            f.write(line)
-
-        # Create playbook file
-        playbook_path = pathlib.Path(tmpdir, f"playbook_{time_str}.yml")
-        with open(playbook_path, "w") as f:
-            f.write(deploy_content)
-
-        an_task_obj = models.AnsibleTask()
-        an_task_obj.name = "Install and start smallO2"
-        an_task_obj.logs = ""
-        an_task_obj.status = models.AnsibleTask.StatusChoices.STARTED
-        an_task_obj.playbook_snippet = deploy_snippet
-        an_task_obj.playbook_content = deploy_content
-        ansibletasknode_obj = models.AnsibleTaskNode()
-        ansibletasknode_obj.task = an_task_obj
-        ansibletasknode_obj.node = node_obj
-        with transaction.atomic(using="main"):
-            an_task_obj.save()
-            ansibletasknode_obj.save()
-        ansibletasknode_mapping = {
-            str(ip): ansibletasknode_obj
-        }
-
-        current_python_path = sys.executable
-        # ansible is installed in this python env so
-        os.environ["PATH"] = os.environ["PATH"] + f":{pathlib.Path(current_python_path).parent}"
-        thread, runner = ansible_runner.run_async(
-            extravars=extravars,
-            private_data_dir=tmpdir,
-            playbook=str(playbook_path),
-            inventory=str(inventory_path),
-        )
-        for event in runner.events:
-            an_task_obj.logs += ("\n" + event["stdout"])
-            if (event_data := event.get("event_data")) and (host_key := event_data.get("host")) and event["event"] != "runner_on_start":
-                related_ansibletasknode_obj = ansibletasknode_mapping[host_key]
-                related_ansibletasknode_obj.result = related_ansibletasknode_obj.result or {}
-                related_ansibletasknode_obj.result[event_data["task"]] = event
-                related_ansibletasknode_obj.save()
-            elif event.get("event") == 'playbook_on_stats':
-                an_task_obj.result = event
-            an_task_obj.save()
-        thread.join()
-        result = runner
-        for stat_key, host_mapping in result.stats.items():
-            for host_key, count in host_mapping.items():
-                related_ansibletasknode_obj = ansibletasknode_mapping[host_key]
-                if not hasattr(related_ansibletasknode_obj, stat_key):
-                    # 'processed', 'rescued', 'skipped', 'ignored'
-                    continue
-                # 'ok', 'dark', 'failures', 'changed'
-                setattr(related_ansibletasknode_obj, stat_key, count)
-        for k, v in ansibletasknode_mapping.items():
-            v.save()
-        an_task_obj.status = models.AnsibleTask.StatusChoices.FINISHED
-        an_task_obj.finished_at = timezone.now()
+    an_task_obj = models.AnsibleTask()
+    an_task_obj.name = "Install and start smallO2"
+    an_task_obj.celery_task_id = celery_task_id
+    an_task_obj.logs = ""
+    an_task_obj.status = models.AnsibleTask.StatusChoices.STARTED
+    an_task_obj.playbook_snippet = deploy_snippet
+    an_task_obj.playbook_content = deploy_content
+    ansibletasknode_obj = models.AnsibleTaskNode()
+    ansibletasknode_obj.task = an_task_obj
+    ansibletasknode_obj.node = node_obj
+    with transaction.atomic(using="main"):
         an_task_obj.save()
+        ansibletasknode_obj.save()
 
-        return result
+    time_str = timezone.now().astimezone(ZoneInfo("UTC")).strftime("%Y%m%d_%H%M%S")
+    workdir: pathlib.Path = settings.ANSIBLE_WORKING_DIR
+    tasks_assets_dir = workdir.joinpath("tasks_assets")
+    tasks_assets_dir.mkdir(exist_ok=True)
+    # Create inventory file
+    inventory_path = tasks_assets_dir.joinpath(f"inventory_{an_task_obj.id}_{time_str}")
+    with open(inventory_path, "w") as f:
+        ip = node_obj.node_nodepublicips.first().ip.ip.ip
+        username = node_obj.ssh_user
+        passwd = node_obj.ssh_pass
+        line = f"{ip} ansible_user={username} ansible_password={passwd} ansible_become_pass={passwd} ansible_port={node_obj.ssh_port} ansible_ssh_common_args='-o StrictHostKeyChecking=no'\n"
+        f.write(line)
+    # Create playbook file
+    playbook_path = tasks_assets_dir.joinpath(f"playbook_{an_task_obj.id}_{time_str}.yml")
+    with open(playbook_path, "w") as f:
+        f.write(deploy_content)
+
+    ansibletasknode_mapping = {
+        str(ip): ansibletasknode_obj
+    }
+
+    current_python_path = sys.executable
+    # ansible is installed in this python env so
+    os.environ["PATH"] = os.environ["PATH"] + f":{pathlib.Path(current_python_path).parent}"
+    thread, runner = ansible_runner.run_async(
+        extravars=extravars,
+        private_data_dir=workdir,
+        playbook=str(playbook_path),
+        inventory=str(inventory_path),
+    )
+    for event in runner.events:
+        an_task_obj.logs += ("\n" + event["stdout"])
+        if (event_data := event.get("event_data")) and (host_key := event_data.get("host")) and (event["event"] != "runner_on_start"):
+            related_ansibletasknode_obj = ansibletasknode_mapping[host_key]
+            related_ansibletasknode_obj.result = related_ansibletasknode_obj.result or {}
+            related_ansibletasknode_obj.result["tasks"] = related_ansibletasknode_obj.result.get("tasks", [])
+            related_ansibletasknode_obj.result["tasks"].append({event_data["task"]: event})
+            related_ansibletasknode_obj.save()
+        elif event.get("event") == 'playbook_on_stats':
+            an_task_obj.result = event
+        an_task_obj.save()
+    thread.join()
+    result = runner
+    for stat_key, host_mapping in result.stats.items():
+        for host_key, count in host_mapping.items():
+            related_ansibletasknode_obj = ansibletasknode_mapping[host_key]
+            if not hasattr(related_ansibletasknode_obj, stat_key):
+                # 'processed', 'rescued', 'skipped', 'ignored'
+                continue
+            # 'ok', 'dark', 'failures', 'changed'
+            setattr(related_ansibletasknode_obj, stat_key, count)
+    for k, v in ansibletasknode_mapping.items():
+        v.save()
+    an_task_obj.status = models.AnsibleTask.StatusChoices.FINISHED
+    an_task_obj.finished_at = timezone.now()
+    an_task_obj.save()
+
+    return result

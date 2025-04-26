@@ -180,11 +180,14 @@ class AnsibleTaskNodeInline(admin.StackedInline):
 @admin.register(models.AnsibleTask)
 class AnsibleTaskModelAdmin(admin.ModelAdmin):
     inlines = [AnsibleTaskNodeInline]
-    list_display = ("__str__", "name", "status", "created_at", "finished_at")
+    list_display = ("__str__", "name", "status", "ok", "dark", "changed", "failures", "created_at", "finished_at")
 
     formfield_overrides = {
         JSONField: {'widget': JSONEditorWidget},
     }
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).ann_stats()
 
 
 @admin.register(models.NodeAPIKey)
