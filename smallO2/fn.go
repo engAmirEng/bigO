@@ -163,27 +163,47 @@ func getAPIRequest(config Config, supervisorXmlRpcClient *xmlrpc.Client) (*APIRe
 	var apiRequest = APIRequest{}
 	apiRequest.Config = config
 
+	var configsStates []ConfigStateSchema
+	err := getConfigsStates(&configsStates, config, supervisorXmlRpcClient)
+	if err != nil {
+		fmt.Printf("Error getting API request data: %v\n", err)
+	}
+	apiRequest.ConfigsStates = configsStates
+
+	//todo
+	apiRequest.SelfLogs = SupervisorProcessTailLogSerializerSchema{Bytes: "fdfd", Offset: 0, Overflow: false}
+
+	ipaCmd := exec.Command("ip", "a")
+	ipaRes, err := ipaCmd.Output()
+	if err != nil {
+		return &apiRequest, fmt.Errorf("error in getting 'ip a':: %w", err)
+	}
+	apiRequest.Metrics = MetricSchema{IPA: string(ipaRes)}
+
+	return &apiRequest, nil
+}
+
+func getConfigsStates(configsStates *[]ConfigStateSchema, config Config, supervisorXmlRpcClient *xmlrpc.Client) error {
 	var supervisorProcessInfos []SupervisorProcessInfoSchema
 	err := supervisorXmlRpcClient.Call("supervisor.getAllProcessInfo", nil, &supervisorProcessInfos)
 	if err != nil {
-		return &apiRequest, fmt.Errorf("failed to get process info: %w", err)
+		return fmt.Errorf("failed to get process info: %w", err)
 	}
-	var configsStates []ConfigStateSchema
 
-	loadBackedConfigStats(&configsStates, config)
+	loadBackedConfigStats(configsStates, config)
 	hasClearedAnyLogs := false
 	defer func(stats *[]ConfigStateSchema, hasClearedAnyLogs *bool) {
 		if *hasClearedAnyLogs == false {
 			return
 		}
-		saveStatsBackUp(&configsStates, config)
-	}(&configsStates, &hasClearedAnyLogs)
+		saveStatsBackUp(configsStates, config)
+	}(configsStates, &hasClearedAnyLogs)
 	now := time.Now()
 	for _, supervisorProcessInfo := range supervisorProcessInfos {
 		var tailProcessStdoutLogResult []interface{}
 		err = supervisorXmlRpcClient.Call("supervisor.tailProcessStdoutLog", []interface{}{supervisorProcessInfo.Name, 0, 20_000_000}, &tailProcessStdoutLogResult)
 		if err != nil {
-			return &apiRequest, fmt.Errorf("failed to tail process stdout: %w", err)
+			return fmt.Errorf("failed to tail process stdout: %w", err)
 		}
 		if tailProcessStdoutLogResult[0] == nil {
 			tailProcessStdoutLogResult[0] = ""
@@ -192,7 +212,7 @@ func getAPIRequest(config Config, supervisorXmlRpcClient *xmlrpc.Client) (*APIRe
 		var tailProcessStderrLogResult []interface{}
 		err = supervisorXmlRpcClient.Call("supervisor.tailProcessStderrLog", []interface{}{supervisorProcessInfo.Name, 0, 20_000_000}, &tailProcessStderrLogResult)
 		if err != nil {
-			return &apiRequest, fmt.Errorf("failed to tail process stdout: %w", err)
+			return fmt.Errorf("failed to tail process stdout: %w", err)
 		}
 		if tailProcessStderrLogResult[0] == nil {
 			tailProcessStderrLogResult[0] = ""
@@ -200,7 +220,7 @@ func getAPIRequest(config Config, supervisorXmlRpcClient *xmlrpc.Client) (*APIRe
 
 		err = supervisorXmlRpcClient.Call("supervisor.clearProcessLogs", []interface{}{supervisorProcessInfo.Name}, nil)
 		if err != nil {
-			return &apiRequest, fmt.Errorf("failed to clear process logs: %w", err)
+			return fmt.Errorf("failed to clear process logs: %w", err)
 		}
 		hasClearedAnyLogs = true
 
@@ -218,22 +238,11 @@ func getAPIRequest(config Config, supervisorXmlRpcClient *xmlrpc.Client) (*APIRe
 				Overflow: tailProcessStderrLogResult[2].(bool),
 			},
 		}
-		configsStates = append(configsStates, configStateSchema)
+		*configsStates = append(*configsStates, configStateSchema)
 	}
-	apiRequest.ConfigsStates = configsStates
-
-	//todo
-	apiRequest.SelfLogs = SupervisorProcessTailLogSerializerSchema{Bytes: "fdfd", Offset: 0, Overflow: false}
-
-	ipaCmd := exec.Command("ip", "a")
-	ipaRes, err := ipaCmd.Output()
-	if err != nil {
-		return &apiRequest, fmt.Errorf("error in getting 'ip a':: %w", err)
-	}
-	apiRequest.Metrics = MetricSchema{IPA: string(ipaRes)}
-
-	return &apiRequest, nil
+	return nil
 }
+
 func loadBackedConfigStats(configStates *[]ConfigStateSchema, config Config) {
 	data, err := os.ReadFile(filepath.Join(getLogsDir(config), "configs_states.json.bak"))
 	if err != nil {
@@ -243,6 +252,9 @@ func loadBackedConfigStats(configStates *[]ConfigStateSchema, config Config) {
 		panic(fmt.Sprintf("failed to read config stats backup file: %s", err))
 	}
 
+	if len(data) == 0 {
+		return
+	}
 	err = json.Unmarshal(data, configStates)
 	if err != nil {
 		panic(fmt.Sprintf("failed to parse config stats backup file: %s", err))
