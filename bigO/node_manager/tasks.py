@@ -190,24 +190,32 @@ def ansible_deploy_node(node_id: int):
         current_python_path = sys.executable
         # ansible is installed in this python env so
         os.environ["PATH"] = os.environ["PATH"] + f":{pathlib.Path(current_python_path).parent}"
-        result = ansible_runner.run(
+        thread, runner = ansible_runner.run_async(
             extravars=extravars,
             private_data_dir=tmpdir,
             playbook=str(playbook_path),
             inventory=str(inventory_path),
         )
-        print("Status:", result.status)
-        print("Return Code:", result.rc)
-        for event in result.events:
+        for event in runner.events:
             an_task_obj.logs += ("\n" + event["stdout"])
             if (event_data := event.get("event_data")) and (host_key := event_data.get("host")) and event["event"] != "runner_on_start":
                 related_ansibletasknode_obj = ansibletasknode_mapping[host_key]
                 related_ansibletasknode_obj.result = related_ansibletasknode_obj.result or {}
                 related_ansibletasknode_obj.result[event_data["task"]] = event
-
+                related_ansibletasknode_obj.save()
             elif event.get("event") == 'playbook_on_stats':
                 an_task_obj.result = event
-
+            an_task_obj.save()
+        thread.join()
+        result = runner
+        for stat_key, host_mapping in result.stats.items():
+            for host_key, count in host_mapping.items():
+                related_ansibletasknode_obj = ansibletasknode_mapping[host_key]
+                if not hasattr(related_ansibletasknode_obj, stat_key):
+                    # 'processed', 'rescued', 'skipped', 'ignored'
+                    continue
+                # 'ok', 'dark', 'failures', 'changed'
+                setattr(related_ansibletasknode_obj, stat_key, count)
         for k, v in ansibletasknode_mapping.items():
             v.save()
         an_task_obj.status = models.AnsibleTask.StatusChoices.FINISHED
