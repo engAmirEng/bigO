@@ -98,6 +98,10 @@ MainLoop:
 			time.Sleep(time.Second * time.Duration(config.IntervalSec))
 			continue MainLoop
 		}
+		err = StatsCommitted(config)
+		if err != nil {
+			fmt.Printf("Error in StatsCommitted: %v\n", err)
+		}
 		err = response.Config.Validate()
 		if err != nil {
 			fmt.Printf("could not validate config form api %v", err)

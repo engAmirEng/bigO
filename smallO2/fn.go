@@ -21,6 +21,14 @@ import (
 	"time"
 )
 
+func getLogsDir(config Config) string {
+	logsDir := filepath.Join(config.WorkingDir, "logs")
+	if err := os.MkdirAll(logsDir, 0755); err != nil {
+		panic(fmt.Sprintf("error in creating logs directory in %s\n", logsDir))
+	}
+	return logsDir
+}
+
 func getSupervisorDir(config Config) string {
 	res := filepath.Join(config.WorkingDir, "supervisor")
 	if err := os.MkdirAll(res, 0755); err != nil {
@@ -151,22 +159,31 @@ func IsSupervisorRunning(supervisorXmlRpcClient *xmlrpc.Client) bool {
 	}
 	return true
 }
-func getAPIRequest(config Config, supervisorXmlRpcClient *xmlrpc.Client) (APIRequest, error) {
+func getAPIRequest(config Config, supervisorXmlRpcClient *xmlrpc.Client) (*APIRequest, error) {
 	var apiRequest = APIRequest{}
 	apiRequest.Config = config
 
 	var supervisorProcessInfos []SupervisorProcessInfoSchema
 	err := supervisorXmlRpcClient.Call("supervisor.getAllProcessInfo", nil, &supervisorProcessInfos)
 	if err != nil {
-		return apiRequest, fmt.Errorf("failed to get process info: %w", err)
+		return &apiRequest, fmt.Errorf("failed to get process info: %w", err)
 	}
 	var configsStates []ConfigStateSchema
+
+	loadBackedConfigStats(&configsStates, config)
+	hasClearedAnyLogs := false
+	defer func(stats *[]ConfigStateSchema, hasClearedAnyLogs *bool) {
+		if *hasClearedAnyLogs == false {
+			return
+		}
+		saveStatsBackUp(&configsStates, config)
+	}(&configsStates, &hasClearedAnyLogs)
 	now := time.Now()
 	for _, supervisorProcessInfo := range supervisorProcessInfos {
 		var tailProcessStdoutLogResult []interface{}
 		err = supervisorXmlRpcClient.Call("supervisor.tailProcessStdoutLog", []interface{}{supervisorProcessInfo.Name, 0, 20_000_000}, &tailProcessStdoutLogResult)
 		if err != nil {
-			return apiRequest, fmt.Errorf("failed to tail process stdout: %w", err)
+			return &apiRequest, fmt.Errorf("failed to tail process stdout: %w", err)
 		}
 		if tailProcessStdoutLogResult[0] == nil {
 			tailProcessStdoutLogResult[0] = ""
@@ -175,7 +192,7 @@ func getAPIRequest(config Config, supervisorXmlRpcClient *xmlrpc.Client) (APIReq
 		var tailProcessStderrLogResult []interface{}
 		err = supervisorXmlRpcClient.Call("supervisor.tailProcessStderrLog", []interface{}{supervisorProcessInfo.Name, 0, 20_000_000}, &tailProcessStderrLogResult)
 		if err != nil {
-			return apiRequest, fmt.Errorf("failed to tail process stdout: %w", err)
+			return &apiRequest, fmt.Errorf("failed to tail process stdout: %w", err)
 		}
 		if tailProcessStderrLogResult[0] == nil {
 			tailProcessStderrLogResult[0] = ""
@@ -183,8 +200,9 @@ func getAPIRequest(config Config, supervisorXmlRpcClient *xmlrpc.Client) (APIReq
 
 		err = supervisorXmlRpcClient.Call("supervisor.clearProcessLogs", []interface{}{supervisorProcessInfo.Name}, nil)
 		if err != nil {
-			return apiRequest, fmt.Errorf("failed to clear process logs: %w", err)
+			return &apiRequest, fmt.Errorf("failed to clear process logs: %w", err)
 		}
+		hasClearedAnyLogs = true
 
 		configStateSchema := ConfigStateSchema{
 			Time:                  now,
@@ -210,14 +228,49 @@ func getAPIRequest(config Config, supervisorXmlRpcClient *xmlrpc.Client) (APIReq
 	ipaCmd := exec.Command("ip", "a")
 	ipaRes, err := ipaCmd.Output()
 	if err != nil {
-		return apiRequest, fmt.Errorf("error in getting 'ip a':: %w", err)
+		return &apiRequest, fmt.Errorf("error in getting 'ip a':: %w", err)
 	}
 	apiRequest.Metrics = MetricSchema{IPA: string(ipaRes)}
 
-	return apiRequest, nil
+	return &apiRequest, nil
+}
+func loadBackedConfigStats(configStates *[]ConfigStateSchema, config Config) {
+	data, err := os.ReadFile(filepath.Join(getLogsDir(config), "configs_states.json.bak"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return
+		}
+		panic(fmt.Sprintf("failed to read config stats backup file: %s", err))
+	}
+
+	err = json.Unmarshal(data, configStates)
+	if err != nil {
+		panic(fmt.Sprintf("failed to parse config stats backup file: %s", err))
+	}
 }
 
-func makeSyncAPIRequest(config Config, payload APIRequest) (APIResponse, error) {
+func saveStatsBackUp(stats *[]ConfigStateSchema, config Config) {
+	// saving response.ConfigsStates as json for the next request
+	data, err := json.Marshal(stats)
+	if err != nil {
+		panic(fmt.Sprintf("failed to marshal config: %s", err))
+	}
+
+	err = os.WriteFile(filepath.Join(getLogsDir(config), "configs_states.json.bak"), data, 0644)
+	if err != nil {
+		panic(fmt.Errorf("failed to write config file: %w", err))
+	}
+}
+
+func StatsCommitted(config Config) error {
+	err := os.Truncate(filepath.Join(getLogsDir(config), "configs_states.json.bak"), 0)
+	if err != nil {
+		return fmt.Errorf("failed to enpty config stats backup file: %w", err)
+	}
+	return nil
+}
+
+func makeSyncAPIRequest(config Config, payload *APIRequest) (APIResponse, error) {
 	var response APIResponse
 
 	payloadBytes, err := json.Marshal(payload)
