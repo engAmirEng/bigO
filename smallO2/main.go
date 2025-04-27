@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/getsentry/sentry-go"
+	"go.uber.org/zap"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -48,8 +49,16 @@ func mainLoop(configPath string) {
 		defer sentry.Recover()
 	}
 	if err != nil {
-		panic(fmt.Sprintf("Error loading config: %v\n", err))
+		panic(fmt.Sprintf("Error loading config: %v", err))
 	}
+	logger := configureLogger(config)
+	defer logger.Sync()
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Error("Recovered from panic", zap.Any("panic", r))
+		}
+	}()
+
 	err = config.Validate()
 	if err != nil {
 		panic("could not validate config file at " + configPath + " " + err.Error())
@@ -61,13 +70,17 @@ MainLoop:
 	for {
 		isSupervisorRunning := IsSupervisorRunning(supervisorXmlRpcClient)
 		if isSupervisorRunning == false {
-			fmt.Printf("Supervisor not running\n")
+			logger.Warn("Supervisor not running")
 			if config.FullControlSupervisord {
-				supervisorBaseConfigPath := filepath.Join(getSupervisorDir(config), "base_supervisor.conf")
-				_, err := os.Stat(supervisorBaseConfigPath)
+				supervisorDir, err := getSupervisorDir(config)
+				if err != nil {
+					panic(fmt.Sprintf("Error in getSupervisorDir: %v", err))
+				}
+				supervisorBaseConfigPath := filepath.Join(supervisorDir, "base_supervisor.conf")
+				_, err = os.Stat(supervisorBaseConfigPath)
 				if os.IsNotExist(err) {
-					fmt.Printf("Creating supervisor base config at %s\n", supervisorBaseConfigPath)
-					supervisorBaseConfigContent := getSupervisorBaseConfigContent(filepath.Join(getSupervisorDir(config), "supervisor.conf"))
+					logger.Info(fmt.Sprintf("Creating supervisor base config at %v", supervisorBaseConfigPath))
+					supervisorBaseConfigContent := getSupervisorBaseConfigContent(filepath.Join(supervisorDir, "supervisor.conf"))
 					err = os.WriteFile(supervisorBaseConfigPath, []byte(supervisorBaseConfigContent), 0755)
 					if err != nil {
 						panic(fmt.Sprintf("panic in writing %s with %v", supervisorBaseConfigPath, err))
@@ -75,36 +88,38 @@ MainLoop:
 				} else if err != nil {
 					panic(fmt.Sprintf("panic in writing %s with %v", supervisorBaseConfigPath, err))
 				}
-				fmt.Printf("Starting Supervisor\n")
+				logger.Info("Starting Supervisor")
 				supervisordCmd := exec.Command("supervisord", "-c", supervisorBaseConfigPath)
 				_, err = supervisordCmd.Output()
 				if err != nil {
-					fmt.Printf("Error starting supervisor: %v\n", err)
+					logger.Error(fmt.Sprintf("Error starting supervisor: %v", err))
 				}
 			} else {
-				panic("supervisor is not running, start it !!!\n")
+				panic("supervisor is not running, start it !!!")
 			}
 		}
 
 		supervisorXmlRpcClient, err = getSupervisorXmlRpcClient()
-		payload, err := getAPIRequest(config, supervisorXmlRpcClient)
-		if err != nil {
-			fmt.Printf("Error getting API request data: %v\n", err)
+		payload, errors := getAPIRequest(config, supervisorXmlRpcClient)
+		if len(errors) > 1 {
+			for i, err := range errors {
+				logger.Error(fmt.Sprintf("%ith Error in getting API request data: %v", i, err))
+			}
 		}
 
 		response, err := makeSyncAPIRequest(config, payload)
 		if err != nil {
-			fmt.Printf("Error making API request: %v\n", err)
+			logger.Error(fmt.Sprintf("Error making API request: %v", err))
 			time.Sleep(time.Second * time.Duration(config.IntervalSec))
 			continue MainLoop
 		}
 		err = StatsCommitted(config)
 		if err != nil {
-			fmt.Printf("Error in StatsCommitted: %v\n", err)
+			logger.Error(fmt.Sprintf("Error in StatsCommitted: %v", err))
 		}
 		err = response.Config.Validate()
 		if err != nil {
-			fmt.Printf("could not validate config form api %v", err)
+			logger.Error(fmt.Sprintf("could not validate config form api %v", err))
 		} else {
 			config = response.Config
 		}
@@ -117,32 +132,35 @@ MainLoop:
 			_, err := os.Stat(fileInfo.DestPath)
 			if os.IsNotExist(err) {
 				if fileInfo.URL != nil {
-					fmt.Printf("start downloading file %v: %v\n", fileInfo.Hash, err)
+					logger.Debug(fmt.Sprintf("start downloading file %v: %v", fileInfo.Hash, err))
 					err := downloadAndVerifyFile(fileInfo, config)
 					if err != nil {
-						fmt.Printf("Error downloading file %v: %v\n", fileInfo.Hash, err)
+						logger.Error(fmt.Sprintf("Error downloading file %v: %v", fileInfo.Hash, err))
 						continue FilesLoop
 					} else {
-						fmt.Printf("successfully downloaded %v\n", fileInfo.Hash)
+						logger.Debug(fmt.Sprintf("successfully downloaded %v", fileInfo.Hash))
 					}
 				} else if fileInfo.Content != nil {
 					if err := os.MkdirAll(filepath.Dir(fileInfo.DestPath), 0755); err != nil {
-						fmt.Printf("error in creating parent directories for %s\n", fileInfo.DestPath)
+						logger.Error(fmt.Sprintf("error in creating parent directories for %s", fileInfo.DestPath))
 					}
 					err = os.WriteFile(fileInfo.DestPath, []byte(*fileInfo.Content), os.FileMode(fileInfo.Permission))
 					if err != nil {
-						fmt.Printf("error in writing content for %s\n", fileInfo.DestPath)
+						logger.Error(fmt.Sprintf("error in writing content for %s", fileInfo.DestPath))
 					}
 				} else {
 					//it should be present all along
-					fmt.Printf("no url no content and no file for %s\n", fileInfo.DestPath)
+					logger.Debug(fmt.Sprintf("no url no content and no file for %s", fileInfo.DestPath))
 				}
 			} else if err != nil {
-				fmt.Printf("Error is file stats checking for %v\n", fileInfo.DestPath, err)
+				logger.Error(fmt.Sprintf("Error is file stats checking for %s failed with %v", fileInfo.DestPath, err))
 			}
 		}
-
-		supervisorConfigPath := filepath.Join(getSupervisorDir(config), "supervisor.conf")
+		supervisorDir, err := getSupervisorDir(config)
+		if err != nil {
+			panic(fmt.Sprintf("Error in getSupervisorDir: %v", err))
+		}
+		supervisorConfigPath := filepath.Join(supervisorDir, "supervisor.conf")
 		currentSupervisorContentBytes, err := os.ReadFile(supervisorConfigPath)
 		var currentSupervisorConfigContent string
 		if err == nil {
@@ -162,11 +180,11 @@ MainLoop:
 		}
 		newSupervisorConfigContent := response.SupervisorConfig.ConfigContent
 		if removeComments(newSupervisorConfigContent) == removeComments(currentSupervisorConfigContent) {
-			fmt.Println("already up to date.")
+			logger.Debug(fmt.Sprintf("already up to date."))
 			time.Sleep(time.Second * time.Duration(config.IntervalSec))
 			continue MainLoop
 		}
-		fmt.Println("update identified.")
+		logger.Debug("update identified.")
 
 		err = os.WriteFile(supervisorConfigPath, []byte(newSupervisorConfigContent), 0755)
 		if err != nil {
@@ -176,27 +194,27 @@ MainLoop:
 		var reloadConfigResult [][][]string
 		err = supervisorXmlRpcClient.Call("supervisor.reloadConfig", nil, &reloadConfigResult)
 		if err != nil {
-			fmt.Printf("Error reloading supervisor config: %v\n", err)
+			logger.Error(fmt.Sprintf("Error reloading supervisor config: %v", err))
 			time.Sleep(time.Second * time.Duration(config.IntervalSec))
 			continue MainLoop
 		}
 		added := reloadConfigResult[0][0]
 		changed := reloadConfigResult[0][1]
 		removed := reloadConfigResult[0][2]
-		fmt.Printf("added %s changed %s remoded %s from supervisor\n", added, changed, removed)
+		logger.Info(fmt.Sprintf("added %s changed %s remoded %s from supervisor", added, changed, removed))
 
 		updateCmd := exec.Command("supervisorctl", "update")
 		updateRes, err := updateCmd.Output()
 		if err != nil {
-			fmt.Printf("Error updating supervisor config: %v\n", err)
+			logger.Error(fmt.Sprintf("Error updating supervisor config: %v", err))
 		}
 		if updateRes != nil {
-			fmt.Printf("supervisorctl updated result: %s\n", updateRes)
+			logger.Info(fmt.Sprintf("supervisorctl updated result: %s", updateRes))
 		}
 
 		err = saveConfig(configPath, config)
 		if err != nil {
-			fmt.Printf("Error saving updated config: %v\n", err)
+			panic(fmt.Sprintf("Error saving updated config: %v", err))
 		}
 
 		time.Sleep(time.Second * time.Duration(config.IntervalSec))

@@ -10,6 +10,9 @@ import (
 	"fmt"
 	"github.com/kolo/xmlrpc"
 	"github.com/pelletier/go-toml/v2"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"gopkg.in/natefinch/lumberjack.v2"
 	"io"
 	"log"
 	"net"
@@ -24,17 +27,41 @@ import (
 func getLogsDir(config Config) string {
 	logsDir := filepath.Join(config.WorkingDir, "logs")
 	if err := os.MkdirAll(logsDir, 0755); err != nil {
-		panic(fmt.Sprintf("error in creating logs directory in %s\n", logsDir))
+		panic(fmt.Sprintf("error in creating logs directory in %s", logsDir))
 	}
 	return logsDir
 }
 
-func getSupervisorDir(config Config) string {
+func configureLogger(config Config) *zap.Logger {
+	fileWriter := &lumberjack.Logger{
+		Filename:   filepath.Join(getLogsDir(config), "app.log"), // <-- Path to your log file
+		MaxSize:    50,                                           // megabytes
+		MaxBackups: 0,                                            // number of backups
+		Compress:   false,                                        // gzip compress backups
+	}
+
+	fileWriterSyncer := zapcore.AddSync(fileWriter)
+	consoleSyncer := zapcore.AddSync(os.Stdout)
+
+	encoderCfg := zap.NewProductionEncoderConfig()
+	encoderCfg.TimeKey = "timestamp"
+	encoderCfg.EncodeTime = zapcore.ISO8601TimeEncoder
+
+	core := zapcore.NewTee(
+		zapcore.NewCore(zapcore.NewJSONEncoder(encoderCfg), consoleSyncer, zap.InfoLevel),
+		zapcore.NewCore(zapcore.NewJSONEncoder(encoderCfg), fileWriterSyncer, zap.InfoLevel),
+	)
+
+	logger := zap.New(core)
+	return logger
+}
+
+func getSupervisorDir(config Config) (string, error) {
 	res := filepath.Join(config.WorkingDir, "supervisor")
 	if err := os.MkdirAll(res, 0755); err != nil {
-		fmt.Printf("error in creating supervisor directory in %s\n", res)
+		return res, err
 	}
-	return res
+	return res, nil
 }
 
 func getSupervisorBaseConfigContent(supervisorConfigPath string) string {
@@ -144,7 +171,7 @@ func getSupervisorXmlRpcClient() (*xmlrpc.Client, error) {
 		supervisorXmlRpcClient, err = xmlrpc.NewClient("http://127.0.0.1:9002/RPC2", nil)
 	}
 	if err != nil {
-		panic(fmt.Sprintf("Error instantiating supervisor rpc client: %v\n", err))
+		panic(fmt.Sprintf("Error instantiating supervisor rpc client: %v", err))
 	}
 	return supervisorXmlRpcClient, nil
 }
@@ -159,14 +186,15 @@ func IsSupervisorRunning(supervisorXmlRpcClient *xmlrpc.Client) bool {
 	}
 	return true
 }
-func getAPIRequest(config Config, supervisorXmlRpcClient *xmlrpc.Client) (*APIRequest, error) {
+func getAPIRequest(config Config, supervisorXmlRpcClient *xmlrpc.Client) (*APIRequest, []error) {
 	var apiRequest = APIRequest{}
+	var errors []error
 	apiRequest.Config = config
 
 	var configsStates []ConfigStateSchema
 	err := getConfigsStates(&configsStates, config, supervisorXmlRpcClient)
 	if err != nil {
-		fmt.Printf("Error getting API request data: %v\n", err)
+		errors = append(errors, fmt.Errorf("Error getting API request data: %v", err))
 	}
 	apiRequest.ConfigsStates = configsStates
 
@@ -176,7 +204,7 @@ func getAPIRequest(config Config, supervisorXmlRpcClient *xmlrpc.Client) (*APIRe
 	ipaCmd := exec.Command("ip", "a")
 	ipaRes, err := ipaCmd.Output()
 	if err != nil {
-		return &apiRequest, fmt.Errorf("error in getting 'ip a':: %w", err)
+		errors = append(errors, fmt.Errorf("error in getting 'ip a':: %w", err))
 	}
 	apiRequest.Metrics = MetricSchema{IPA: string(ipaRes)}
 
@@ -328,6 +356,18 @@ func makeSyncAPIRequest(config Config, payload *APIRequest) (APIResponse, error)
 }
 
 func downloadAndVerifyFile(fileInfo FileSchema, config Config) error {
+	// Ensure dest paths exists for early return
+	destPathDir := filepath.Dir(fileInfo.DestPath)
+	err := os.MkdirAll(destPathDir, 0755)
+	if err != nil {
+		return fmt.Errorf("failed to create destination directory at %s: %v", destPathDir, err)
+	}
+	out, err := os.Create(fileInfo.DestPath)
+	if err != nil {
+		return fmt.Errorf("failed to create destination file: %w", err)
+	}
+	defer out.Close()
+
 	// Create temp file
 	tempDir := os.TempDir()
 	fileName := filepath.Base(fileInfo.DestPath)
@@ -397,20 +437,6 @@ func downloadAndVerifyFile(fileInfo FileSchema, config Config) error {
 		os.Remove(tempFilePath)
 		return fmt.Errorf("sha missmatch happened for %s", fileInfo.Hash)
 	}
-
-	// Ensure directory exists
-	err = os.MkdirAll(filepath.Dir(fileInfo.DestPath), 0755)
-	if err != nil {
-		return fmt.Errorf("failed to create destination directory: %w", err)
-	}
-	if err := os.MkdirAll(filepath.Dir(fileInfo.DestPath), 0755); err != nil {
-		fmt.Printf("error in creating parent directories for %s\n", fileInfo.DestPath)
-	}
-	out, err := os.Create(fileInfo.DestPath)
-	if err != nil {
-		return fmt.Errorf("failed to create destination file: %w", err)
-	}
-	defer out.Close()
 
 	in, err := os.Open(tempFilePath)
 	if err != nil {
