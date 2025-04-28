@@ -327,13 +327,13 @@ class NodeCustomConfig(TimeStampedModel):
             ).first()
         return res
 
-    def get_config_depandant_content(self) -> list[ConfigDepandantContent]:
+    def get_config_dependent_content(self) -> list[ConfigDepandantContent]:
         context = {"node_obj": self.node}
         res = []
         for i in self.custom_config.dependantfiles.all():
             template = django.template.Template("{% load node_manager %}" + i.template)
             result = template.render(context=django.template.Context(context))
-            res.append({"key": i.key, "content": result, "extension": i.template_extension})
+            res.append({"key": i.key, "content": result, "extension": i.name_extension})
 
         return res
 
@@ -346,7 +346,7 @@ class NodeCustomConfig(TimeStampedModel):
     def get_hash(self) -> str:
         influential = ""
         influential += self.get_run_opts()
-        if config_depandant_content := self.get_config_depandant_content():
+        if config_depandant_content := self.get_config_dependent_content():
             for i in config_depandant_content:
                 influential += i["content"]
         program = self.get_program()

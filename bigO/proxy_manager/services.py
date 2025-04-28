@@ -48,7 +48,9 @@ def get_sync_node(node: node_manager_models.Node) -> list:
     return
 
 
-def get_proxy_manager_nginx_conf_v1(node_obj) -> tuple[str, str, dict]:
+def get_proxy_manager_nginx_conf_v1(node_obj) -> tuple[str, str, dict] | None:
+    if not node_obj.tmp_xray:
+        return None
     proxy_manager_config = models.Config.objects.get()
     context = django.template.Context({"node_obj": node_obj})
     nginx_config_http_template = "{% load node_manager %}" + proxy_manager_config.nginx_config_http_template
@@ -57,7 +59,9 @@ def get_proxy_manager_nginx_conf_v1(node_obj) -> tuple[str, str, dict]:
     nginx_config_stream_result = django.template.Template(nginx_config_stream_template).render(context=context)
     return nginx_config_http_result, nginx_config_stream_result, context.get("deps", {"globals": []})
 
-def get_proxy_manager_nginx_conf_v2(node_obj, node_work_dir: pathlib.Path, base_url: str) -> tuple[str, str, list[node_manager_typing.FileSchema]]:
+def get_proxy_manager_nginx_conf_v2(node_obj, node_work_dir: pathlib.Path, base_url: str) -> tuple[str, str, list[node_manager_typing.FileSchema]] | None:
+    if not node_obj.tmp_xray:
+        return None
     proxy_manager_config = models.Config.objects.get()
     template_context = node_manager_services.NodeTemplateContext({"node_obj": node_obj}, node_work_dir=node_work_dir, base_url=base_url)
     nginx_config_http_template = "{% load node_manager %}" + proxy_manager_config.nginx_config_http_template

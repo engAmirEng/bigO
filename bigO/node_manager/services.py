@@ -392,7 +392,7 @@ def get_global_nginx_conf_v1(node: models.Node) -> tuple[str, str, dict] | None:
         deps = supervisor_nginx_conf[1]
         usage = True
     proxy_manager_nginx_conf = services_models.get_proxy_manager_nginx_conf_v1(node_obj=node)
-    if proxy_manager_nginx_conf[0] or proxy_manager_nginx_conf[1]:
+    if proxy_manager_nginx_conf and (proxy_manager_nginx_conf[0] or proxy_manager_nginx_conf[1]):
         http_part += proxy_manager_nginx_conf[0]
         stream_part += proxy_manager_nginx_conf[1]
         deps = proxy_manager_nginx_conf[2]
@@ -467,7 +467,7 @@ def get_global_nginx_conf_v2(node_obj, node_work_dir: pathlib.Path, base_url: st
         files.extend(new_files)
         usage = True
     proxy_manager_nginx_conf = services_models.get_proxy_manager_nginx_conf_v2(node_obj=node_obj, node_work_dir=node_work_dir, base_url=base_url)
-    if proxy_manager_nginx_conf[0] or proxy_manager_nginx_conf[1]:
+    if proxy_manager_nginx_conf and (proxy_manager_nginx_conf[0] or proxy_manager_nginx_conf[1]):
         http_part += proxy_manager_nginx_conf[0]
         stream_part += proxy_manager_nginx_conf[1]
         new_files = proxy_manager_nginx_conf[2]
@@ -824,6 +824,7 @@ async def get_easytier(
     )
     files.append(conf_file)
     run_opts = await sync_to_async(easytiernode_obj.get_run_opts)()
+    run_opts = run_opts.replace("CONFIGFILEPATH", conf_file.dest_path)
     supervisor_config = f"""
 # config={timezone.now()}
 [program:eati_{easytiernode_obj.id}]
