@@ -146,7 +146,8 @@ def ansible_deploy_node(node_id: int):
     deploy_content = django.template.Template(deploy_snippet.template).render(django.template.Context())
     assert "templateerror" not in deploy_content
     o2_binary = o2spec.program.get_program_for_node(node_obj)
-    assert isinstance(o2_binary, models.ProgramBinary)
+    if o2_binary is None or not isinstance(o2_binary, models.ProgramBinary):
+        raise Exception(f"no ProgramBinary of {o2spec.program=} found for {node_obj=}")
 
     extravars = {
         "install_dir": str(pathlib.Path(o2spec.working_dir).parent),

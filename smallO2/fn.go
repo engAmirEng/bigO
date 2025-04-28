@@ -362,11 +362,6 @@ func downloadAndVerifyFile(fileInfo FileSchema, config Config) error {
 	if err != nil {
 		return fmt.Errorf("failed to create destination directory at %s: %v", destPathDir, err)
 	}
-	out, err := os.Create(fileInfo.DestPath)
-	if err != nil {
-		return fmt.Errorf("failed to create destination file: %w", err)
-	}
-	defer out.Close()
 
 	// Create temp file
 	tempDir := os.TempDir()
@@ -437,6 +432,12 @@ func downloadAndVerifyFile(fileInfo FileSchema, config Config) error {
 		os.Remove(tempFilePath)
 		return fmt.Errorf("sha missmatch happened for %s", fileInfo.Hash)
 	}
+
+	out, err := os.Create(fileInfo.DestPath)
+	if err != nil {
+		return fmt.Errorf("failed to create destination file: %w", err)
+	}
+	defer out.Close()
 
 	in, err := os.Open(tempFilePath)
 	if err != nil {

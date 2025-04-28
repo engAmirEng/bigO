@@ -814,9 +814,12 @@ async def get_easytier(
     else:
         raise AssertionError
     files.append(easytier_program_file)
+    toml_config_content_hash = sha256(toml_config_content.encode("utf-8")).hexdigest()
+    toml_config_dest_path = node_work_dir.joinpath("conf", f"eati_{easytiernode_obj.id}_{toml_config_content_hash[:6]}")
     conf_file = FileSchema(
+        dest_path=toml_config_dest_path,
         content=toml_config_content,
-        hash=sha256(toml_config_content.encode("utf-8")).hexdigest(),
+        hash=toml_config_content_hash,
         permission=all_permission,
     )
     files.append(conf_file)
