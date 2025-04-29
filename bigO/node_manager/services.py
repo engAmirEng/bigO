@@ -824,7 +824,7 @@ async def get_easytier(
     )
     files.append(conf_file)
     run_opts = await sync_to_async(easytiernode_obj.get_run_opts)()
-    run_opts = run_opts.replace("CONFIGFILEPATH", conf_file.dest_path)
+    run_opts = run_opts.replace("CONFIGFILEPATH", str(conf_file.dest_path))
     supervisor_config = f"""
 # config={timezone.now()}
 [program:eati_{easytiernode_obj.id}]

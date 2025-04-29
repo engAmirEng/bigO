@@ -291,7 +291,10 @@ class ProgramBinaryModelAdmin(admin.ModelAdmin):
 
     @admin.display(description="file size")
     def file_size_display(self, obj: models.ProgramBinary):
-        return filesizeformat(obj.file.size)
+        try:
+            return filesizeformat(obj.file.size)
+        except FileNotFoundError as e:
+            return str(e)
 
     def save_model(self, request, obj, form, change):
         if file_hash := form.cleaned_data.get("file_hash"):
