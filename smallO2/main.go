@@ -107,9 +107,15 @@ MainLoop:
 			}
 		}
 
-		response, err := makeSyncAPIRequest(config, payload)
+		response, bodyBytes, err := makeSyncAPIRequest(config, payload)
 		if err != nil {
-			logger.Error(fmt.Sprintf("Error making API request: %v", err))
+			logger.Error(fmt.Sprintf("Error making Sync API request: %v", err))
+			if bodyBytes != nil {
+				err = os.WriteFile(filepath.Join(config.WorkingDir, "sync_response.txt"), *bodyBytes, 0644)
+				if err != nil {
+					panic(fmt.Sprintf("err in writing api syc response to %s", err))
+				}
+			}
 			time.Sleep(time.Second * time.Duration(config.IntervalSec))
 			continue MainLoop
 		}

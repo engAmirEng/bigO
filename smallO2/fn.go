@@ -315,18 +315,18 @@ func StatsCommitted(config Config) error {
 	return nil
 }
 
-func makeSyncAPIRequest(config Config, payload *APIRequest) (APIResponse, error) {
+func makeSyncAPIRequest(config Config, payload *APIRequest) (*APIResponse, *[]byte, error) {
 	var response APIResponse
 
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
-		return response, fmt.Errorf("failed to marshal request payload: %w", err)
+		return &response, nil, fmt.Errorf("failed to marshal request payload: %w", err)
 	}
 
 	// Make the POST request
 	req, err := http.NewRequest("POST", config.SyncURL, bytes.NewBuffer(payloadBytes))
 	if err != nil {
-		return response, fmt.Errorf("failed to create request: %w", err)
+		return &response, nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -339,25 +339,25 @@ func makeSyncAPIRequest(config Config, payload *APIRequest) (APIResponse, error)
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return response, fmt.Errorf("failed to send request: %w", err)
+		return &response, nil, fmt.Errorf("failed to send request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return response, fmt.Errorf("server returned non-OK status: %s; additionally, failed to read response body: %v", resp.Status, err)
+			return &response, nil, fmt.Errorf("server returned non-OK status: %s; additionally, failed to read response body: %v", resp.Status, err)
 		}
-		return response, fmt.Errorf("server returned non-OK status: %s; response body: %s", resp.Status, string(bodyBytes))
+		return &response, &bodyBytes, fmt.Errorf("server returned non-OK status: %s; response body: %s", resp.Status, string(bodyBytes[:50]))
 	}
 
 	// Parse the response
 	err = json.NewDecoder(resp.Body).Decode(&response)
 	if err != nil {
-		return response, fmt.Errorf("failed to decode response: %w", err)
+		return &response, nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	return response, nil
+	return &response, nil, nil
 }
 
 func downloadAndVerifyFile(fileInfo FileSchema, config Config) error {
