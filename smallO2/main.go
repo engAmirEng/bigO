@@ -207,7 +207,7 @@ MainLoop:
 		added := reloadConfigResult[0][0]
 		changed := reloadConfigResult[0][1]
 		removed := reloadConfigResult[0][2]
-		logger.Info(fmt.Sprintf("added %s changed %s remoded %s from supervisor", added, changed, removed))
+		logger.Info(fmt.Sprintf("added %s changed %s removed %s from supervisor", added, changed, removed))
 
 		updateCmd := exec.Command("supervisorctl", "update")
 		updateRes, err := updateCmd.Output()

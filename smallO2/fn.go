@@ -333,7 +333,15 @@ func makeSyncAPIRequest(config Config, payload *APIRequest) (*APIResponse, *[]by
 	req.Header.Set("Authorization", "Api-Key "+config.APIKey)
 	req.Header.Set("User-Agent", fmt.Sprintf("smallO2:%v", Release))
 
-	client := &http.Client{Timeout: 15 * time.Second}
+	transport := &http.Transport{
+		DialContext: (&net.Dialer{
+			Timeout: 2 * time.Second,
+		}).DialContext,
+		TLSHandshakeTimeout:   5 * time.Second,
+		ResponseHeaderTimeout: 15 * time.Second,
+	}
+
+	client := &http.Client{Transport: transport}
 	if config.IsDev {
 		client.Timeout = 600 * time.Second
 	}
