@@ -47,10 +47,15 @@ func configureLogger(config Config) *zap.Logger {
 	encoderCfg.TimeKey = "timestamp"
 	encoderCfg.EncodeTime = zapcore.ISO8601TimeEncoder
 
-	core := zapcore.NewTee(
-		zapcore.NewCore(zapcore.NewJSONEncoder(encoderCfg), consoleSyncer, zap.InfoLevel),
-		zapcore.NewCore(zapcore.NewJSONEncoder(encoderCfg), fileWriterSyncer, zap.InfoLevel),
-	)
+	var core zapcore.Core
+	if config.IsDev {
+		core = zapcore.NewTee(
+			zapcore.NewCore(zapcore.NewJSONEncoder(encoderCfg), consoleSyncer, zap.DebugLevel),
+			zapcore.NewCore(zapcore.NewJSONEncoder(encoderCfg), fileWriterSyncer, zap.DebugLevel),
+		)
+	} else {
+		core = zapcore.NewCore(zapcore.NewJSONEncoder(encoderCfg), fileWriterSyncer, zap.DebugLevel)
+	}
 
 	logger := zap.New(core)
 	return logger
