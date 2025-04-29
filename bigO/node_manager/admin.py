@@ -13,6 +13,7 @@ from django.contrib.humanize.templatetags.humanize import naturaltime
 from django.db.models import Count, QuerySet, Q, JSONField
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, render
+from django.template.defaultfilters import filesizeformat
 from django.urls import reverse
 from django.utils.html import format_html
 
@@ -286,6 +287,11 @@ class EasyTierNodeModelAdmin(admin.ModelAdmin):
 class ProgramBinaryModelAdmin(admin.ModelAdmin):
     form = forms.ProgramBinaryModelForm
     readonly_fields = ["hash"]
+    list_display = ("__str__", "file_size_display")
+
+    @admin.display(description="file size")
+    def file_size_display(self, obj: models.ProgramBinary):
+        return filesizeformat(obj.file.size)
 
     def save_model(self, request, obj, form, change):
         if file_hash := form.cleaned_data.get("file_hash"):

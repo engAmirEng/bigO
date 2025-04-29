@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "smallo1"
-version = "2.3.3"
+version = "2.3.4"
 description = ""
 authors = ["Amir Khalife <eng.amir.bu@gmail.com>"]
 readme = "README.md"

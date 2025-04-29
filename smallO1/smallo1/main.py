@@ -4,7 +4,9 @@ import importlib.metadata
 import logging.config
 import logging.handlers
 import os
+import shutil
 import subprocess
+import tempfile
 import time
 import urllib.parse
 import xmlrpc.client
@@ -381,15 +383,15 @@ def download_outerbinary(*, binary_content_url: str, save_to: Path, identifier: 
             r = requests.get(binary_content_url, json={}, headers=headers, stream=True, timeout=timeout)
             if r.status_code == 200:
                 recieved_sha256 = sha256()
-                with open(save_to, "wb") as file:
+                with tempfile.NamedTemporaryFile(delete=False) as file:
                     for chunk in r.iter_content(chunk_size=2048):
                         file.write(chunk)
                         recieved_sha256.update(chunk)
 
-                if recieved_sha256.hexdigest() != identifier:
-                    logger.debug(f"sha missmatch happened for {identifier=}")
-                    os.remove(save_to)
-                    continue
+                    if recieved_sha256.hexdigest() != identifier:
+                        logger.debug(f"sha missmatch happened for {identifier=}")
+                        continue
+                    shutil.move(file.name, save_to)
                 os.chmod(save_to, 0o755)
                 logger.debug(f"successfully downloaded {identifier=}")
                 break
