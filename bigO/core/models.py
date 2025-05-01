@@ -105,6 +105,11 @@ class Certificate(AbstractCryptographicObject, TimeStampedModel, models.Model):
             return self.content + "\n" + self.parent_certificate.content
         return self.content
 
+    def get_full_pem_content(self):
+        if self.parent_certificate:
+            return self.private_key.content + "\n" + self.content + "\n" + self.parent_certificate.content
+        return self.private_key.content + "\n" + self.content
+
 
 class CertbotInfo(TimeStampedModel, models.Model):
     class CertbotInfoQuerySet(models.QuerySet):

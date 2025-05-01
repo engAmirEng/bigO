@@ -59,31 +59,43 @@ def default_cert_key(context: services.NodeTemplateContext | django.template.Con
 
 
 @register.simple_tag(takes_context=True)
-def allowed_valid_certs(context: services.NodeTemplateContext | django.template.Context, node: models.Node):
+def allowed_valid_certs(context: services.NodeTemplateContext | django.template.Context, node: models.Node, pem=False):
     certificate_qs = core_models.Certificate.objects.filter(
         certificate_domaincertificates__isnull=False, valid_to__gt=timezone.now()
     )
     res = []
     if isinstance(context, services.NodeTemplateContext):
         for cert in certificate_qs:
-            cert_content = cert.get_fullchain_content()
-            cert_hash = sha256(cert_content.encode()).hexdigest()
-            cert_content_file = typing.FileSchema(
-                dest_path=context.node_work_dir.joinpath("conf", f"{cert.slug}_{cert_hash[:6]}.cert"),
-                content=cert_content,
-                hash=cert_hash,
-                permission=services.all_permission
-            )
-            key_hash = sha256(cert.private_key.content.encode()).hexdigest()
-            key_content_file = typing.FileSchema(
-                dest_path=context.node_work_dir.joinpath("conf", f"{cert.private_key.slug}_{key_hash[:6]}.key"),
-                content=cert.private_key.content,
-                hash=key_hash,
-                permission=services.all_permission
-            )
-            services.add_configdependentcontent_to_context(context=context, configdependentcontent=cert_content_file)
-            services.add_configdependentcontent_to_context(context=context, configdependentcontent=key_content_file)
-            res.append({"cert": cert_content_file.dest_path, "key": key_content_file.dest_path})
+            if pem:
+                pem_content = cert.get_full_pem_content()
+                pem_hash = sha256(pem_content.encode()).hexdigest()
+                cert_content_file = typing.FileSchema(
+                    dest_path=context.node_work_dir.joinpath("conf", f"{cert.slug}_{pem_hash[:6]}.pem"),
+                    content=pem_content,
+                    hash=pem_hash,
+                    permission=services.all_permission
+                )
+                services.add_configdependentcontent_to_context(context=context, configdependentcontent=cert_content_file)
+                res.append(cert_content_file.dest_path)
+            else:
+                cert_content = cert.get_fullchain_content()
+                cert_hash = sha256(cert_content.encode()).hexdigest()
+                cert_content_file = typing.FileSchema(
+                    dest_path=context.node_work_dir.joinpath("conf", f"{cert.slug}_{cert_hash[:6]}.cert"),
+                    content=cert_content,
+                    hash=cert_hash,
+                    permission=services.all_permission
+                )
+                key_hash = sha256(cert.private_key.content.encode()).hexdigest()
+                key_content_file = typing.FileSchema(
+                    dest_path=context.node_work_dir.joinpath("conf", f"{cert.private_key.slug}_{key_hash[:6]}.key"),
+                    content=cert.private_key.content,
+                    hash=key_hash,
+                    permission=services.all_permission
+                )
+                services.add_configdependentcontent_to_context(context=context, configdependentcontent=cert_content_file)
+                services.add_configdependentcontent_to_context(context=context, configdependentcontent=key_content_file)
+                res.append({"cert": cert_content_file.dest_path, "key": key_content_file.dest_path})
         return res
 
     context["deps"] = context.get("deps", {"globals": []})
