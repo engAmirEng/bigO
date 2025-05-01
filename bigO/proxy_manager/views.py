@@ -1,3 +1,4 @@
+import base64
 import uuid
 
 import django.template
@@ -38,6 +39,9 @@ async def sublink_view(request, subscription_uuid: uuid.UUID):
         )
         res_lines.append(run_opt)
     sublink_content = "\n".join(res_lines)
+
+    if request.GET.get("base64"):
+        sublink_content = base64.b64encode(sublink_content.encode())
 
     return HttpResponse(sublink_content, content_type="text/plain; charset=utf-8")
 
