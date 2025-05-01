@@ -356,7 +356,9 @@ func makeSyncAPIRequest(config Config, payload *APIRequest) (*APIResponse, *[]by
 		if err != nil {
 			return &response, nil, fmt.Errorf("server returned non-OK status: %s; additionally, failed to read response body: %v", resp.Status, err)
 		}
-		return &response, &bodyBytes, fmt.Errorf("server returned non-OK status: %s; response body: %s", resp.Status, string(bodyBytes)[:50])
+		bodyRunes := []rune(string(bodyBytes))
+		bodyString := string(bodyRunes[:min(len(bodyRunes), 50)])
+		return &response, &bodyBytes, fmt.Errorf("server returned non-OK status: %s; response body: %s", resp.Status, bodyString)
 	}
 
 	// Parse the response
