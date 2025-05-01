@@ -213,10 +213,12 @@ class SnippetModelAdmin(admin.ModelAdmin):
 @admin.register(models.Program)
 class ProgramModelAdmin(admin.ModelAdmin):
     inlines = [ProgramVersionInline]
+    search_fields = ("name",)
 
 
 @admin.register(models.ProgramVersion)
 class ProgramVersionModelAdmin(admin.ModelAdmin):
+    autocomplete_fields = ("program",)
     search_fields = ("program__name", "version")
 
 
@@ -287,7 +289,9 @@ class EasyTierNodeModelAdmin(admin.ModelAdmin):
 class ProgramBinaryModelAdmin(admin.ModelAdmin):
     form = forms.ProgramBinaryModelForm
     readonly_fields = ["hash"]
+    autocomplete_fields = ("program_version",)
     list_display = ("__str__", "file_size_display")
+    search_fields = ("hash", "program_version__program__name")
 
     @admin.display(description="file size")
     def file_size_display(self, obj: models.ProgramBinary):
