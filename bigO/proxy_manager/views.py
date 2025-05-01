@@ -33,7 +33,7 @@ async def sublink_view(request, subscription_uuid: uuid.UUID):
         subscriptionprofile_obj.initial_agency.sublink_header_template
     ).render(context=django.template.Context({"subscriptionperiod_obj": subscriptionperiod_obj}))
     res_lines.append(sublink_header_content)
-    async for i in models.Inbound.objects.filter(is_active=True, is_template=True):
+    async for i in models.InboundType.objects.filter(is_active=True, is_template=True):
         run_opt = django.template.Template(i.link_template).render(
             context=django.template.Context({"subscriptionperiod_obj": subscriptionperiod_obj})
         )

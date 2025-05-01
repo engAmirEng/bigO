@@ -324,11 +324,25 @@ def get_global_haproxy_conf_v2(node_obj, node_work_dir: pathlib.Path, base_url: 
     files = []
     files.append(haproxy_program_file)
 
-    template_context = NodeTemplateContext({}, node_work_dir=node_work_dir, base_url=base_url)
+    from bigO.proxy_manager.models import InboundType
+    xray_backends_part = ""
+    xray_matchers_part = ""
+    for inbound in InboundType.objects.filter(is_active=True):
+        if inbound.haproxy_backend:
+            xray_backends_part += ("\n" + inbound.haproxy_backend)
+        if inbound.haproxy_matcher:
+            xray_matchers_part += ("\n" + inbound.haproxy_matcher)
+
+
+    template_context = NodeTemplateContext(
+        {"node_obj": node_obj, "xray_backends_part": xray_backends_part, "xray_matchers_part": xray_matchers_part}, node_work_dir=node_work_dir, base_url=base_url
+    )
     haproxy_config_content = django.template.Template(
         """
+{% load node_manager %}
 global
     log /dev/log local0
+    # limited-quic
 
 defaults
     log global
@@ -344,17 +358,52 @@ defaults
     mode tcp
 
 frontend https-in
-    bind :443,:::443 v4v6
     bind :443,:::443 v4v6 tfo
     # option tcplog
     # option dontlognull
     tcp-request inspect-delay 5s
     tcp-request content accept if { req.ssl_hello_type 1 }
-    use_backend xray_force
+    use_backend to_https_in_ssl
 
-backend xray_force
-    # server xray unix@/dev/shm/hiddify-xtls-main.sock
-    server xray unix@/var/run/o_xtls_main.sock send-proxy-v2
+backend to_https_in_ssl
+    server haproxy abns@https_in_ssl send-proxy-v2 tfo
+
+frontend http-https-in
+    bind :80,:::80 v4v6 tfo
+
+    {% allowed_valid_certs node=node_obj pem='True' as certs %}
+    bind abns@https_in_ssl tfo accept-proxy ssl {% for i in certs %}crt {{ i }} {% endfor %}alpn h2,http/1.1,h3 allow-0rtt
+    acl h2 ssl_fc_alpn -i h2
+    #acl h2 ssl_fc_npn -i h2
+
+    http-response set-header alt-svc "h3=\":443\";ma=900;"
+    tcp-request inspect-delay 5s
+    tcp-request content accept if HTTP
+
+    # use_backend vlesshs if { path_beg /TWJesFY44i6zOOD8pYMb }
+    # use_backend vlessw if { path_beg /13wuO5tMdxJDeSHexv5DKmT0 }
+    {{ xray_matchers_part }}
+
+    use_backend nginx_dispatcher_h2 if h2
+    default_backend nginx_dispatcher
+
+# this server handles xray http2 proxies
+backend nginx_dispatcher_h2
+    server nginx unix@/run/nginx_xray_h2.sock send-proxy-v2 tfo
+
+# this server doesn't handle any proxy
+backend nginx_dispatcher
+    server nginx unix@/run/nginx_xray_h1.sock send-proxy-v2
+
+
+# backend vlesshs
+#   #mode http
+#   #server vlesshs abns@vless-xhttp send-proxy-v2
+#   #server vlesshs 127.0.0.1:1025
+#   server vlesshs unix@/var/run/vless-xhttp.sock
+# backend vlessw
+#   server vlessw abns@h2_vless_ws_new send-proxy-v2 tfo
+{{ xray_backends_part }}
 """
     ).render(context=template_context)
 

@@ -12,7 +12,7 @@ register = template.Library()
 )
 def nginx_include_xtls_paths(context):
     res_parts = []
-    for inbound in models.Inbound.objects.filter(is_active=True):
+    for inbound in models.InboundType.objects.filter(is_active=True):
         res_parts.append(inbound.nginx_path_config)
     return mark_safe("\n".join(res_parts))
 

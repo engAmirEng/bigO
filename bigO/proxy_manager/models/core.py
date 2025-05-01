@@ -65,17 +65,27 @@ class ConnectionRule(TimeStampedModel, models.Model):
         return f"{self.pk}-{self.name}"
 
 
-class Inbound(TimeStampedModel, models.Model):
+class InboundType(TimeStampedModel, models.Model):
     is_active = models.BooleanField(default=True)
     is_template = models.BooleanField(default=False)
     name = models.SlugField()
     inbound_template = models.TextField(help_text="{{ node_obj, inbound_tag, consumers_part }}")
     consumer_obj_template = models.TextField(help_text="{{ subscriptionperiod_obj }}")
-    link_template = models.TextField(blank=True, help_text="{{ subscriptionperiod_obj }}")
-    nginx_path_config = models.TextField(blank=False)
+    link_template = models.TextField(blank=True, null=True, help_text="{{ subscriptionperiod_obj }}")
+    nginx_path_config = models.TextField(blank=True, null=True)
+    haproxy_backend = models.TextField(blank=True, null=True)
+    haproxy_matcher = models.TextField(blank=True, null=True)
 
     def __str__(self):
         return f"{self.pk}-{self.name}"
+
+# class InboundTypeFallback(TimeStampedModel, models.Model):
+#     ref_type = models.ForeignKey(InboundType, on_delete=models.PROTECT, related_name="reftype_inboundtypefallback")
+#     dest_type = models.ForeignKey(InboundType, on_delete=models.PROTECT, related_name="desttype_inboundtypefallback")
+
+# class InboundGroup(TimeStampedModel, models.Model):
+#     template = models.ForeignKey
+#     inbound_groups = models.ManyToManyField("self")
 
 
 class SubscriptionPlan(TimeStampedModel, models.Model):

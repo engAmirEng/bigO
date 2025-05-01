@@ -174,6 +174,6 @@ class ConnectionRuleModelAdmin(admin.ModelAdmin):
     list_display = ("__str__",)
 
 
-@admin.register(models.Inbound)
+@admin.register(models.InboundType)
 class InboundModelAdmin(admin.ModelAdmin):
     list_display = ("__str__",)

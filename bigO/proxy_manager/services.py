@@ -119,7 +119,7 @@ def get_xray_conf_v1(node_obj) -> tuple[str, str, dict] | None:
     inbound_parts = ""
     rule_parts = ""
 
-    for inbound in models.Inbound.objects.filter(is_active=True, is_template=False):
+    for inbound in models.InboundType.objects.filter(is_active=True, is_template=False):
         xray_inbound = django.template.Template("{% load node_manager %}" + inbound.inbound_template).render(
             context=django.template.Context({"node": node_obj})
         )
@@ -132,7 +132,7 @@ def get_xray_conf_v1(node_obj) -> tuple[str, str, dict] | None:
             get_connectable_subscriptionperiod_qs().filter(plan__connection_rule=connection_rule)
         )
         inbound_tags = []
-        for inbound in models.Inbound.objects.filter(is_active=True, is_template=True):
+        for inbound in models.InboundType.objects.filter(is_active=True, is_template=True):
             inbound_tag = f"{inbound.name}-{connection_rule.id}"
             consumers_part = ""
             for subscriptionperiod_obj in subscriptionperiods_obj_list:
@@ -212,26 +212,19 @@ def get_xray_conf_v2(node_obj, node_work_dir: pathlib.Path, base_url: str) -> tu
     inbound_parts = ""
     rule_parts = ""
 
-    for inbound in models.Inbound.objects.filter(is_active=True, is_template=False):
-        template_context = node_manager_services.NodeTemplateContext({"node": node_obj}, node_work_dir=node_work_dir, base_url=base_url)
-        xray_inbound = django.template.Template("{% load node_manager %}" + inbound.inbound_template).render(
-            context=template_context
-        )
-        new_files = node_manager_services.get_configdependentcontents_from_context(template_context)
-        files.extend(new_files)
-        if inbound_parts:
-            inbound_parts += ",\n"
-        inbound_parts += xray_inbound
     xray_outbounds, balancer_parts = get_xray_outbounds(node_obj=node_obj)
+
+    all_subscriptionperiod_obj = {}
     for connection_rule in models.ConnectionRule.objects.filter():
         subscriptionperiods_obj_list = list(
             get_connectable_subscriptionperiod_qs().filter(plan__connection_rule=connection_rule)
         )
         inbound_tags = []
-        for inbound in models.Inbound.objects.filter(is_active=True, is_template=True):
+        for inbound in models.InboundType.objects.filter(is_active=True, is_template=True):
             inbound_tag = f"{inbound.name}-{connection_rule.id}"
             consumers_part = ""
             for subscriptionperiod_obj in subscriptionperiods_obj_list:
+                all_subscriptionperiod_obj[subscriptionperiod_obj.id] = subscriptionperiod_obj
                 template_context = node_manager_services.NodeTemplateContext({"subscriptionperiod_obj": subscriptionperiod_obj}, node_work_dir=node_work_dir, base_url=base_url)
                 consumer_obj = django.template.Template(
                     "{% load node_manager proxy_manager %}" + inbound.consumer_obj_template
@@ -262,6 +255,28 @@ def get_xray_conf_v2(node_obj, node_work_dir: pathlib.Path, base_url: str) -> tu
         if rule_parts:
             rule_parts += ", \n"
         rule_parts += xray_rules
+
+    for inbound in models.InboundType.objects.filter(is_active=True, is_template=False):
+        consumers_part = ""
+        for i, v in all_subscriptionperiod_obj.items():
+            template_context = node_manager_services.NodeTemplateContext(
+                {"subscriptionperiod_obj": v}, node_work_dir=node_work_dir, base_url=base_url)
+            consumer_obj = django.template.Template(
+                "{% load node_manager proxy_manager %}" + inbound.consumer_obj_template
+            ).render(context=template_context)
+            if consumers_part:
+                consumers_part += ",\n"
+            consumers_part += consumer_obj
+
+        template_context = node_manager_services.NodeTemplateContext({"node": node_obj, "consumers_part": consumers_part}, node_work_dir=node_work_dir, base_url=base_url)
+        xray_inbound = django.template.Template("{% load node_manager %}" + inbound.inbound_template).render(
+            context=template_context
+        )
+        new_files = node_manager_services.get_configdependentcontents_from_context(template_context)
+        files.extend(new_files)
+        if inbound_parts:
+            inbound_parts += ",\n"
+        inbound_parts += xray_inbound
 
     template_context = node_manager_services.NodeTemplateContext({
             "node": node_obj,
