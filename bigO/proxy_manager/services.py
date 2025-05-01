@@ -292,7 +292,7 @@ def get_xray_conf_v2(node_obj, node_work_dir: pathlib.Path, base_url: str) -> tu
         assets_dir_hash.update(geosite_file.hash.encode())
     geoip_file = None
     if proxy_manager_config.geosite:
-        geoip_file = proxy_manager_config.geosite.get_program_for_node(node_obj)
+        geoip_file = proxy_manager_config.geoip.get_program_for_node(node_obj)
         if not isinstance(geoip_file, node_manager_models.ProgramBinary):
             raise NotImplementedError
         assets_dir_hash.update(geoip_file.hash.encode())
