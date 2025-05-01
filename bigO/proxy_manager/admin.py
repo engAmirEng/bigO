@@ -1,3 +1,5 @@
+from django.urls import reverse
+from django.utils.html import format_html
 from solo.admin import SingletonModelAdmin
 
 from django.contrib import admin
@@ -68,8 +70,8 @@ class SubscriptionPlanModelAdmin(admin.ModelAdmin):
 class SubscriptionPeriodModelAdmin(admin.ModelAdmin):
     list_display = (
         "id",
-        "profile",
-        "plan",
+        "profile_display",
+        "plan_display",
         "selected_as_current",
         "first_usage_at_display",
         "last_usage_at_display",
@@ -98,6 +100,22 @@ class SubscriptionPeriodModelAdmin(admin.ModelAdmin):
             .ann_expires_at()
             .ann_dl_bytes_remained()
             .ann_up_bytes_remained()
+        )
+
+    @admin.display(ordering="profile")
+    def profile_display(self, obj):
+        return format_html(
+            "<a href='{}'>{}</a>",
+            reverse("admin:proxy_manager_subscriptionprofile_change", args=[obj.profile.id]),
+            str(obj.profile),
+        )
+
+    @admin.display(ordering="plan")
+    def plan_display(self, obj):
+        return format_html(
+            "<a href='{}'>{}</a>",
+            reverse("admin:proxy_manager_subscriptionplan_change", args=[obj.plan.id]),
+            str(obj.plan),
         )
 
     @admin.display(ordering="dl_bytes_remained")
