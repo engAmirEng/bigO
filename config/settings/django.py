@@ -81,15 +81,7 @@ except django.core.exceptions.ImproperlyConfigured:
             "USER": env.str("POSTGRES_USER"),
             "CONN_MAX_AGE": env.int("CONN_MAX_AGE", default=0),
         },
-        "stats": {
-            "ENGINE": "django.db.backends.postgresql",
-            "HOST": env.str("STATS_POSTGRES_HOST"),
-            "NAME": env.str("STATS_POSTGRES_DB"),
-            "PASSWORD": env.str("STATS_POSTGRES_PASSWORD"),
-            "PORT": env.int("STATS_POSTGRES_PORT"),
-            "USER": env.str("STATS_POSTGRES_USER"),
-            "CONN_MAX_AGE": env.int("STATS_CONN_MAX_AGE", default=0),
-        },
+        "stats": {},
     }
     DATABASES["default"]["CONN_MAX_AGE"] = env.int("CONN_MAX_AGE", default=0)
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

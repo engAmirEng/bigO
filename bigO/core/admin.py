@@ -236,7 +236,7 @@ class CertificateModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.
 
     @admin_extra_buttons.decorators.button(
         decorators=[login_required(login_url="admin:login")],
-        permission="core.add_cryptographicobject",
+        permission="core.add_certificate",
         visible=lambda self: True,
         change_form=False,
         change_list=True,
