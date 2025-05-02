@@ -264,7 +264,7 @@ def send_to_loki(streams: list[typing.LokiStram]):
         if not res.ok:
             raise Exception(f"faild send to Loki, {res.text=}")
 
-@app.task
+@app.task(soft_time_limit=10 * 60)
 def ansible_deploy_node(node_id: int):
     celery_task_id = current_task.request.id
 
@@ -358,4 +358,4 @@ def ansible_deploy_node(node_id: int):
     an_task_obj.finished_at = timezone.now()
     an_task_obj.save()
 
-    return result
+    return result.status

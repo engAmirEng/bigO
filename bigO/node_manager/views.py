@@ -448,8 +448,9 @@ async def node_base_sync_v2(request: HttpRequest):
         logger.critical(f"no program of {e.program_version=} found for {node_obj=}")
         pass
     else:
-        supervisor_config += nginx[0]
-        files.extend(nginx[1])
+        if nginx:
+            supervisor_config += nginx[0]
+            files.extend(nginx[1])
 
     try:
         goingto = await services.get_goingto_conf(node_obj=node_obj, node_work_dir=node_config.working_dir, base_url=next_base_url)
@@ -457,8 +458,9 @@ async def node_base_sync_v2(request: HttpRequest):
         logger.critical(f"no program of {e.program_version=} found for {node_obj=}")
         pass
     else:
-        supervisor_config += goingto[0]
-        files.extend(goingto[1])
+        if goingto:
+            supervisor_config += goingto[0]
+            files.extend(goingto[1])
 
     supervisorconfigschema = SupervisorConfigSchema(config_content=supervisor_config)
     output_schema = NodeBaseSyncV2OutputSchema(

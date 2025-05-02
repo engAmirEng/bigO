@@ -12,6 +12,8 @@ RUN --mount=type=cache,target=var/cache/apt/archives apt-get update && apt-get i
   build-essential \
   # psycopg2 dependencies
   libpq-dev \
+  # for ansible
+  sshpass \
   wget
 
 
