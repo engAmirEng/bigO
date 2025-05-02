@@ -10,6 +10,7 @@ import zoneinfo
 from collections import defaultdict
 from datetime import timedelta
 from hashlib import sha256
+from typing import Callable
 
 from asgiref.sync import sync_to_async
 from django.http import HttpHeaders
@@ -74,7 +75,7 @@ def node_process_stats(
                 continue
             send_stdout = nodecustomconfig_obj.stdout_action_type == core_models.LogActionType.TO_LOKI
             send_stderr = nodecustomconfig_obj.stderr_action_type == core_models.LogActionType.TO_LOKI
-        if service_name.startswith("eati_"):
+        elif service_name.startswith("eati_"):
             ___, etn_id = service_name.split("_")
             try:
                 easytiernode_obj = models.EasyTierNode.objects.get(id=etn_id)
@@ -83,15 +84,18 @@ def node_process_stats(
             except models.EasyTierNode.DoesNotExist:
                 logger.info(f"node service name {service_name} not found for node_process_stats")
                 continue
-        if service_name == "global_nginx_conf":
+        elif service_name == "global_nginx_conf":
             continue
-        if (
+        elif (
             node_obj.collect_metrics
             and service_name == "telegraf_conf"
             and i.stdout.bytes
             and getattr(settings, "INFLUX_URL", False)
         ):
             tasks.telegraf_to_influx_send.delay(telegraf_json_lines=i.stdout.bytes, base_labels=base_labels)
+        elif service_name == "goingto_conf" and i.stdout.bytes and getattr(settings, "INFLUX_URL", False):
+            handle_goingto = tasks.handle_goingto if settings.DEBUG else tasks.handle_goingto.delay
+            handle_goingto(node_obj, goingto_json_lines=i.stdout.bytes, base_labels=base_labels)
         if node_obj.collect_logs and getattr(settings, "LOKI_PUSH_ENDPOINT", False):
             collected_at = i.time
             if send_stderr and i.stderr.bytes:
@@ -369,7 +373,7 @@ backend to_https_in_ssl
     server haproxy abns@https_in_ssl send-proxy-v2 tfo
 
 frontend http-https-in
-    bind :80,:::80 v4v6 tfo
+    #bind :80,:::80 v4v6 tfo
 
     {% allowed_valid_certs node=node_obj pem='True' as certs %}
     bind abns@https_in_ssl tfo accept-proxy ssl {% for i in certs %}crt {{ i }} {% endfor %}alpn h2,http/1.1,h3 allow-0rtt
@@ -947,6 +951,60 @@ async def get_telegraf(node_obj: models.Node, node_work_dir: pathlib.Path, base_
 # config={timezone.now()}
 [program:telegraf_conf]
 command={telegraf_program_file.dest_path} -config {telegraf_conf_content.dest_path}
+autostart=true
+autorestart=true
+priority=10
+"""
+    return supervisor_config, files
+
+async def get_goingto_conf(node_obj: models.Node, node_work_dir: pathlib.Path, base_url: str) -> tuple[str, list[
+    FileSchema]] | None:
+    site_config: core_models.SiteConfiguration = await core_models.SiteConfiguration.objects.select_related("main_goingto").aget()
+    if not node_obj.tmp_xray:
+        return None
+    elif node_obj.collect_metrics and site_config.main_goingto is None:
+        logger.critical("no program found for goingto_conf")
+        return None
+    files = []
+    goingto_program = await sync_to_async(site_config.main_goingto.get_program_for_node)(node_obj)
+    if goingto_program is None:
+        raise ProgramNotFound(program_version=site_config.main_goingto)
+    elif isinstance(goingto_program, models.ProgramBinary):
+        dest_path = node_work_dir.joinpath("bin", f"goingto_{goingto_program.id}_{goingto_program.hash[:6]}")
+        goingto_program_file = FileSchema(
+            dest_path=dest_path,
+            url = base_url + reverse("node_manager:node_program_binary_content_by_hash", args=[goingto_program.hash]),
+            permission=all_permission,
+            hash=goingto_program.hash,
+        )
+    elif isinstance(goingto_program, models.NodeInnerProgram):
+        goingto_program_file = FileSchema(
+            dest_path=goingto_program.path,
+            permission=all_permission,
+        )
+    else:
+        raise AssertionError
+    files.append(goingto_program_file)
+    template_context = django.template.Context({})
+    cnfg_template = """
+[xray]
+api_port = 6582
+api_host = "127.0.0.1"
+
+[xray.usage]
+interval = 15
+reset = true
+"""
+    goingto_conf_content = django.template.Template(cnfg_template).render(context=django.template.Context(template_context))
+    goingto_conf_hash = sha256(goingto_conf_content.encode("utf-8")).hexdigest()
+    goingto_conf_content = FileSchema(
+        dest_path=node_work_dir.joinpath("conf", f"goingto_{goingto_conf_hash[:6]}"), content=goingto_conf_content, hash=goingto_conf_hash, permission=all_permission
+    )
+    files.append(goingto_conf_content)
+    supervisor_config = f"""
+# config={timezone.now()}
+[program:goingto_conf]
+command={goingto_program_file.dest_path} --config {goingto_conf_content.dest_path}
 autostart=true
 autorestart=true
 priority=10

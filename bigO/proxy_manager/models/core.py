@@ -147,6 +147,10 @@ class SubscriptionPeriod(TimeStampedModel, models.Model):
     last_usage_at = models.DateTimeField(null=True, blank=True)
     current_download_bytes = models.PositiveBigIntegerField(default=0)
     current_upload_bytes = models.PositiveBigIntegerField(default=0)
+    flow_download_bytes = models.PositiveBigIntegerField(default=0)
+    flow_upload_bytes = models.PositiveBigIntegerField(default=0)
+    flow_point_at = models.DateTimeField(null=True, blank=True)
+    last_flow_sync_at = models.DateTimeField(null=True, blank=True)
 
     objects = SubscriptionPeriodQuerySet.as_manager()
 
@@ -159,6 +163,11 @@ class SubscriptionPeriod(TimeStampedModel, models.Model):
 
     def __str__(self):
         return f"{self.pk}-|{self.profile}|{self.plan}"
+
+    def xray_email(self):
+        if self.profile.user_id:
+            f"period{self.id}.profile{self.profile_id}.user{self.profile.user_id}@love.com"
+        return f"period{self.id}.profile{self.profile_id}@love.com"
 
     @property
     def expires_at(self) -> datetime.datetime:

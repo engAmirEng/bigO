@@ -24,6 +24,9 @@ class SiteConfiguration(SingletonModel):
     main_nginx = models.ForeignKey(
         "node_manager.ProgramVersion", on_delete=models.PROTECT, related_name="+", null=True, blank=False
     )
+    main_goingto = models.ForeignKey(
+        "node_manager.ProgramVersion", on_delete=models.PROTECT, related_name="+", null=True, blank=False
+    )
     main_telegraf = models.ForeignKey(
         "node_manager.ProgramVersion", on_delete=models.PROTECT, related_name="+", null=True, blank=False
     )

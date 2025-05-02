@@ -1,3 +1,4 @@
+import datetime
 import logging
 from collections import defaultdict
 from hashlib import sha256
@@ -351,3 +352,17 @@ def get_agent_current_subscriptionperiods_qs(agent: models.Agent):
     return models.SubscriptionPeriod.objects.filter(
         profile__initial_agency_id=agent.agency_id, selected_as_current=True
     )
+
+def set_profile_last_stat(sub_profile_id: str, sub_profile_period_id: str, collect_time: datetime.datetime) -> models.SubscriptionPeriod:
+    subscriptionperiod = models.SubscriptionPeriod.objects.get(id=sub_profile_period_id, profile_id=sub_profile_id)
+    if subscriptionperiod.first_usage_at is None:
+        subscriptionperiod.first_usage_at = collect_time
+    if subscriptionperiod.first_usage_at > collect_time:
+        subscriptionperiod.first_usage_at = collect_time
+
+    if subscriptionperiod.last_usage_at is None:
+        subscriptionperiod.last_usage_at = collect_time
+    if subscriptionperiod.last_usage_at < collect_time:
+        subscriptionperiod.last_usage_at = collect_time
+    subscriptionperiod.save()
+    return subscriptionperiod

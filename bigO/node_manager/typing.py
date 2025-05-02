@@ -1,3 +1,4 @@
+import enum
 import pathlib
 from typing import Annotated, Any, TypedDict
 
@@ -13,6 +14,15 @@ class TelegrafMetric(pydantic.BaseModel):
 
 class TelegrafJsonOutPut(pydantic.BaseModel):
     metrics: list[TelegrafMetric]
+
+
+
+class GoingtoXrayRawTrafficV1Stat(pydantic.BaseModel):
+    name: str
+    value: int
+
+class GoingtoXrayRawTrafficV1JsonOutPut(pydantic.BaseModel):
+    stats: list[GoingtoXrayRawTrafficV1Stat]
 
 
 class LokiStram(TypedDict):

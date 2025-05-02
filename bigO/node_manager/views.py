@@ -378,7 +378,8 @@ async def node_base_sync_v2(request: HttpRequest):
     node_sync_stat_obj = await sync_to_async(services.create_node_sync_stat)(request_headers=request.headers, node=node_obj)
 
     try:
-        input_json = json.loads(bigO.utils.http.get_body_from_request(request, 20 * 1024 * 1024))
+        body = bigO.utils.http.get_body_from_request(request, 20 * 1024 * 1024)
+        input_json = json.loads(body)
         input_data = NodeBaseSyncV2InputSchema(**input_json)
     except pydantic.ValidationError as e:
         sentry_sdk.capture_exception(e)
@@ -449,6 +450,15 @@ async def node_base_sync_v2(request: HttpRequest):
     else:
         supervisor_config += nginx[0]
         files.extend(nginx[1])
+
+    try:
+        goingto = await services.get_goingto_conf(node_obj=node_obj, node_work_dir=node_config.working_dir, base_url=next_base_url)
+    except services.ProgramNotFound as e:
+        logger.critical(f"no program of {e.program_version=} found for {node_obj=}")
+        pass
+    else:
+        supervisor_config += goingto[0]
+        files.extend(goingto[1])
 
     supervisorconfigschema = SupervisorConfigSchema(config_content=supervisor_config)
     output_schema = NodeBaseSyncV2OutputSchema(

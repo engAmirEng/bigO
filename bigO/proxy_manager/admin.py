@@ -76,8 +76,8 @@ class SubscriptionPeriodModelAdmin(admin.ModelAdmin):
         "first_usage_at_display",
         "last_usage_at_display",
         "last_sublink_at_display",
-        "current_download_bytes",
-        "current_upload_bytes",
+        "current_download_bytes_display",
+        "current_upload_bytes_display",
         "expires_at",
         "up_bytes_remained",
         "dl_bytes_remained",
@@ -127,11 +127,11 @@ class SubscriptionPeriodModelAdmin(admin.ModelAdmin):
         return filesizeformat(obj.up_bytes_remained)
 
     @admin.display(ordering="current_upload_bytes")
-    def current_upload_bytes(self, obj):
+    def current_upload_bytes_display(self, obj):
         return filesizeformat(obj.current_upload_bytes)
 
     @admin.display(ordering="current_download_bytes")
-    def current_download_bytes(self, obj):
+    def current_download_bytes_display(self, obj):
         return filesizeformat(obj.current_download_bytes)
 
     @admin.display(ordering="first_usage_at", description="first usage at")

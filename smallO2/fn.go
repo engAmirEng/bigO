@@ -445,7 +445,7 @@ func downloadAndVerifyFile(fileInfo FileSchema, config Config) error {
 	if calculatedHash != *fileInfo.Hash {
 		// Remove temp file if hash doesn't match
 		os.Remove(tempFilePath)
-		return fmt.Errorf("sha missmatch happened for %s", fileInfo.Hash)
+		return fmt.Errorf("sha missmatch happened for %s", *fileInfo.Hash)
 	}
 
 	out, err := os.Create(fileInfo.DestPath)

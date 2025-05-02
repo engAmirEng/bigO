@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"go.uber.org/zap"
 	"regexp"
 	"time"
 
-	"bigO/goingTo/logger"
 	"bigO/goingTo/utils/common"
 
 	"github.com/xtls/xray-core/app/proxyman/command"
@@ -63,18 +63,18 @@ func (x *XrayAPI) Close() {
 	x.isConnected = false
 }
 
-func (x *XrayAPI) AddInbound(inbound []byte) error {
+func (x *XrayAPI) AddInbound(inbound []byte, logger *zap.Logger) error {
 	client := *x.HandlerServiceClient
 
 	conf := new(conf.InboundDetourConfig)
 	err := json.Unmarshal(inbound, conf)
 	if err != nil {
-		logger.Debug("Failed to unmarshal inbound:", err)
+		logger.Debug(fmt.Sprintf("Failed to unmarshal inbound: %v", err))
 		return err
 	}
 	config, err := conf.Build()
 	if err != nil {
-		logger.Debug("Failed to build inbound Detur:", err)
+		logger.Debug(fmt.Sprintf("Failed to build inbound Detur: %v", err))
 		return err
 	}
 	inboundConfig := command.AddInboundRequest{Inbound: config}
@@ -170,7 +170,27 @@ func (x *XrayAPI) RemoveUser(inboundTag, email string) error {
 	return nil
 }
 
-func (x *XrayAPI) GetTraffic(reset bool) ([]*Traffic, []*ClientTraffic, error) {
+func (x *XrayAPI) GetTrafficRaw(reset bool, logger *zap.Logger) ([]*statsService.Stat, error) {
+	if x.grpcClient == nil {
+		return nil, common.NewError("xray api is not initialized")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+
+	if x.StatsServiceClient == nil {
+		return nil, common.NewError("xray StatusServiceClient is not initialized")
+	}
+
+	resp, err := (*x.StatsServiceClient).QueryStats(ctx, &statsService.QueryStatsRequest{Reset_: reset})
+	if err != nil {
+		logger.Debug(fmt.Sprintf("Failed to query Xray stats: %v", err))
+		return nil, err
+	}
+	return resp.GetStat(), nil
+}
+
+func (x *XrayAPI) GetTraffic(reset bool, logger *zap.Logger) ([]*Traffic, []*ClientTraffic, error) {
 	if x.grpcClient == nil {
 		return nil, nil, common.NewError("xray api is not initialized")
 	}
@@ -187,7 +207,7 @@ func (x *XrayAPI) GetTraffic(reset bool) ([]*Traffic, []*ClientTraffic, error) {
 
 	resp, err := (*x.StatsServiceClient).QueryStats(ctx, &statsService.QueryStatsRequest{Reset_: reset})
 	if err != nil {
-		logger.Debug("Failed to query Xray stats:", err)
+		logger.Debug(fmt.Sprintf("Failed to query Xray stats: %s", err))
 		return nil, nil, err
 	}
 

@@ -1,4 +1,6 @@
+import datetime
 import os
+import re
 import sys
 import json
 import pathlib
@@ -72,6 +74,132 @@ def check_node_latest_sync(*, limit_seconds: int, ignore_node_ids: list[int] | N
     async_to_sync(inner)()
     cache.set("offline_nodes", json.dumps([i.node_id for i in all_offlines_qs]))
     return f"{str(reporting_offlines_qs.count())} are down and {str(back_onlines_qs.count())} are back"
+
+@app.task
+def handle_goingto(node_obj: models.Node, goingto_json_lines: str, base_labels: dict[str, Any]):
+    from bigO.proxy_manager.services import set_profile_last_stat
+    points: list[influxdb_client.Point] = []
+    for line in goingto_json_lines.split("\n"):
+        if not line:
+            continue
+        try:
+            res = json.loads(line)
+        except json.JSONDecodeError as e:
+            raise Exception(f"error in decoding goingto stdout line: err is {e} and line is {line}")
+        else:
+            if res["result_type"] == "xray_raw_traffic_v1":
+                collect_time = datetime.datetime.fromisoformat(res["timestamp"])
+                user_points: dict[str, influxdb_client.Point] = {}
+                inbound_points: dict[str, influxdb_client.Point] = {}
+                outbound_points: dict[str, influxdb_client.Point] = {}
+                res = typing.GoingtoXrayRawTrafficV1JsonOutPut(**json.loads(res["msg"]))
+                for stat in res.stats:
+                    if not stat.name or not stat.value:
+                        continue
+                    user_traffic_regex = r"user>>>period(\d+)\.profile(\d+)[^>]+>>>traffic>>>(downlink|uplink)"
+                    user_with_id_traffic_regex = r"user>>>period(\d+)\.profile(\d+).user(\d+)[^>]+>>>traffic>>>(downlink|uplink)"
+                    inbound_traffic_regex = r"inbound>>>([^>]+)>>>traffic>>>(downlink|uplink)"
+                    outbound_traffic_regex = r"outbound>>>([^>]+)>>>traffic>>>(downlink|uplink)"
+                    if len((user_matches := re.findall(user_traffic_regex, stat.name))) == 1 or len((user_with_id_matches := re.findall(user_with_id_traffic_regex, stat.name))) == 1:
+                        user_id = None
+                        if len((user_matches := re.findall(user_traffic_regex, stat.name))) == 1:
+                            profile_id = str(user_matches[0][0])
+                            period_id = str(user_matches[0][1])
+                            downlink_or_uplink = user_matches[0][2]
+                        elif len((user_with_id_matches := re.findall(user_with_id_traffic_regex, stat.name))) == 1:
+                            profile_id = str(user_with_id_matches[0][0])
+                            period_id = str(user_with_id_matches[0][1])
+                            user_id = str(user_with_id_matches[0][2])
+                            downlink_or_uplink = user_with_id_matches[0][3]
+                        set_profile_last_stat(sub_profile_id=profile_id, sub_profile_period_id=period_id, collect_time=collect_time)
+                        key = f"{profile_id}.{period_id}"
+
+                        point = user_points.get(key)
+                        if point is None:
+                            point = influxdb_client.Point("xray_usage")
+                            point.time(
+                                collect_time,
+                                write_precision=influxdb_client.domain.write_precision.WritePrecision.S,
+                            )
+                            user_points[key] = point
+                            point.tag("usage_type", "user")
+                            if user_id:
+                                point.tag("user_id", user_id)
+                            point.tag("profile_id", profile_id)
+                            point.tag("period_id", period_id)
+                            for tag_name, tag_value in {"usage_type": "user", **base_labels}.items():
+                                point.tag(tag_name, tag_value)
+                        if downlink_or_uplink == "downlink":
+                            point.field("dl_bytes", stat.value)
+                        elif downlink_or_uplink == "uplink":
+                            point.field("up_bytes", stat.value)
+                        else:
+                            raise AssertionError(f"{stat.value=} is not downlink or uplink")
+                    elif len((inbound_matches := re.findall(inbound_traffic_regex, stat.name))) == 1:
+                        inbound_tag = inbound_matches[0][0]
+                        downlink_or_uplink = inbound_matches[0][1]
+                        point = inbound_points.get(inbound_tag)
+                        if point is None:
+                            point = influxdb_client.Point("xray_usage")
+                            point.time(
+                                collect_time,
+                                write_precision=influxdb_client.domain.write_precision.WritePrecision.S,
+                            )
+                            inbound_points[inbound_tag] = point
+                            point.tag("usage_type", "inbound")
+                            point.tag("inbound_tag", inbound_tag)
+                            for tag_name, tag_value in {"usage_type": "inbound", **base_labels}.items():
+                                point.tag(tag_name, tag_value)
+                        if downlink_or_uplink == "downlink":
+                            point.field("dl_bytes", stat.value)
+                        elif downlink_or_uplink == "uplink":
+                            point.field("up_bytes", stat.value)
+                        else:
+                            raise AssertionError(f"{stat.value=} is not downlink or uplink")
+                    elif len((outbound_matches := re.findall(outbound_traffic_regex, stat.name))) == 1:
+                        outbound_tag = outbound_matches[0][0]
+                        downlink_or_uplink = outbound_matches[0][1]
+                        point = outbound_points.get(outbound_tag)
+                        if point is None:
+                            point = influxdb_client.Point("xray_usage")
+                            point.time(
+                                collect_time,
+                                write_precision=influxdb_client.domain.write_precision.WritePrecision.S,
+                            )
+                            outbound_points[outbound_tag] = point
+                            point.tag("usage_type", "outbound")
+                            point.tag("outbound_tag", outbound_tag)
+                            for tag_name, tag_value in {"usage_type": "outbound", **base_labels}.items():
+                                point.tag(tag_name, tag_value)
+                        if downlink_or_uplink == "downlink":
+                            point.field("dl_bytes", stat.value)
+                        elif downlink_or_uplink == "uplink":
+                            point.field("up_bytes", stat.value)
+                        else:
+                            raise AssertionError(f"{stat.value=} is not downlink or uplink")
+                    else:
+                        continue
+                        # raise NotImplementedError
+                points.extend([*user_points.values(), *inbound_points.values(), *outbound_points.values()])
+
+    if not points:
+        return "no points!!!"
+    with influxdb_client.InfluxDBClient(
+        url=settings.INFLUX_URL, token=settings.INFLUX_TOKEN, org=settings.INFLUX_ORG
+    ) as _client:
+        with _client.write_api(
+            write_options=influxdb_client.WriteOptions(
+                batch_size=500,
+                flush_interval=10_000,
+                jitter_interval=2_000,
+                retry_interval=5_000,
+                max_retries=3,
+                max_retry_delay=30_000,
+                max_close_wait=300_000,
+                exponential_base=2,
+            )
+        ) as _write_client:
+            _write_client.write(settings.INFLUX_BUCKET, settings.INFLUX_ORG, points)
 
 
 @app.task
