@@ -1,13 +1,26 @@
+import datetime
+import os
+import re
+import sys
 import json
+import pathlib
 from datetime import timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
+import urllib.parse
 
+import django.template
 import influxdb_client.domain.write_precision
 import requests.adapters
 import requests.auth
 from asgiref.sync import async_to_sync
 
 import aiogram
+from celery import current_task
+from django.db import transaction
+import ansible_runner
+from django.urls import reverse
+
 import bigO.utils.logging
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.enums import ParseMode
@@ -61,6 +74,132 @@ def check_node_latest_sync(*, limit_seconds: int, ignore_node_ids: list[int] | N
     async_to_sync(inner)()
     cache.set("offline_nodes", json.dumps([i.node_id for i in all_offlines_qs]))
     return f"{str(reporting_offlines_qs.count())} are down and {str(back_onlines_qs.count())} are back"
+
+@app.task
+def handle_goingto(node_obj: models.Node, goingto_json_lines: str, base_labels: dict[str, Any]):
+    from bigO.proxy_manager.services import set_profile_last_stat
+    points: list[influxdb_client.Point] = []
+    for line in goingto_json_lines.split("\n"):
+        if not line:
+            continue
+        try:
+            res = json.loads(line)
+        except json.JSONDecodeError as e:
+            raise Exception(f"error in decoding goingto stdout line: err is {e} and line is {line}")
+        else:
+            if res["result_type"] == "xray_raw_traffic_v1":
+                collect_time = datetime.datetime.fromisoformat(res["timestamp"])
+                user_points: dict[str, influxdb_client.Point] = {}
+                inbound_points: dict[str, influxdb_client.Point] = {}
+                outbound_points: dict[str, influxdb_client.Point] = {}
+                res = typing.GoingtoXrayRawTrafficV1JsonOutPut(**json.loads(res["msg"]))
+                for stat in res.stats:
+                    if not stat.name or not stat.value:
+                        continue
+                    user_traffic_regex = r"user>>>period(\d+)\.profile(\d+)[^>]+>>>traffic>>>(downlink|uplink)"
+                    user_with_id_traffic_regex = r"user>>>period(\d+)\.profile(\d+).user(\d+)[^>]+>>>traffic>>>(downlink|uplink)"
+                    inbound_traffic_regex = r"inbound>>>([^>]+)>>>traffic>>>(downlink|uplink)"
+                    outbound_traffic_regex = r"outbound>>>([^>]+)>>>traffic>>>(downlink|uplink)"
+                    if len((user_matches := re.findall(user_traffic_regex, stat.name))) == 1 or len((user_with_id_matches := re.findall(user_with_id_traffic_regex, stat.name))) == 1:
+                        user_id = None
+                        if len((user_matches := re.findall(user_traffic_regex, stat.name))) == 1:
+                            profile_id = str(user_matches[0][0])
+                            period_id = str(user_matches[0][1])
+                            downlink_or_uplink = user_matches[0][2]
+                        elif len((user_with_id_matches := re.findall(user_with_id_traffic_regex, stat.name))) == 1:
+                            profile_id = str(user_with_id_matches[0][0])
+                            period_id = str(user_with_id_matches[0][1])
+                            user_id = str(user_with_id_matches[0][2])
+                            downlink_or_uplink = user_with_id_matches[0][3]
+                        set_profile_last_stat(sub_profile_id=profile_id, sub_profile_period_id=period_id, collect_time=collect_time)
+                        key = f"{profile_id}.{period_id}"
+
+                        point = user_points.get(key)
+                        if point is None:
+                            point = influxdb_client.Point("xray_usage")
+                            point.time(
+                                collect_time,
+                                write_precision=influxdb_client.domain.write_precision.WritePrecision.S,
+                            )
+                            user_points[key] = point
+                            point.tag("usage_type", "user")
+                            if user_id:
+                                point.tag("user_id", user_id)
+                            point.tag("profile_id", profile_id)
+                            point.tag("period_id", period_id)
+                            for tag_name, tag_value in {"usage_type": "user", **base_labels}.items():
+                                point.tag(tag_name, tag_value)
+                        if downlink_or_uplink == "downlink":
+                            point.field("dl_bytes", stat.value)
+                        elif downlink_or_uplink == "uplink":
+                            point.field("up_bytes", stat.value)
+                        else:
+                            raise AssertionError(f"{stat.value=} is not downlink or uplink")
+                    elif len((inbound_matches := re.findall(inbound_traffic_regex, stat.name))) == 1:
+                        inbound_tag = inbound_matches[0][0]
+                        downlink_or_uplink = inbound_matches[0][1]
+                        point = inbound_points.get(inbound_tag)
+                        if point is None:
+                            point = influxdb_client.Point("xray_usage")
+                            point.time(
+                                collect_time,
+                                write_precision=influxdb_client.domain.write_precision.WritePrecision.S,
+                            )
+                            inbound_points[inbound_tag] = point
+                            point.tag("usage_type", "inbound")
+                            point.tag("inbound_tag", inbound_tag)
+                            for tag_name, tag_value in {"usage_type": "inbound", **base_labels}.items():
+                                point.tag(tag_name, tag_value)
+                        if downlink_or_uplink == "downlink":
+                            point.field("dl_bytes", stat.value)
+                        elif downlink_or_uplink == "uplink":
+                            point.field("up_bytes", stat.value)
+                        else:
+                            raise AssertionError(f"{stat.value=} is not downlink or uplink")
+                    elif len((outbound_matches := re.findall(outbound_traffic_regex, stat.name))) == 1:
+                        outbound_tag = outbound_matches[0][0]
+                        downlink_or_uplink = outbound_matches[0][1]
+                        point = outbound_points.get(outbound_tag)
+                        if point is None:
+                            point = influxdb_client.Point("xray_usage")
+                            point.time(
+                                collect_time,
+                                write_precision=influxdb_client.domain.write_precision.WritePrecision.S,
+                            )
+                            outbound_points[outbound_tag] = point
+                            point.tag("usage_type", "outbound")
+                            point.tag("outbound_tag", outbound_tag)
+                            for tag_name, tag_value in {"usage_type": "outbound", **base_labels}.items():
+                                point.tag(tag_name, tag_value)
+                        if downlink_or_uplink == "downlink":
+                            point.field("dl_bytes", stat.value)
+                        elif downlink_or_uplink == "uplink":
+                            point.field("up_bytes", stat.value)
+                        else:
+                            raise AssertionError(f"{stat.value=} is not downlink or uplink")
+                    else:
+                        continue
+                        # raise NotImplementedError
+                points.extend([*user_points.values(), *inbound_points.values(), *outbound_points.values()])
+
+    if not points:
+        return "no points!!!"
+    with influxdb_client.InfluxDBClient(
+        url=settings.INFLUX_URL, token=settings.INFLUX_TOKEN, org=settings.INFLUX_ORG
+    ) as _client:
+        with _client.write_api(
+            write_options=influxdb_client.WriteOptions(
+                batch_size=500,
+                flush_interval=10_000,
+                jitter_interval=2_000,
+                retry_interval=5_000,
+                max_retries=3,
+                max_retry_delay=30_000,
+                max_close_wait=300_000,
+                exponential_base=2,
+            )
+        ) as _write_client:
+            _write_client.write(settings.INFLUX_BUCKET, settings.INFLUX_ORG, points)
 
 
 @app.task
@@ -124,3 +263,99 @@ def send_to_loki(streams: list[typing.LokiStram]):
         )
         if not res.ok:
             raise Exception(f"faild send to Loki, {res.text=}")
+
+@app.task
+def ansible_deploy_node(node_id: int):
+    celery_task_id = current_task.request.id
+
+    node_obj = models.Node.objects.get(id=node_id)
+    o2spec = node_obj.o2spec
+    deploy_snippet = o2spec.ansible_deploy_snippet
+    deploy_content = django.template.Template(deploy_snippet.template).render(django.template.Context())
+    assert "templateerror" not in deploy_content
+    o2_binary = o2spec.program.get_program_for_node(node_obj)
+    if o2_binary is None or not isinstance(o2_binary, models.ProgramBinary):
+        raise Exception(f"no ProgramBinary of {o2spec.program=} found for {node_obj=}")
+
+    extravars = {
+        "install_dir": str(pathlib.Path(o2spec.working_dir).parent),
+        "smallO2_binary_download_url": urllib.parse.urljoin(o2spec.sync_domain, reverse("node_manager:node_program_binary_content_by_hash", args=[o2_binary.hash])),
+        "smallO2_binary_sha256": o2_binary.hash,
+        "api_key": o2spec.api_key,
+        "interval_sec": o2spec.interval_sec,
+        "sync_url": o2spec.sync_url,
+        "sentry_dsn": o2spec.sentry_dsn
+    }
+
+    an_task_obj = models.AnsibleTask()
+    an_task_obj.name = "Install and start smallO2"
+    an_task_obj.celery_task_id = celery_task_id
+    an_task_obj.logs = ""
+    an_task_obj.status = models.AnsibleTask.StatusChoices.STARTED
+    an_task_obj.playbook_snippet = deploy_snippet
+    an_task_obj.playbook_content = deploy_content
+    ansibletasknode_obj = models.AnsibleTaskNode()
+    ansibletasknode_obj.task = an_task_obj
+    ansibletasknode_obj.node = node_obj
+    with transaction.atomic(using="main"):
+        an_task_obj.save()
+        ansibletasknode_obj.save()
+
+    time_str = timezone.now().astimezone(ZoneInfo("UTC")).strftime("%Y%m%d_%H%M%S")
+    workdir: pathlib.Path = settings.ANSIBLE_WORKING_DIR
+    tasks_assets_dir = workdir.joinpath("tasks_assets")
+    tasks_assets_dir.mkdir(exist_ok=True)
+    # Create inventory file
+    inventory_path = tasks_assets_dir.joinpath(f"inventory_{an_task_obj.id}_{time_str}")
+    with open(inventory_path, "w") as f:
+        ip = node_obj.node_nodepublicips.first().ip.ip.ip
+        username = node_obj.ssh_user
+        passwd = node_obj.ssh_pass
+        line = f"{ip} ansible_user={username} ansible_password={passwd} ansible_become_pass={passwd} ansible_port={node_obj.ssh_port} ansible_ssh_common_args='-o StrictHostKeyChecking=no'\n"
+        f.write(line)
+    # Create playbook file
+    playbook_path = tasks_assets_dir.joinpath(f"playbook_{an_task_obj.id}_{time_str}.yml")
+    with open(playbook_path, "w") as f:
+        f.write(deploy_content)
+
+    ansibletasknode_mapping = {
+        str(ip): ansibletasknode_obj
+    }
+
+    current_python_path = sys.executable
+    # ansible is installed in this python env so
+    os.environ["PATH"] = os.environ["PATH"] + f":{pathlib.Path(current_python_path).parent}"
+    thread, runner = ansible_runner.run_async(
+        extravars=extravars,
+        private_data_dir=workdir,
+        playbook=str(playbook_path),
+        inventory=str(inventory_path),
+    )
+    for event in runner.events:
+        an_task_obj.logs += ("\n" + event["stdout"])
+        if (event_data := event.get("event_data")) and (host_key := event_data.get("host")) and (event["event"] != "runner_on_start"):
+            related_ansibletasknode_obj = ansibletasknode_mapping[host_key]
+            related_ansibletasknode_obj.result = related_ansibletasknode_obj.result or {}
+            related_ansibletasknode_obj.result["tasks"] = related_ansibletasknode_obj.result.get("tasks", [])
+            related_ansibletasknode_obj.result["tasks"].append({event_data["task"]: event})
+            related_ansibletasknode_obj.save()
+        elif event.get("event") == 'playbook_on_stats':
+            an_task_obj.result = event
+        an_task_obj.save()
+    thread.join()
+    result = runner
+    for stat_key, host_mapping in result.stats.items():
+        for host_key, count in host_mapping.items():
+            related_ansibletasknode_obj = ansibletasknode_mapping[host_key]
+            if not hasattr(related_ansibletasknode_obj, stat_key):
+                # 'processed', 'rescued', 'skipped', 'ignored'
+                continue
+            # 'ok', 'dark', 'failures', 'changed'
+            setattr(related_ansibletasknode_obj, stat_key, count)
+    for k, v in ansibletasknode_mapping.items():
+        v.save()
+    an_task_obj.status = models.AnsibleTask.StatusChoices.FINISHED
+    an_task_obj.finished_at = timezone.now()
+    an_task_obj.save()
+
+    return result

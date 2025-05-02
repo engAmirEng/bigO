@@ -235,6 +235,8 @@ def main(settings: Settings):
                         with open(i._dest_path, "wb") as f:
                             f.write(i._processed_content.encode("utf-8"))
                 config.process_run_opts([*response.global_deps, *config.dependant_files])
+                if config.comma_separated_environment:
+                    config.process_comma_separated_environment([*response.global_deps, *config.dependant_files])
                 run_opts = config._processed_run_opts
                 entry_command = f"{binary_path} {run_opts}"
 
@@ -247,6 +249,9 @@ autostart=true
 autorestart=true
 priority=10
 """
+                if config.comma_separated_environment:
+                    new_supervisor_config += f"\nenvironment={config._processed_comma_separated_environment}"
+
             with open(supervisor_config_path, encoding="utf8") as f:
                 current = f.read()
             if current == new_supervisor_config:

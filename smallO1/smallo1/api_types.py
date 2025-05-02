@@ -41,16 +41,27 @@ class ConfigResponse(pydantic.BaseModel):
     id: str
     program: ProgramResponse
     new_run_opts: str
+    comma_separated_environment: Optional[str] = None
     hash: str
     dependant_files: List[ConfigDependantFileResponse]
     _processed_run_opts: Optional[int]
+    _processed_comma_separated_environment: Optional[int]
 
     def process_run_opts(self, deps: List[ConfigDependantFileResponse]):
         processed_run_opts = self.new_run_opts
         for i in deps:
             assert i._dest_path
             processed_run_opts = processed_run_opts.replace(f"*#path:{i.key}#*", str(i._dest_path.absolute()))
+            processed_run_opts = processed_run_opts.replace(f"*#dir:{i.key}#*", str(i._dest_path.absolute().parent))
         self._processed_run_opts = processed_run_opts
+
+    def process_comma_separated_environment(self, deps: List[ConfigDependantFileResponse]):
+        processed_comma_separated_environment = self.comma_separated_environment
+        for i in deps:
+            assert i._dest_path
+            processed_comma_separated_environment = processed_comma_separated_environment.replace(f"*#path:{i.key}#*", str(i._dest_path.absolute()))
+            processed_comma_separated_environment = processed_comma_separated_environment.replace(f"*#dir:{i.key}#*", str(i._dest_path.absolute().parent))
+        self._processed_comma_separated_environment = processed_comma_separated_environment
 
 
 class BaseSyncResponse(pydantic.BaseModel):

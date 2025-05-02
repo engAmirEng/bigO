@@ -68,10 +68,11 @@ try:
     # when DATABASE_URL="" then env("DATABASE_URL", default=None) returns None!!
 
     # just for "docs" and to run project in a dummy mode
-    DATABASES = {"default": env.db("DATABASE_URL")}
+    DATABASES = {"default": env.db("DATABASE_URL"), "stats": env.db("STATS_DATABASE_URL")}
 except django.core.exceptions.ImproperlyConfigured:
     DATABASES = {
-        "default": {
+        "default": {},
+        "main": {
             "ENGINE": "django.db.backends.postgresql",
             "HOST": env.str("POSTGRES_HOST"),
             "NAME": env.str("POSTGRES_DB"),
@@ -79,10 +80,14 @@ except django.core.exceptions.ImproperlyConfigured:
             "PORT": env.int("POSTGRES_PORT"),
             "USER": env.str("POSTGRES_USER"),
             "CONN_MAX_AGE": env.int("CONN_MAX_AGE", default=0),
-        }
+        },
+        "stats": {},
     }
     DATABASES["default"]["CONN_MAX_AGE"] = env.int("CONN_MAX_AGE", default=0)
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+
+DATABASE_ROUTERS = ["config.db_routers.DBRouter"]
 
 # CACHES
 # ------------------------------------------------------------------------------
@@ -103,8 +108,10 @@ CACHES = {
 LOCAL_APPS = [
     "bigO.core",
     "bigO.node_manager",
+    "bigO.proxy_manager",
     "bigO.users",
     "bigO.utils",
+    "bigO.BabyUI",
 ]
 THIRD_PARTY_APPS = clean_ellipsis(
     [
@@ -117,9 +124,13 @@ THIRD_PARTY_APPS = clean_ellipsis(
         "django_celery_results",
         "django_filters",
         "django_htmx",
+        "django_json_widget",
+        "django_jsonform",
+        "django_vite",
         "drf_spectacular",
         "graphene_django",
         "graphql_jwt.refresh_token",
+        "inertia",
         "netfields",
         "polymorphic",
         "rest_framework",
@@ -133,6 +144,7 @@ THIRD_PARTY_APPS = clean_ellipsis(
         "django_cleanup.apps.CleanupConfig",
     ]
 )
+
 DJANGO_APPS = [
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -192,6 +204,7 @@ MIDDLEWARE = clean_ellipsis(
         "django.contrib.messages.middleware.MessageMiddleware",
         "django.middleware.clickjacking.XFrameOptionsMiddleware",
         "django_htmx.middleware.HtmxMiddleware",
+        "inertia.middleware.InertiaMiddleware",
         # It only formats user lockout messages and renders Axes lockout responses
         # on failed user authentication attempts from login views.
         # If you do not want Axes to override the authentication response
@@ -203,6 +216,13 @@ MIDDLEWARE = clean_ellipsis(
 # STATIC
 # ------------------------------------------------------------------------------
 STATIC_ROOT = str(BASE_DIR / "staticfiles")
+STATICFILES_DIRS = [
+    BASE_DIR / "bigO" / "BabyUI" / "dist",
+    (
+        "BabyUI",
+        BASE_DIR / "bigO" / "BabyUI" / "assets" / "public",
+    ),
+]
 STATIC_URL = "/static/"
 STATICFILES_FINDERS = [
     "django.contrib.staticfiles.finders.FileSystemFinder",
@@ -231,6 +251,7 @@ TEMPLATES = [
         "DIRS": [str(APPS_DIR / "templates")],
         "APP_DIRS": True,
         "OPTIONS": {
+            "string_if_invalid": "templateerror",
             "context_processors": [
                 "django.template.context_processors.debug",
                 "django.template.context_processors.request",
@@ -264,8 +285,8 @@ TEST_RUNNER = "django.test.runner.DiscoverRunner"
 
 # LOGGING
 # ------------------------------------------------------------------------------
-logs_dir = os.path.join(BASE_DIR, "logs")
-os.makedirs(logs_dir, exist_ok=True)
+LOGS_DIR = os.path.join(BASE_DIR, "logs")
+os.makedirs(LOGS_DIR, exist_ok=True)
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
@@ -286,7 +307,7 @@ LOGGING = {
         "file": {
             "level": "INFO",
             "class": "logging.handlers.RotatingFileHandler",
-            "filename": os.path.join(logs_dir, "info.log"),
+            "filename": os.path.join(LOGS_DIR, "info.log"),
             "backupCount": env.int("MAX_LOG_FILE_COUNT", default=1),
             "maxBytes": 50 * 1024 * 1024,
             "filters": ["ignore_autoreload"],

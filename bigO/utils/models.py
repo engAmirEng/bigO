@@ -1,8 +1,14 @@
 import re
 
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ValidationError, SynchronousOnlyOperation
 from django.core.validators import RegexValidator
 from django.db import models
+
+
+class MakeInterval(models.Func):
+    _output_field_resolved_to_none = models.DurationField
+    function = "make_interval"
+    template = "%(function)s(secs => %(expressions)s)"
 
 
 def validate_regex_pattern(value):
@@ -28,3 +34,16 @@ class TextExtractor(TimeStampedModel, models.Model):
         match = re.search(self.regex_pattern, raw_text, re.DOTALL)
         if match is not None:
             return match.group(1)
+
+
+def async_related_obj_str(instance: models.Model, field: models.query_utils.DeferredAttribute) -> str:
+    """
+    this is used maybe in __str__ of a Model in a async safe way to access str of a ForeignKey obj
+    """
+    field_name = field.field.name
+    try:
+        field_value = getattr(instance, field_name)
+    except SynchronousOnlyOperation:
+        return getattr(instance, field_name + "_id")
+    else:
+        return str(field_value)

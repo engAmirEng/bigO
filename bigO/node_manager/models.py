@@ -2,19 +2,24 @@ from __future__ import annotations
 
 import logging
 from hashlib import sha256
-from typing import Self, TypedDict
+from typing import TYPE_CHECKING, Self, TypedDict
 
 import netfields
+from django.urls import reverse
 from rest_framework_api_key.models import AbstractAPIKey
 from taggit.managers import TaggableManager
 
 import django.template.loader
 from bigO.core import models as core_models
-from bigO.utils.models import TimeStampedModel
+from bigO.utils.models import TimeStampedModel, async_related_obj_str
 from django.core import validators
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
-from django.db.models import F, UniqueConstraint
+from django.db.models import CheckConstraint, F, UniqueConstraint, Sum
+import urllib.parse
+
+if TYPE_CHECKING:
+    from . import typing
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +53,22 @@ class ContainerSpec(TimeStampedModel):
     )
 
 
+class O2Spec(TimeStampedModel, models.Model):
+    node = models.OneToOneField("Node", on_delete=models.CASCADE, related_name="o2spec")
+    program = models.ForeignKey("ProgramVersion", on_delete=models.PROTECT, related_name="program_o2spec")
+    ansible_deploy_snippet = models.ForeignKey("Snippet", on_delete=models.PROTECT, related_name="ansibledeploysnippet_o2specs")
+    sync_domain = models.URLField(max_length=255)
+    api_key = models.CharField(max_length=255)
+    interval_sec = models.PositiveSmallIntegerField()
+    working_dir = models.CharField(max_length=255)
+    sentry_dsn = models.URLField(max_length=255, null=True, blank=True)
+    full_control_supervisord = models.BooleanField(default=False)
+
+    @property
+    def sync_url(self):
+        return urllib.parse.urljoin(self.sync_domain, reverse("node_manager:node_base_sync_v2"))
+
+
 class SystemArchitectureTextChoices(models.TextChoices):
     AMD64 = "amd64"
 
@@ -62,6 +83,10 @@ class Node(TimeStampedModel, models.Model):
     default_cert = models.ForeignKey("core.Certificate", on_delete=models.SET_NULL, null=True, blank=True)
     collect_metrics = models.BooleanField(default=False)
     collect_logs = models.BooleanField(default=False)
+    tmp_xray = models.BooleanField(default=False)
+    ssh_port = models.PositiveSmallIntegerField(null=True, blank=True)
+    ssh_user = models.CharField(max_length=255, null=True, blank=True)
+    ssh_pass = models.CharField(max_length=255, null=True, blank=True)
 
     class NodeQuerySet(models.QuerySet):
         def support_ipv6(self):
@@ -86,6 +111,78 @@ class Node(TimeStampedModel, models.Model):
         return self.default_cert
 
 
+class AnsibleTask(TimeStampedModel, models.Model):
+    class AnsibleTaskQuerySet(models.QuerySet):
+        def ann_stats(self):
+            return self.annotate(
+                ok=Sum("task_nodes__ok"),
+                dark=Sum("task_nodes__dark"),
+                changed=Sum("task_nodes__changed"),
+                failures=Sum("task_nodes__failures"),
+            )
+    class StatusChoices(models.IntegerChoices):
+        STARTED = 1, "started"
+        FINISHED = 2, "finished"
+    name = models.CharField(max_length=255)
+    celery_task_id = models.UUIDField(null=True, blank=True)
+    playbook_snippet = models.ForeignKey("Snippet", on_delete=models.SET_NULL, related_name="playbooksnippet_ansibletasks", null=True, blank=True)
+    playbook_content = models.TextField()
+    status = models.PositiveSmallIntegerField(choices=StatusChoices)
+    logs = models.TextField(blank=True)
+    result = models.JSONField(null=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    objects = AnsibleTaskQuerySet.as_manager()
+
+    def __str__(self):
+        return f"{self.pk}-{self.name}"
+
+    @property
+    def ok(self) -> int:
+        return self._ok
+
+    @ok.setter
+    def ok(self, value):
+        self._ok = value
+
+    @property
+    def dark(self) -> int:
+        return self._dark
+
+    @dark.setter
+    def dark(self, value):
+        self._dark = value
+
+
+    @property
+    def changed(self) -> int:
+        return self._changed
+
+    @changed.setter
+    def changed(self, value):
+        self._changed = value
+
+
+    @property
+    def failures(self) -> int:
+        return self._failures
+
+    @failures.setter
+    def failures(self, value):
+        self._failures = value
+
+
+
+class AnsibleTaskNode(TimeStampedModel, models.Model):
+    node = models.ForeignKey(Node, on_delete=models.CASCADE, related_name="node_ansibletasks")
+    task = models.ForeignKey(AnsibleTask, on_delete=models.CASCADE, related_name="task_nodes")
+    ok = models.PositiveSmallIntegerField(null=True, blank=True)
+    dark = models.PositiveSmallIntegerField(null=True, blank=True)
+    changed = models.PositiveSmallIntegerField(null=True, blank=True)
+    failures = models.PositiveSmallIntegerField(null=True, blank=True)
+    result = models.JSONField(null=True)
+
+
 class NodeSupervisorConfig(TimeStampedModel, models.Model):
     node = models.OneToOneField(Node, on_delete=models.CASCADE, related_name="supervisorconfig")
     xml_rpc_api_expose_port = models.IntegerField(null=True, blank=True)
@@ -103,6 +200,12 @@ class PublicIP(TimeStampedModel):
     name = models.CharField(max_length=255, null=True, blank=True)
     ip = netfields.InetAddressField(unique=True)
     is_cdn = models.BooleanField(default=False)
+    isp = models.ForeignKey(
+        "proxy_manager.ISP", on_delete=models.PROTECT, related_name="isp_publicips", null=True, blank=True
+    )
+    region = models.ForeignKey(
+        "proxy_manager.Region", on_delete=models.PROTECT, related_name="region_publicips", null=True, blank=True
+    )
 
     def __str__(self):
         return f"{self.pk}-{self.ip.ip}"
@@ -117,6 +220,15 @@ class NodePublicIP(TimeStampedModel):
 
     def __str__(self):
         return f"{self.pk}-{self.node}|{self.ip}"
+
+
+
+class Snippet(TimeStampedModel, models.Model):
+    name = models.SlugField()
+    template = models.TextField()
+
+    def __str__(self):
+        return f"{self.pk}-{self.name}"
 
 
 class Program(TimeStampedModel):
@@ -143,7 +255,8 @@ class ProgramVersion(TimeStampedModel):
         return res
 
     def __str__(self):
-        return f"{self.pk}-{self.program} ({self.version})"
+        program_str = async_related_obj_str(self, ProgramVersion.program)
+        return f"{self.pk}-{program_str} ({self.version})"
 
 
 class CustomConfig(TimeStampedModel, models.Model):
@@ -152,8 +265,11 @@ class CustomConfig(TimeStampedModel, models.Model):
         ProgramVersion,
         on_delete=models.PROTECT,
         related_name="programversion_customconfigs",
+        null=True,
+        blank=True,
+        help_text="depracated"
     )
-    run_opts_template = models.TextField(help_text="{node_obj, configfile_path_placeholder}")
+    run_opts_template = models.TextField(help_text="{node_obj}, *#path:key#*")
     tags = TaggableManager(related_name="tag_customconfigs", blank=True)
 
     def __str__(self):
@@ -163,11 +279,18 @@ class CustomConfig(TimeStampedModel, models.Model):
 class CustomConfigDependantFile(TimeStampedModel, models.Model):
     customconfig = models.ForeignKey(CustomConfig, on_delete=models.CASCADE, related_name="dependantfiles")
     key = models.SlugField()
-    template = models.TextField(help_text="{node_obj}")
-    template_extension = models.CharField(max_length=15, null=True, blank=True)
+    template = models.TextField(null=True, blank=True, help_text="{node_obj}")
+    file = models.ForeignKey(ProgramVersion, on_delete=models.PROTECT, related_name="customconfigdependants", null=True, blank=True)
+    name_extension = models.CharField(max_length=15, null=True, blank=True)
 
     class Meta:
-        constraints = [UniqueConstraint(fields=("customconfig", "key"), name="unique_slug_customconfig")]
+        constraints = [
+            UniqueConstraint(fields=("customconfig", "key"), name="unique_slug_customconfig"),
+        ]
+
+    def clean(self):
+        if self.template and self.file:
+            return ValidationError("file or template not both")
 
     def __str__(self):
         return f"{self.pk}-{self.key}: for config {str(self.customconfig)}"
@@ -204,13 +327,13 @@ class NodeCustomConfig(TimeStampedModel):
             ).first()
         return res
 
-    def get_config_depandant_content(self) -> list[ConfigDepandantContent]:
+    def get_config_dependent_content(self) -> list[ConfigDepandantContent]:
         context = {"node_obj": self.node}
         res = []
         for i in self.custom_config.dependantfiles.all():
             template = django.template.Template("{% load node_manager %}" + i.template)
             result = template.render(context=django.template.Context(context))
-            res.append({"key": i.key, "content": result, "extension": i.template_extension})
+            res.append({"key": i.key, "content": result, "extension": i.name_extension})
 
         return res
 
@@ -223,7 +346,7 @@ class NodeCustomConfig(TimeStampedModel):
     def get_hash(self) -> str:
         influential = ""
         influential += self.get_run_opts()
-        if config_depandant_content := self.get_config_depandant_content():
+        if config_depandant_content := self.get_config_dependent_content():
             for i in config_depandant_content:
                 influential += i["content"]
         program = self.get_program()
@@ -310,12 +433,7 @@ class EasyTierNode(TimeStampedModel):
         returns the appropriate program with priority of NodeInnerProgram and then ProgramBinary
         """
         program_version = self.preferred_program_version or self.network.program_version
-        res = self.node.node_nodeinnerbinary.filter(program_version=program_version).first()
-        if res is None:
-            res = ProgramBinary.objects.filter(
-                program_version=program_version, architecture=self.node.architecture
-            ).first()
-        return res
+        return program_version.get_program_for_node(self.node)
 
     def get_hash(self) -> str:
         influential = ""
@@ -342,7 +460,7 @@ class EasyTierNode(TimeStampedModel):
             result = template.render(context)
         return result
 
-    @transaction.atomic
+    @transaction.atomic(using="main")
     def get_toml_config_content(self):
         ipv4 = None
         if self.get_can_create_tun():

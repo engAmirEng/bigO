@@ -5,6 +5,8 @@ from datetime import datetime
 import requests
 from requests.auth import HTTPBasicAuth
 
+from django.db import models
+
 
 class BasicLokiHandler(logging.Handler):
     """
@@ -68,3 +70,16 @@ def split_by_total_length(strings, max_length):
         result.append(current_group)
 
     return result
+
+
+class ModelLogHandler(logging.Handler):
+    def __init__(self, *args, model_obj: models.Model, field_name, **kwargs):
+        super().__init__()
+        self.model_obj = model_obj
+        self.field_name = field_name
+        assert hasattr(model_obj, field_name)
+        super().__init__(*args, **kwargs)
+
+    def emit(self, record: logging.LogRecord) -> None:
+        setattr(self.model_obj, self.field_name, self.format(record))
+        self.model_obj.save()

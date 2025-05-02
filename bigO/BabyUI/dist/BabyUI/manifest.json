@@ -1,0 +1,17 @@
+{
+  "aaa.ts": {
+    "file": "assets/aaa-CBu-1J0T.js",
+    "name": "aaa",
+    "src": "aaa.ts",
+    "isEntry": true,
+    "css": [
+      "assets/aaa-BaiKPFAq.css"
+    ]
+  },
+  "page.tsx": {
+    "file": "assets/main-CCyb-wam.js",
+    "name": "main",
+    "src": "page.tsx",
+    "isEntry": true
+  }
+}

@@ -1,0 +1,10 @@
+{% extends "BabyUI/base.html" %}
+{% load django_vite %}
+
+{% block head %}
+{% vite_asset 'aaa.ts' app="BabyUI" %}
+{% endblock head %}
+
+{% block body %}
+<div id="app"></div>
+{% endblock body %}

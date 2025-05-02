@@ -93,3 +93,6 @@ if sentry_dsn := env.url("SENTRY_DSN", default=None):
         auto_session_tracking=False,
         traces_sample_rate=0.05,
     )
+
+# django-vite
+DJANGO_VITE = {"BabyUI": {"dev_mode": DEBUG, "dev_server_port": 5225, "static_url_prefix": "BabyUI"}}  # todo  # todo

@@ -1,3 +1,5 @@
+import enum
+import pathlib
 from typing import Annotated, Any, TypedDict
 
 import pydantic
@@ -12,6 +14,15 @@ class TelegrafMetric(pydantic.BaseModel):
 
 class TelegrafJsonOutPut(pydantic.BaseModel):
     metrics: list[TelegrafMetric]
+
+
+
+class GoingtoXrayRawTrafficV1Stat(pydantic.BaseModel):
+    name: str
+    value: int
+
+class GoingtoXrayRawTrafficV1JsonOutPut(pydantic.BaseModel):
+    stats: list[GoingtoXrayRawTrafficV1Stat]
 
 
 class LokiStram(TypedDict):
@@ -53,3 +64,11 @@ class ConfigStateSchema(pydantic.BaseModel):
     supervisorprocessinfo: SupervisorProcessInfoSchema
     stdout: SupervisorProcessTailLogSerializerSchema
     stderr: SupervisorProcessTailLogSerializerSchema
+
+
+class FileSchema(pydantic.BaseModel):
+    dest_path: pathlib.Path
+    content: str | None = None
+    url: pydantic.HttpUrl | None = None
+    permission: int
+    hash: str | None = None
