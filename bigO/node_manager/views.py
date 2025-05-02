@@ -245,7 +245,7 @@ class NodeBaseSyncAPIView(APIView):
                 )
 
         xray_conf = proxy_manager_services.get_xray_conf_v1(node_obj=node_obj)
-        xray_program = site_config.main_xray.get_program_for_node(node_obj)
+        xray_program = site_config.main_xray.get_program_for_node(node_obj) if site_config.main_xray else None
         if xray_conf:
             if xray_program is None:
                 logger.critical("no program found for xray_conf")
@@ -272,7 +272,7 @@ class NodeBaseSyncAPIView(APIView):
                 )
 
         global_haproxy_conf = services.get_global_haproxy_conf_v1(node=node_obj)
-        haproxy_program = site_config.main_haproxy.get_program_for_node(node_obj)
+        haproxy_program = site_config.main_haproxy.get_program_for_node(node_obj) if site_config.main_haproxy else None
         if global_haproxy_conf:
             if haproxy_program is None:
                 logger.critical("no program found for global_haproxy_conf")
