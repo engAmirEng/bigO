@@ -448,7 +448,9 @@ func downloadAndVerifyFile(fileInfo FileSchema, config Config) error {
 		return fmt.Errorf("sha missmatch happened for %s", *fileInfo.Hash)
 	}
 
-	out, err := os.Create(fileInfo.DestPath)
+	perm := os.FileMode(fileInfo.Permission)
+	out, err := os.OpenFile(fileInfo.DestPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, perm)
+
 	if err != nil {
 		return fmt.Errorf("failed to create destination file: %w", err)
 	}

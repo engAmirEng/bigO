@@ -740,7 +740,7 @@ def get_customconfig_proccessname(customconfig: models.CustomConfig):
     return f"custom_{customconfig.id}"
 
 
-all_permission = 420
+all_permission = int("744", 8)
 
 class NodeTemplateContext(django.template.Context):
     def __init__(self, *args, node_work_dir: pathlib.Path, base_url: str, **kwargs):
