@@ -22,6 +22,7 @@ async def sublink_view(request, subscription_uuid: uuid.UUID):
         .ann_expires_at()
         .ann_up_bytes_remained()
         .ann_dl_bytes_remained()
+        .ann_total_limit_bytes()
         .afirst()
     )
     if subscriptionperiod_obj is None:
