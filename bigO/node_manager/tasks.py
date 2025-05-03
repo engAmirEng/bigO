@@ -76,7 +76,7 @@ def check_node_latest_sync(*, limit_seconds: int, ignore_node_ids: list[int] | N
     return f"{str(reporting_offlines_qs.count())} are down and {str(back_onlines_qs.count())} are back"
 
 @app.task
-def handle_goingto(node_obj: models.Node, goingto_json_lines: str, base_labels: dict[str, Any]):
+def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str, Any]):
     from bigO.proxy_manager.services import set_profile_last_stat
     points: list[influxdb_client.Point] = []
     for line in goingto_json_lines.split("\n"):

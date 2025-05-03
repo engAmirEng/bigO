@@ -95,7 +95,7 @@ def node_process_stats(
             tasks.telegraf_to_influx_send.delay(telegraf_json_lines=i.stdout.bytes, base_labels=base_labels)
         elif service_name == "goingto_conf" and i.stdout.bytes and getattr(settings, "INFLUX_URL", False):
             handle_goingto = tasks.handle_goingto if settings.DEBUG else tasks.handle_goingto.delay
-            handle_goingto(node_obj, goingto_json_lines=i.stdout.bytes, base_labels=base_labels)
+            handle_goingto(node_obj.id, goingto_json_lines=i.stdout.bytes, base_labels=base_labels)
         if node_obj.collect_logs and getattr(settings, "LOKI_PUSH_ENDPOINT", False):
             collected_at = i.time
             if send_stderr and i.stderr.bytes:
