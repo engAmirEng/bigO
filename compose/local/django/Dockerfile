@@ -54,7 +54,7 @@ RUN --mount=type=cache,target=var/cache/apt/archives apt-get update && apt-get i
   # Translations dependencies
   gettext \
   # for ansible
-  sshpass \
+  ssh sshpass \
   # cleaning up unused files
   && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
   && rm -rf /var/lib/apt/lists/*
