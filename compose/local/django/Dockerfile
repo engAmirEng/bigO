@@ -12,8 +12,6 @@ RUN --mount=type=cache,target=var/cache/apt/archives apt-get update && apt-get i
   build-essential \
   # psycopg2 dependencies
   libpq-dev \
-  # for ansible
-  sshpass \
   wget
 
 
@@ -55,6 +53,8 @@ RUN --mount=type=cache,target=var/cache/apt/archives apt-get update && apt-get i
   libpq-dev \
   # Translations dependencies
   gettext \
+  # for ansible
+  sshpass \
   # cleaning up unused files
   && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
   && rm -rf /var/lib/apt/lists/*
