@@ -32,6 +32,7 @@ class NodePublicIPInline(admin.StackedInline):
 class NodeInnerProgramInline(admin.StackedInline):
     extra = 1
     model = models.NodeInnerProgram
+    autocomplete_fields = "program_version",
 
 
 @admin.register(models.ContainerSpec)
@@ -48,7 +49,6 @@ class O2SpecInline(admin.StackedInline):
 
 @admin.register(models.Node)
 class NodeModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.ModelAdmin):
-    inlines = [NodePublicIPInline, O2SpecInline, NodeSupervisorConfigInline, NodeInnerProgramInline, NodeLatestSyncStatInline]
     list_display = (
         "__str__",
         "agent_spec_display",
@@ -62,6 +62,8 @@ class NodeModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.ModelAd
     )
     list_editable = ["collect_metrics", "collect_logs"]
     actions = ["do_deploy"]
+    inlines = [NodePublicIPInline, O2SpecInline, NodeSupervisorConfigInline, NodeInnerProgramInline,
+               NodeLatestSyncStatInline]
 
     @admin.action(description="Do Deploy")
     def do_deploy(self, request, queryset: QuerySet[models.Node]):
