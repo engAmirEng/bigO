@@ -1,4 +1,5 @@
 instance_name = "{{ easytier_node_obj }}"
+hostname = "{{ easytier_node_obj.node }}"
 
 {% if ipv4 %}
 ipv4 = "{{ ipv4 }}"
