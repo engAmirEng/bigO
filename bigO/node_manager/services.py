@@ -337,8 +337,8 @@ def get_global_haproxy_conf_v2(node_obj, node_work_dir: pathlib.Path, base_url: 
             xray_backends_part += ("\n" + inbound.haproxy_backend)
         if inbound.haproxy_matcher_80:
             xray_80_matchers_part += ("\n" + inbound.haproxy_matcher_80)
-        if inbound.haproxy_matcher_440:
-            xray_443_matchers_part += ("\n" + inbound.haproxy_matcher_440)
+        if inbound.haproxy_matcher_443:
+            xray_443_matchers_part += ("\n" + inbound.haproxy_matcher_443)
 
 
     template_context = NodeTemplateContext(
