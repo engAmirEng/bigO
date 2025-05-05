@@ -330,16 +330,20 @@ def get_global_haproxy_conf_v2(node_obj, node_work_dir: pathlib.Path, base_url: 
 
     from bigO.proxy_manager.models import InboundType
     xray_backends_part = ""
-    xray_matchers_part = ""
+    xray_80_matchers_part = ""
+    xray_443_matchers_part = ""
     for inbound in InboundType.objects.filter(is_active=True):
         if inbound.haproxy_backend:
             xray_backends_part += ("\n" + inbound.haproxy_backend)
-        if inbound.haproxy_matcher:
-            xray_matchers_part += ("\n" + inbound.haproxy_matcher)
+        if inbound.haproxy_matcher_80:
+            xray_80_matchers_part += ("\n" + inbound.haproxy_matcher_80)
+        if inbound.haproxy_matcher_440:
+            xray_443_matchers_part += ("\n" + inbound.haproxy_matcher_440)
 
 
     template_context = NodeTemplateContext(
-        {"node_obj": node_obj, "xray_backends_part": xray_backends_part, "xray_matchers_part": xray_matchers_part}, node_work_dir=node_work_dir, base_url=base_url
+        {"node_obj": node_obj, "xray_backends_part": xray_backends_part, "xray_80_matchers_part": xray_80_matchers_part, "xray_443_matchers_part": xray_443_matchers_part},
+        node_work_dir=node_work_dir, base_url=base_url
     )
     haproxy_config_content = django.template.Template(
         """
@@ -367,7 +371,10 @@ frontend https-in
     # option dontlognull
     tcp-request inspect-delay 5s
     tcp-request content accept if { req.ssl_hello_type 1 }
-    use_backend to_https_in_ssl
+
+    {{ xray_443_matchers_part }}
+
+    default_backend to_https_in_ssl
 
 backend to_https_in_ssl
     server haproxy abns@https_in_ssl send-proxy-v2 tfo
@@ -386,7 +393,7 @@ frontend http-https-in
 
     # use_backend vlesshs if { path_beg /TWJesFY44i6zOOD8pYMb }
     # use_backend vlessw if { path_beg /13wuO5tMdxJDeSHexv5DKmT0 }
-    {{ xray_matchers_part }}
+    {{ xray_80_matchers_part }}
 
     use_backend nginx_dispatcher_h2 if h2
     default_backend nginx_dispatcher

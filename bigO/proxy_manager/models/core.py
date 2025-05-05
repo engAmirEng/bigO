@@ -74,7 +74,8 @@ class InboundType(TimeStampedModel, models.Model):
     link_template = models.TextField(blank=True, null=True, help_text="{{ subscriptionperiod_obj }}")
     nginx_path_config = models.TextField(blank=True, null=True)
     haproxy_backend = models.TextField(blank=True, null=True)
-    haproxy_matcher = models.TextField(blank=True, null=True)
+    haproxy_matcher_80 = models.TextField(blank=True, null=True)
+    haproxy_matcher_443 = models.TextField(blank=True, null=True)
 
     def __str__(self):
         return f"{self.pk}-{self.name}"
