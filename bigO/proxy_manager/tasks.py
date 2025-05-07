@@ -20,11 +20,10 @@ def sync_usage():
     ).order_by("last_flow_sync_at")[:10]
     if not subscriptionperiod_qs.exists():
         return "nothing to do"
-    flow_point_delta = timedelta(days=5)
     for subscriptionperiod in subscriptionperiod_qs:
         now = timezone.now()
         if subscriptionperiod.flow_point_at is None:
-            subscriptionperiod.flow_point_at = (now - flow_point_delta)
+            subscriptionperiod.flow_point_at = now
         query = f"""
 from(bucket: "{settings.INFLUX_BUCKET}")
 |> range(start: {subscriptionperiod.flow_point_at.strftime('%Y-%m-%dT%H:%M:%SZ')})
@@ -61,10 +60,10 @@ from(bucket: "{settings.INFLUX_BUCKET}")
 
 
 @app.task
-def forward_flow_point():
+def forward_flow_point(flow_point_delta_seconds: int = 5 * 24 * 60 * 60):
     if not getattr(settings, "INFLUX_URL", False):
         return "no INFLUX_URL"
-    flow_point_delta = timedelta(days=5)
+    flow_point_delta = timedelta(seconds=flow_point_delta_seconds)
     now = timezone.now()
     new_flow_point = (now - flow_point_delta)
     with transaction.atomic(using="main"):

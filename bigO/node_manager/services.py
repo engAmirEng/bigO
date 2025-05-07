@@ -380,7 +380,7 @@ backend to_https_in_ssl
     server haproxy abns@https_in_ssl send-proxy-v2 tfo
 
 frontend http-https-in
-    #bind :80,:::80 v4v6 tfo
+    bind :80,:::80 v4v6 tfo
 
     {% allowed_valid_certs node=node_obj pem='True' as certs %}
     bind abns@https_in_ssl tfo accept-proxy ssl {% for i in certs %}crt {{ i }} {% endfor %}alpn h2,http/1.1,h3 allow-0rtt
@@ -734,12 +734,12 @@ def add_configdependentcontent_to_context(
 
 def get_deps(template: str) -> list[tuple[str, str]]:
     matches = re.findall(r"\*#(\w+):(\w+)#\*", template)
-    return [tuple(i.split(":")) for i in matches]
+    return matches
 
 
 def render_deps(template: str, deps: set[str], proccessed_dependantfiles_map: dict[str, FileSchema]):
     for dep in deps:
-        template = template.replace(f"*#path:{dep}#*", proccessed_dependantfiles_map[dep].dest_path)
+        template = template.replace(f"*#path:{dep}#*", str(proccessed_dependantfiles_map[dep].dest_path))
     return template
 
 
