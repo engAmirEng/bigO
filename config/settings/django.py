@@ -71,14 +71,14 @@ try:
     DATABASES = {"default": env.db("DATABASE_URL"), "stats": env.db("STATS_DATABASE_URL")}
 except django.core.exceptions.ImproperlyConfigured:
     main_db = {
-            "ENGINE": "django.db.backends.postgresql",
-            "HOST": env.str("POSTGRES_HOST"),
-            "NAME": env.str("POSTGRES_DB"),
-            "PASSWORD": env.str("POSTGRES_PASSWORD"),
-            "PORT": env.int("POSTGRES_PORT"),
-            "USER": env.str("POSTGRES_USER"),
-            "CONN_MAX_AGE": env.int("CONN_MAX_AGE", default=0),
-        }
+        "ENGINE": "django.db.backends.postgresql",
+        "HOST": env.str("POSTGRES_HOST"),
+        "NAME": env.str("POSTGRES_DB"),
+        "PASSWORD": env.str("POSTGRES_PASSWORD"),
+        "PORT": env.int("POSTGRES_PORT"),
+        "USER": env.str("POSTGRES_USER"),
+        "CONN_MAX_AGE": env.int("CONN_MAX_AGE", default=0),
+    }
     DATABASES = {
         # this is here because packages are stupid otherwise we won't reference 'default' anywhere
         "default": main_db,

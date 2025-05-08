@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import logging
+import urllib.parse
 from hashlib import sha256
 from typing import TYPE_CHECKING, Self, TypedDict
 
 import netfields
-from django.urls import reverse
 from rest_framework_api_key.models import AbstractAPIKey
 from taggit.managers import TaggableManager
 
@@ -15,11 +15,8 @@ from bigO.utils.models import TimeStampedModel, async_related_obj_str
 from django.core import validators
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
-from django.db.models import CheckConstraint, F, UniqueConstraint, Sum
-import urllib.parse
-
-if TYPE_CHECKING:
-    from . import typing
+from django.db.models import F, Sum, UniqueConstraint
+from django.urls import reverse
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +53,9 @@ class ContainerSpec(TimeStampedModel):
 class O2Spec(TimeStampedModel, models.Model):
     node = models.OneToOneField("Node", on_delete=models.CASCADE, related_name="o2spec")
     program = models.ForeignKey("ProgramVersion", on_delete=models.PROTECT, related_name="program_o2spec")
-    ansible_deploy_snippet = models.ForeignKey("Snippet", on_delete=models.PROTECT, related_name="ansibledeploysnippet_o2specs")
+    ansible_deploy_snippet = models.ForeignKey(
+        "Snippet", on_delete=models.PROTECT, related_name="ansibledeploysnippet_o2specs"
+    )
     sync_domain = models.URLField(max_length=255)
     api_key = models.CharField(max_length=255)
     interval_sec = models.PositiveSmallIntegerField()
@@ -120,12 +119,16 @@ class AnsibleTask(TimeStampedModel, models.Model):
                 changed=Sum("task_nodes__changed"),
                 failures=Sum("task_nodes__failures"),
             )
+
     class StatusChoices(models.IntegerChoices):
         STARTED = 1, "started"
         FINISHED = 2, "finished"
+
     name = models.CharField(max_length=255)
     celery_task_id = models.UUIDField(null=True, blank=True)
-    playbook_snippet = models.ForeignKey("Snippet", on_delete=models.SET_NULL, related_name="playbooksnippet_ansibletasks", null=True, blank=True)
+    playbook_snippet = models.ForeignKey(
+        "Snippet", on_delete=models.SET_NULL, related_name="playbooksnippet_ansibletasks", null=True, blank=True
+    )
     playbook_content = models.TextField()
     status = models.PositiveSmallIntegerField(choices=StatusChoices)
     logs = models.TextField(blank=True)
@@ -153,7 +156,6 @@ class AnsibleTask(TimeStampedModel, models.Model):
     def dark(self, value):
         self._dark = value
 
-
     @property
     def changed(self) -> int:
         return self._changed
@@ -162,7 +164,6 @@ class AnsibleTask(TimeStampedModel, models.Model):
     def changed(self, value):
         self._changed = value
 
-
     @property
     def failures(self) -> int:
         return self._failures
@@ -170,7 +171,6 @@ class AnsibleTask(TimeStampedModel, models.Model):
     @failures.setter
     def failures(self, value):
         self._failures = value
-
 
 
 class AnsibleTaskNode(TimeStampedModel, models.Model):
@@ -222,7 +222,6 @@ class NodePublicIP(TimeStampedModel):
         return f"{self.pk}-{self.node}|{self.ip}"
 
 
-
 class Snippet(TimeStampedModel, models.Model):
     name = models.SlugField()
     template = models.TextField()
@@ -267,7 +266,7 @@ class CustomConfig(TimeStampedModel, models.Model):
         related_name="programversion_customconfigs",
         null=True,
         blank=True,
-        help_text="depracated"
+        help_text="depracated",
     )
     run_opts_template = models.TextField(help_text="{node_obj}, *#path:key#*")
     tags = TaggableManager(related_name="tag_customconfigs", blank=True)
@@ -280,7 +279,9 @@ class CustomConfigDependantFile(TimeStampedModel, models.Model):
     customconfig = models.ForeignKey(CustomConfig, on_delete=models.CASCADE, related_name="dependantfiles")
     key = models.SlugField()
     template = models.TextField(null=True, blank=True, help_text="{node_obj}")
-    file = models.ForeignKey(ProgramVersion, on_delete=models.PROTECT, related_name="customconfigdependants", null=True, blank=True)
+    file = models.ForeignKey(
+        ProgramVersion, on_delete=models.PROTECT, related_name="customconfigdependants", null=True, blank=True
+    )
     name_extension = models.CharField(max_length=15, null=True, blank=True)
 
     class Meta:

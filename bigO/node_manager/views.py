@@ -1,8 +1,6 @@
-import pathlib
-
-from django.views.decorators.csrf import csrf_exempt
 import json
 import logging
+import pathlib
 import socket
 import ssl
 import tomllib
@@ -16,17 +14,17 @@ from asgiref.sync import sync_to_async
 
 import bigO.utils.exceptions
 import bigO.utils.http
-import django.template
 from bigO.core import models as core_models
 from bigO.proxy_manager import services as proxy_manager_services
 from bigO.utils.decorators import xframe_options_sameorigin
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.core.exceptions import PermissionDenied
-from django.http import FileResponse, HttpResponse, JsonResponse, StreamingHttpResponse, HttpRequest
+from django.http import FileResponse, HttpRequest, HttpResponse, JsonResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.utils import timezone
 from django.views import View
+from django.views.decorators.csrf import csrf_exempt
 from rest_framework import serializers, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -350,6 +348,7 @@ class RuntimeSchema(pydantic.BaseModel):
     node_id: str
     node_name: str
 
+
 class SupervisorConfigSchema(pydantic.BaseModel):
     config_content: str
 
@@ -374,8 +373,10 @@ async def node_base_sync_v2(request: HttpRequest):
     has_perm = await sync_to_async(perm.has_permission)(request=request, view=None)
     if not has_perm:
         return JsonResponse({"error_info": "invalid api key"}, status=403)
-    node_obj = await sync_to_async(lambda:perm.api_key.node)()
-    node_sync_stat_obj = await sync_to_async(services.create_node_sync_stat)(request_headers=request.headers, node=node_obj)
+    node_obj = await sync_to_async(lambda: perm.api_key.node)()
+    node_sync_stat_obj = await sync_to_async(services.create_node_sync_stat)(
+        request_headers=request.headers, node=node_obj
+    )
 
     try:
         body = bigO.utils.http.get_body_from_request(request, 20 * 1024 * 1024)
@@ -385,21 +386,27 @@ async def node_base_sync_v2(request: HttpRequest):
         sentry_sdk.capture_exception(e)
         return JsonResponse(e.errors(), status=400, safe=False)
     await sync_to_async(services.node_process_stats)(
-        node_obj=node_obj, configs_states=input_data.configs_states, smallo1_logs=None, smallo2_logs=input_data.self_logs
+        node_obj=node_obj,
+        configs_states=input_data.configs_states,
+        smallo1_logs=None,
+        smallo2_logs=input_data.self_logs,
     )
     await sync_to_async(services.node_spec_create)(node=node_obj, ip_a=input_data.metrics.ip_a)
 
-    site_config: core_models.SiteConfiguration = await core_models.SiteConfiguration.objects.aget()
     node_config = input_data.config
     supervisor_config = ""
     files = []
-
 
     next_base_url = ("https" if request.is_secure() else "http") + "://" + request.get_host()
 
     async for node_customconfig in node_obj.node_customconfigs.all().select_related("custom_config"):
         try:
-            supervisor_part, part_files = await services.get_custom(node=node_obj, customconfig=node_customconfig.custom_config, node_work_dir=node_config.working_dir, base_url=next_base_url)
+            supervisor_part, part_files = await services.get_custom(
+                node=node_obj,
+                customconfig=node_customconfig.custom_config,
+                node_work_dir=node_config.working_dir,
+                base_url=next_base_url,
+            )
         except services.ProgramNotFound as e:
             logger.critical(f"no inner program found for {node_customconfig=} {e.program_version=}")
             continue
@@ -408,7 +415,9 @@ async def node_base_sync_v2(request: HttpRequest):
 
     async for easytiernode_obj in models.EasyTierNode.objects.filter(node=node_obj):
         try:
-            supervisor_part, part_files = await services.get_easytier(easytiernode_obj, node_work_dir=node_config.working_dir, base_url=next_base_url)
+            supervisor_part, part_files = await services.get_easytier(
+                easytiernode_obj, node_work_dir=node_config.working_dir, base_url=next_base_url
+            )
         except services.IncorrectTemplateFormat as e:
             logger.critical(f"toml parsing {easytiernode_obj=} failed: {str(e)}")
             continue
@@ -417,13 +426,17 @@ async def node_base_sync_v2(request: HttpRequest):
             continue
         supervisor_config += "\n" + supervisor_part
         files.extend(part_files)
-    telegraf = await services.get_telegraf(node_obj=node_obj, node_work_dir=node_config.working_dir, base_url=next_base_url)
+    telegraf = await services.get_telegraf(
+        node_obj=node_obj, node_work_dir=node_config.working_dir, base_url=next_base_url
+    )
     if telegraf:
         supervisor_config += telegraf[0]
         files.extend(telegraf[1])
 
     try:
-        xray = await sync_to_async(proxy_manager_services.get_xray_conf_v2)(node_obj=node_obj, node_work_dir=node_config.working_dir, base_url=next_base_url)
+        xray = await sync_to_async(proxy_manager_services.get_xray_conf_v2)(
+            node_obj=node_obj, node_work_dir=node_config.working_dir, base_url=next_base_url
+        )
     except services.ProgramNotFound as e:
         logger.critical(f"no program of {e.program_version=} found for {node_obj=}")
         pass
@@ -433,7 +446,9 @@ async def node_base_sync_v2(request: HttpRequest):
             files.extend(xray[1])
 
     try:
-        haproxy = await sync_to_async(services.get_global_haproxy_conf_v2)(node_obj=node_obj, node_work_dir=node_config.working_dir, base_url=next_base_url)
+        haproxy = await sync_to_async(services.get_global_haproxy_conf_v2)(
+            node_obj=node_obj, node_work_dir=node_config.working_dir, base_url=next_base_url
+        )
     except services.ProgramNotFound as e:
         logger.critical(f"no program of {e.program_version=} found for {node_obj=}")
         pass
@@ -443,7 +458,9 @@ async def node_base_sync_v2(request: HttpRequest):
             files.extend(haproxy[1])
 
     try:
-        nginx = await sync_to_async(services.get_global_nginx_conf_v2)(node_obj=node_obj, node_work_dir=node_config.working_dir, base_url=next_base_url)
+        nginx = await sync_to_async(services.get_global_nginx_conf_v2)(
+            node_obj=node_obj, node_work_dir=node_config.working_dir, base_url=next_base_url
+        )
     except services.ProgramNotFound as e:
         logger.critical(f"no program of {e.program_version=} found for {node_obj=}")
         pass
@@ -453,7 +470,9 @@ async def node_base_sync_v2(request: HttpRequest):
             files.extend(nginx[1])
 
     try:
-        goingto = await services.get_goingto_conf(node_obj=node_obj, node_work_dir=node_config.working_dir, base_url=next_base_url)
+        goingto = await services.get_goingto_conf(
+            node_obj=node_obj, node_work_dir=node_config.working_dir, base_url=next_base_url
+        )
     except services.ProgramNotFound as e:
         logger.critical(f"no program of {e.program_version=} found for {node_obj=}")
         pass
@@ -464,9 +483,15 @@ async def node_base_sync_v2(request: HttpRequest):
 
     supervisorconfigschema = SupervisorConfigSchema(config_content=supervisor_config)
     output_schema = NodeBaseSyncV2OutputSchema(
-        supervisor_config=supervisorconfigschema, files=files, config=node_config, runtime=RuntimeSchema(node_id=str(node_obj.id), node_name=node_obj.name))
+        supervisor_config=supervisorconfigschema,
+        files=files,
+        config=node_config,
+        runtime=RuntimeSchema(node_id=str(node_obj.id), node_name=node_obj.name),
+    )
     response_data = output_schema.model_dump_json()
-    await sync_to_async(services.complete_node_sync_stat)(obj=node_sync_stat_obj, response_payload=json.loads(response_data))
+    await sync_to_async(services.complete_node_sync_stat)(
+        obj=node_sync_stat_obj, response_payload=json.loads(response_data)
+    )
     return HttpResponse(response_data, content_type="application/json", status=status.HTTP_200_OK)
 
 

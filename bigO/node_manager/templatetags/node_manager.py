@@ -1,7 +1,6 @@
 from hashlib import sha256
 
 import django.template.context
-
 from bigO.core import models as core_models
 from django import template
 from django.utils import timezone
@@ -27,7 +26,7 @@ def default_cert(context: services.NodeTemplateContext | django.template.Context
             dest_path=context.node_work_dir.joinpath("conf", f"{default_cert.slug}_{default_cert_hash[:6]}.cert"),
             content=cert_content,
             hash=default_cert_hash,
-            permission=services.all_permission
+            permission=services.all_permission,
         )
         services.add_configdependentcontent_to_context(context=context, configdependentcontent=cert_content_file)
 
@@ -44,10 +43,12 @@ def default_cert_key(context: services.NodeTemplateContext | django.template.Con
         default_cert = node.get_default_cert()
         default_key_hash = sha256(default_cert.private_key.content.encode()).hexdigest()
         key_content_file = typing.FileSchema(
-            dest_path=context.node_work_dir.joinpath("conf", f"{default_cert.private_key.slug}_{default_key_hash[:6]}.key"),
+            dest_path=context.node_work_dir.joinpath(
+                "conf", f"{default_cert.private_key.slug}_{default_key_hash[:6]}.key"
+            ),
             content=default_cert.private_key.content,
             hash=default_key_hash,
-            permission=services.all_permission
+            permission=services.all_permission,
         )
         services.add_configdependentcontent_to_context(context=context, configdependentcontent=key_content_file)
 
@@ -73,9 +74,11 @@ def allowed_valid_certs(context: services.NodeTemplateContext | django.template.
                     dest_path=context.node_work_dir.joinpath("conf", f"{cert.slug}_{pem_hash[:6]}.pem"),
                     content=pem_content,
                     hash=pem_hash,
-                    permission=services.all_permission
+                    permission=services.all_permission,
                 )
-                services.add_configdependentcontent_to_context(context=context, configdependentcontent=cert_content_file)
+                services.add_configdependentcontent_to_context(
+                    context=context, configdependentcontent=cert_content_file
+                )
                 res.append(cert_content_file.dest_path)
             else:
                 cert_content = cert.get_fullchain_content()
@@ -84,17 +87,21 @@ def allowed_valid_certs(context: services.NodeTemplateContext | django.template.
                     dest_path=context.node_work_dir.joinpath("conf", f"{cert.slug}_{cert_hash[:6]}.cert"),
                     content=cert_content,
                     hash=cert_hash,
-                    permission=services.all_permission
+                    permission=services.all_permission,
                 )
                 key_hash = sha256(cert.private_key.content.encode()).hexdigest()
                 key_content_file = typing.FileSchema(
                     dest_path=context.node_work_dir.joinpath("conf", f"{cert.private_key.slug}_{key_hash[:6]}.key"),
                     content=cert.private_key.content,
                     hash=key_hash,
-                    permission=services.all_permission
+                    permission=services.all_permission,
                 )
-                services.add_configdependentcontent_to_context(context=context, configdependentcontent=cert_content_file)
-                services.add_configdependentcontent_to_context(context=context, configdependentcontent=key_content_file)
+                services.add_configdependentcontent_to_context(
+                    context=context, configdependentcontent=cert_content_file
+                )
+                services.add_configdependentcontent_to_context(
+                    context=context, configdependentcontent=key_content_file
+                )
                 res.append({"cert": cert_content_file.dest_path, "key": key_content_file.dest_path})
         return res
 
@@ -117,7 +124,7 @@ def default_basic_http_file(context: services.NodeTemplateContext | django.templ
             dest_path=context.node_work_dir.joinpath("conf", f"passwd_{htpasswd_content_hash[:6]}"),
             content=site_config.htpasswd_content,
             hash=htpasswd_content_hash,
-            permission=services.all_permission
+            permission=services.all_permission,
         )
         services.add_configdependentcontent_to_context(context=context, configdependentcontent=passed_content_file)
         return passed_content_file.dest_path

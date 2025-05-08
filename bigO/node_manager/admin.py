@@ -2,20 +2,21 @@ from decimal import ROUND_HALF_DOWN, Decimal
 
 import admin_extra_buttons.decorators
 import admin_extra_buttons.mixins
-from django.conf import settings
+from django_json_widget.widgets import JSONEditorWidget
 from render_block import render_block_to_string
 from rest_framework_api_key.admin import APIKeyModelAdmin
-from django_json_widget.widgets import JSONEditorWidget
-from django.utils.translation import gettext
+
+from django.conf import settings
 from django.contrib import admin, messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.humanize.templatetags.humanize import naturaltime
-from django.db.models import Count, QuerySet, Q, JSONField
+from django.db.models import Count, JSONField, Q, QuerySet
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, render
 from django.template.defaultfilters import filesizeformat
 from django.urls import reverse
 from django.utils.html import format_html
+from django.utils.translation import gettext
 
 from . import forms, models, tasks
 
@@ -32,7 +33,7 @@ class NodePublicIPInline(admin.StackedInline):
 class NodeInnerProgramInline(admin.StackedInline):
     extra = 1
     model = models.NodeInnerProgram
-    autocomplete_fields = "program_version",
+    autocomplete_fields = ("program_version",)
 
 
 @admin.register(models.ContainerSpec)
@@ -42,6 +43,7 @@ class ContainerSpecModelAdmin(admin.ModelAdmin):
 
 class NodeSupervisorConfigInline(admin.StackedInline):
     model = models.NodeSupervisorConfig
+
 
 class O2SpecInline(admin.StackedInline):
     model = models.O2Spec
@@ -62,17 +64,26 @@ class NodeModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.ModelAd
     )
     list_editable = ["collect_metrics", "collect_logs"]
     actions = ["do_deploy"]
-    inlines = [NodePublicIPInline, O2SpecInline, NodeSupervisorConfigInline, NodeInnerProgramInline,
-               NodeLatestSyncStatInline]
+    inlines = [
+        NodePublicIPInline,
+        O2SpecInline,
+        NodeSupervisorConfigInline,
+        NodeInnerProgramInline,
+        NodeLatestSyncStatInline,
+    ]
 
     @admin.action(description="Do Deploy")
     def do_deploy(self, request, queryset: QuerySet[models.Node]):
-        invalid_queryset = queryset.filter(Q(
-            Q(ssh_port__isnull=True) |
-            Q(ssh_user__isnull=True) | Q(ssh_user='') |
-            Q(ssh_pass__isnull=True) | Q(ssh_pass='') |
-            Q(o2spec__isnull=True)
-        ))
+        invalid_queryset = queryset.filter(
+            Q(
+                Q(ssh_port__isnull=True)
+                | Q(ssh_user__isnull=True)
+                | Q(ssh_user="")
+                | Q(ssh_pass__isnull=True)
+                | Q(ssh_pass="")
+                | Q(o2spec__isnull=True)
+            )
+        )
         if invalid_record_count := invalid_queryset.count():
             self.message_user(
                 request,
@@ -81,9 +92,7 @@ class NodeModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.ModelAd
             )
             return
         for i in queryset:
-            ansible_deploy_node = (
-                tasks.ansible_deploy_node if settings.DEBUG else tasks.ansible_deploy_node.delay
-            )
+            ansible_deploy_node = tasks.ansible_deploy_node if settings.DEBUG else tasks.ansible_deploy_node.delay
             ansible_deploy_node(node_id=i.id)
         self.message_user(
             request,
@@ -177,8 +186,9 @@ class AnsibleTaskNodeInline(admin.StackedInline):
     model = models.AnsibleTaskNode
     extra = 0
     formfield_overrides = {
-        JSONField: {'widget': JSONEditorWidget},
+        JSONField: {"widget": JSONEditorWidget},
     }
+
 
 @admin.register(models.AnsibleTask)
 class AnsibleTaskModelAdmin(admin.ModelAdmin):
@@ -186,7 +196,7 @@ class AnsibleTaskModelAdmin(admin.ModelAdmin):
     list_display = ("__str__", "name", "status", "ok", "dark", "changed", "failures", "created_at", "finished_at")
 
     formfield_overrides = {
-        JSONField: {'widget': JSONEditorWidget},
+        JSONField: {"widget": JSONEditorWidget},
     }
 
     def get_queryset(self, request):
@@ -211,6 +221,7 @@ class ProgramVersionInline(admin.StackedInline):
 @admin.register(models.Snippet)
 class SnippetModelAdmin(admin.ModelAdmin):
     pass
+
 
 @admin.register(models.Program)
 class ProgramModelAdmin(admin.ModelAdmin):

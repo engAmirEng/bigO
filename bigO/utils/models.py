@@ -1,6 +1,6 @@
 import re
 
-from django.core.exceptions import ValidationError, SynchronousOnlyOperation
+from django.core.exceptions import SynchronousOnlyOperation, ValidationError
 from django.core.validators import RegexValidator
 from django.db import models
 

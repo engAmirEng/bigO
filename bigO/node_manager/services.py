@@ -10,11 +10,8 @@ import zoneinfo
 from collections import defaultdict
 from datetime import timedelta
 from hashlib import sha256
-from typing import Callable
 
 from asgiref.sync import sync_to_async
-from django.http import HttpHeaders
-from django.urls import reverse
 
 import django.template
 from bigO.core import models as core_models
@@ -22,6 +19,8 @@ from bigO.proxy_manager import services as services_models
 from config import settings
 from django.db import transaction
 from django.db.models import Subquery
+from django.http import HttpHeaders
+from django.urls import reverse
 from django.utils import timezone
 from rest_framework.request import Request
 
@@ -302,7 +301,9 @@ def get_global_haproxy_conf_v1(node: models.Node) -> tuple[str, str, dict] | Non
     return run_opt, res, context.get("deps", {"globals": []})
 
 
-def get_global_haproxy_conf_v2(node_obj, node_work_dir: pathlib.Path, base_url: str) -> tuple[str, list[typing.FileSchema]] | None:
+def get_global_haproxy_conf_v2(
+    node_obj, node_work_dir: pathlib.Path, base_url: str
+) -> tuple[str, list[typing.FileSchema]] | None:
     site_config: core_models.SiteConfiguration = core_models.SiteConfiguration.objects.get()
     if site_config.main_haproxy is None:
         logger.critical("no program set for global_haproxy_conf")
@@ -329,21 +330,27 @@ def get_global_haproxy_conf_v2(node_obj, node_work_dir: pathlib.Path, base_url: 
     files.append(haproxy_program_file)
 
     from bigO.proxy_manager.models import InboundType
+
     xray_backends_part = ""
     xray_80_matchers_part = ""
     xray_443_matchers_part = ""
     for inbound in InboundType.objects.filter(is_active=True):
         if inbound.haproxy_backend:
-            xray_backends_part += ("\n" + inbound.haproxy_backend)
+            xray_backends_part += "\n" + inbound.haproxy_backend
         if inbound.haproxy_matcher_80:
-            xray_80_matchers_part += ("\n" + inbound.haproxy_matcher_80)
+            xray_80_matchers_part += "\n" + inbound.haproxy_matcher_80
         if inbound.haproxy_matcher_443:
-            xray_443_matchers_part += ("\n" + inbound.haproxy_matcher_443)
-
+            xray_443_matchers_part += "\n" + inbound.haproxy_matcher_443
 
     template_context = NodeTemplateContext(
-        {"node_obj": node_obj, "xray_backends_part": xray_backends_part, "xray_80_matchers_part": xray_80_matchers_part, "xray_443_matchers_part": xray_443_matchers_part},
-        node_work_dir=node_work_dir, base_url=base_url
+        {
+            "node_obj": node_obj,
+            "xray_backends_part": xray_backends_part,
+            "xray_80_matchers_part": xray_80_matchers_part,
+            "xray_443_matchers_part": xray_443_matchers_part,
+        },
+        node_work_dir=node_work_dir,
+        base_url=base_url,
     )
     haproxy_config_content = django.template.Template(
         """
@@ -489,8 +496,9 @@ http {
     return run_opt, res, deps
 
 
-
-def get_global_nginx_conf_v2(node_obj, node_work_dir: pathlib.Path, base_url: str) -> tuple[str, list[typing.FileSchema]] | None:
+def get_global_nginx_conf_v2(
+    node_obj, node_work_dir: pathlib.Path, base_url: str
+) -> tuple[str, list[typing.FileSchema]] | None:
     site_config: core_models.SiteConfiguration = core_models.SiteConfiguration.objects.get()
     if site_config.main_nginx is None:
         logger.critical("no program set for global_nginc_conf")
@@ -520,13 +528,17 @@ def get_global_nginx_conf_v2(node_obj, node_work_dir: pathlib.Path, base_url: st
     http_part = ""
     stream_part = ""
 
-    supervisor_nginx_conf = get_supervisor_nginx_conf_v2(node_obj=node_obj, node_work_dir=node_work_dir, base_url=base_url)
+    supervisor_nginx_conf = get_supervisor_nginx_conf_v2(
+        node_obj=node_obj, node_work_dir=node_work_dir, base_url=base_url
+    )
     if supervisor_nginx_conf:
         http_part += supervisor_nginx_conf[0].content
         new_files = supervisor_nginx_conf[1]
         files.extend(new_files)
         usage = True
-    proxy_manager_nginx_conf = services_models.get_proxy_manager_nginx_conf_v2(node_obj=node_obj, node_work_dir=node_work_dir, base_url=base_url)
+    proxy_manager_nginx_conf = services_models.get_proxy_manager_nginx_conf_v2(
+        node_obj=node_obj, node_work_dir=node_work_dir, base_url=base_url
+    )
     if proxy_manager_nginx_conf and (proxy_manager_nginx_conf[0] or proxy_manager_nginx_conf[1]):
         http_part += proxy_manager_nginx_conf[0]
         stream_part += proxy_manager_nginx_conf[1]
@@ -536,7 +548,9 @@ def get_global_nginx_conf_v2(node_obj, node_work_dir: pathlib.Path, base_url: st
 
     if not usage:
         return None
-    template_context = NodeTemplateContext({"stream": stream_part, "http": http_part}, node_work_dir=node_work_dir, base_url=base_url)
+    template_context = NodeTemplateContext(
+        {"stream": stream_part, "http": http_part}, node_work_dir=node_work_dir, base_url=base_url
+    )
     config_content = django.template.Template(
         """
 user root;
@@ -562,10 +576,10 @@ http {
     ).render(template_context)
     config_content_hash = sha256(config_content.encode("utf-8")).hexdigest()
     config_content_file = typing.FileSchema(
-        dest_path = node_work_dir.joinpath("conf", f"nginx_supervisor_part_{config_content_hash[:6]}"),
+        dest_path=node_work_dir.joinpath("conf", f"nginx_supervisor_part_{config_content_hash[:6]}"),
         content=config_content,
         hash=config_content_hash,
-        permission = all_permission,
+        permission=all_permission,
     )
     files.append(config_content_file)
     new_files = get_configdependentcontents_from_context(template_context)
@@ -580,6 +594,7 @@ autorestart=true
 priority=10
     """
     return supervisor_config, files
+
 
 def get_supervisor_nginx_conf_v1(node: models.Node) -> tuple[str, dict] | None:
     nodesupervisorconfig_obj: models.NodeSupervisorConfig | None = models.NodeSupervisorConfig.objects.filter(
@@ -622,17 +637,24 @@ server {
     result = django.template.Template(cnfg).render(context=django.template.Context(context))
     return result, context.get("deps", {"globals": []})
 
-def get_supervisor_nginx_conf_v2(node_obj, node_work_dir: pathlib.Path, base_url: str) -> tuple[typing.FileSchema, list[typing.FileSchema]] | None:
+
+def get_supervisor_nginx_conf_v2(
+    node_obj, node_work_dir: pathlib.Path, base_url: str
+) -> tuple[typing.FileSchema, list[typing.FileSchema]] | None:
     nodesupervisorconfig_obj: models.NodeSupervisorConfig | None = models.NodeSupervisorConfig.objects.filter(
         node=node_obj
     ).first()
     if nodesupervisorconfig_obj is None or nodesupervisorconfig_obj.xml_rpc_api_expose_port is None:
         return None
-    template_context = NodeTemplateContext({
-        "servername": f"supervisor.{node_obj.name}.com",
-        "supervisor_xml_rpc_api_expose_port": nodesupervisorconfig_obj.xml_rpc_api_expose_port,
-        "node": node_obj,
-    }, node_work_dir=node_work_dir, base_url=base_url)
+    template_context = NodeTemplateContext(
+        {
+            "servername": f"supervisor.{node_obj.name}.com",
+            "supervisor_xml_rpc_api_expose_port": nodesupervisorconfig_obj.xml_rpc_api_expose_port,
+            "node": node_obj,
+        },
+        node_work_dir=node_work_dir,
+        base_url=base_url,
+    )
     cnfg = """
 {% load node_manager %}
 upstream supervisor {
@@ -724,9 +746,8 @@ class ProgramNotFound(Exception):
 def get_configdependentcontents_from_context(context: django.template.Context) -> list[FileSchema]:
     return context.get("deps", {}).get("dependents", [])
 
-def add_configdependentcontent_to_context(
-    context: django.template.Context, configdependentcontent: typing.FileSchema
-):
+
+def add_configdependentcontent_to_context(context: django.template.Context, configdependentcontent: typing.FileSchema):
     deps = context.get("deps", {"dependents": []})
     deps["dependents"].append(configdependentcontent)
     context["deps"] = deps
@@ -749,6 +770,7 @@ def get_customconfig_proccessname(customconfig: models.CustomConfig):
 
 all_permission = int("744", 8)
 
+
 class NodeTemplateContext(django.template.Context):
     def __init__(self, *args, node_work_dir: pathlib.Path, base_url: str, **kwargs):
         super().__init__(*args, **kwargs)
@@ -762,7 +784,13 @@ async def get_custom(
     files = []
     unproccessed_dependantfiles_map: dict[str, models.CustomConfigDependantFile] = {}
     proccessed_dependantfiles_map = {}
-    template_context = NodeTemplateContext({"node_obj": node,}, node_work_dir=node_work_dir, base_url=base_url)
+    template_context = NodeTemplateContext(
+        {
+            "node_obj": node,
+        },
+        node_work_dir=node_work_dir,
+        base_url=base_url,
+    )
     async for dependantfile in customconfig.dependantfiles.all().select_related("file"):
         if dependantfile.template:
             template = django.template.Template("{% load node_manager %}" + dependantfile.template)
@@ -849,20 +877,25 @@ async def get_easytier(
     toml_config_content_hash = sha256(toml_config_content.encode("utf-8")).hexdigest()
     files.append(
         FileSchema(
-            dest_path=node_work_dir.joinpath("conf", f"eati_{easytiernode_obj.id}_{toml_config_content_hash[:6]}.toml"),
+            dest_path=node_work_dir.joinpath(
+                "conf", f"eati_{easytiernode_obj.id}_{toml_config_content_hash[:6]}.toml"
+            ),
             content=toml_config_content,
             hash=toml_config_content_hash,
             permission=all_permission,
         )
     )
-    program_version = await sync_to_async(lambda :easytiernode_obj.preferred_program_version)() or await sync_to_async(lambda :easytiernode_obj.network.program_version)()
+    program_version = (
+        await sync_to_async(lambda: easytiernode_obj.preferred_program_version)()
+        or await sync_to_async(lambda: easytiernode_obj.network.program_version)()
+    )
     program = await sync_to_async(program_version.get_program_for_node)(easytiernode_obj.node)
     if program is None:
         raise ProgramNotFound(program_version=program_version)
     elif isinstance(program, models.ProgramBinary):
         easytier_program_file = FileSchema(
             dest_path=node_work_dir.joinpath("bin", f"{program.program_version_id}_{program.hash[:6]}"),
-            url =base_url + reverse("node_manager:node_program_binary_content_by_hash", args=[program.hash]),
+            url=base_url + reverse("node_manager:node_program_binary_content_by_hash", args=[program.hash]),
             permission=all_permission,
             hash=program.hash,
         )
@@ -875,7 +908,9 @@ async def get_easytier(
         raise AssertionError
     files.append(easytier_program_file)
     toml_config_content_hash = sha256(toml_config_content.encode("utf-8")).hexdigest()
-    toml_config_dest_path = node_work_dir.joinpath("conf", f"eati_{easytiernode_obj.id}_{toml_config_content_hash[:6]}")
+    toml_config_dest_path = node_work_dir.joinpath(
+        "conf", f"eati_{easytiernode_obj.id}_{toml_config_content_hash[:6]}"
+    )
     conf_file = FileSchema(
         dest_path=toml_config_dest_path,
         content=toml_config_content,
@@ -896,9 +931,12 @@ priority=10
     return supervisor_config, files
 
 
-async def get_telegraf(node_obj: models.Node, node_work_dir: pathlib.Path, base_url: str) -> tuple[str, list[
-    FileSchema]] | None:
-    site_config: core_models.SiteConfiguration = await core_models.SiteConfiguration.objects.select_related("main_telegraf").aget()
+async def get_telegraf(
+    node_obj: models.Node, node_work_dir: pathlib.Path, base_url: str
+) -> tuple[str, list[FileSchema]] | None:
+    site_config: core_models.SiteConfiguration = await core_models.SiteConfiguration.objects.select_related(
+        "main_telegraf"
+    ).aget()
     if not node_obj.collect_metrics:
         return None
     elif node_obj.collect_metrics and site_config.main_telegraf is None:
@@ -912,7 +950,7 @@ async def get_telegraf(node_obj: models.Node, node_work_dir: pathlib.Path, base_
         dest_path = node_work_dir.joinpath("bin", f"telegraf_{telegraf_program.id}_{telegraf_program.hash[:6]}")
         telegraf_program_file = FileSchema(
             dest_path=dest_path,
-            url = base_url + reverse("node_manager:node_program_binary_content_by_hash", args=[telegraf_program.hash]),
+            url=base_url + reverse("node_manager:node_program_binary_content_by_hash", args=[telegraf_program.hash]),
             permission=all_permission,
             hash=telegraf_program.hash,
         )
@@ -948,10 +986,15 @@ async def get_telegraf(node_obj: models.Node, node_work_dir: pathlib.Path, base_
 [[inputs.system]]
 [[inputs.net]]
     """
-    telegraf_conf_content = django.template.Template(cnfg_template).render(context=django.template.Context(template_context))
+    telegraf_conf_content = django.template.Template(cnfg_template).render(
+        context=django.template.Context(template_context)
+    )
     telegraf_conf_hash = sha256(telegraf_conf_content.encode("utf-8")).hexdigest()
     telegraf_conf_content = FileSchema(
-        dest_path=node_work_dir.joinpath("conf", f"telegraf_{telegraf_conf_hash[:6]}"), content=telegraf_conf_content, hash=telegraf_conf_hash, permission=all_permission
+        dest_path=node_work_dir.joinpath("conf", f"telegraf_{telegraf_conf_hash[:6]}"),
+        content=telegraf_conf_content,
+        hash=telegraf_conf_hash,
+        permission=all_permission,
     )
     files.append(telegraf_conf_content)
     supervisor_config = f"""
@@ -964,9 +1007,13 @@ priority=10
 """
     return supervisor_config, files
 
-async def get_goingto_conf(node_obj: models.Node, node_work_dir: pathlib.Path, base_url: str) -> tuple[str, list[
-    FileSchema]] | None:
-    site_config: core_models.SiteConfiguration = await core_models.SiteConfiguration.objects.select_related("main_goingto").aget()
+
+async def get_goingto_conf(
+    node_obj: models.Node, node_work_dir: pathlib.Path, base_url: str
+) -> tuple[str, list[FileSchema]] | None:
+    site_config: core_models.SiteConfiguration = await core_models.SiteConfiguration.objects.select_related(
+        "main_goingto"
+    ).aget()
     if not node_obj.tmp_xray:
         return None
     elif node_obj.collect_metrics and site_config.main_goingto is None:
@@ -980,7 +1027,7 @@ async def get_goingto_conf(node_obj: models.Node, node_work_dir: pathlib.Path, b
         dest_path = node_work_dir.joinpath("bin", f"goingto_{goingto_program.id}_{goingto_program.hash[:6]}")
         goingto_program_file = FileSchema(
             dest_path=dest_path,
-            url = base_url + reverse("node_manager:node_program_binary_content_by_hash", args=[goingto_program.hash]),
+            url=base_url + reverse("node_manager:node_program_binary_content_by_hash", args=[goingto_program.hash]),
             permission=all_permission,
             hash=goingto_program.hash,
         )
@@ -1002,10 +1049,15 @@ api_host = "127.0.0.1"
 interval = 15
 reset = true
 """
-    goingto_conf_content = django.template.Template(cnfg_template).render(context=django.template.Context(template_context))
+    goingto_conf_content = django.template.Template(cnfg_template).render(
+        context=django.template.Context(template_context)
+    )
     goingto_conf_hash = sha256(goingto_conf_content.encode("utf-8")).hexdigest()
     goingto_conf_content = FileSchema(
-        dest_path=node_work_dir.joinpath("conf", f"goingto_{goingto_conf_hash[:6]}"), content=goingto_conf_content, hash=goingto_conf_hash, permission=all_permission
+        dest_path=node_work_dir.joinpath("conf", f"goingto_{goingto_conf_hash[:6]}"),
+        content=goingto_conf_content,
+        hash=goingto_conf_hash,
+        permission=all_permission,
     )
     files.append(goingto_conf_content)
     supervisor_config = f"""

@@ -1,35 +1,34 @@
 import datetime
+import json
 import os
+import pathlib
 import re
 import sys
-import json
-import pathlib
+import urllib.parse
 from datetime import timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
-import urllib.parse
 
-import django.template
+import ansible_runner
 import influxdb_client.domain.write_precision
 import requests.adapters
 import requests.auth
 from asgiref.sync import async_to_sync
+from celery import current_task
 
 import aiogram
-from celery import current_task
-from django.db import transaction
-import ansible_runner
-from django.urls import reverse
-
 import bigO.utils.logging
+import django.template
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.enums import ParseMode
 from bigO.core import models as core_models
 from config import settings
 from config.celery_app import app
 from django.core.cache import cache
+from django.db import transaction
 from django.db.models import Subquery
 from django.template.loader import render_to_string
+from django.urls import reverse
 from django.utils import timezone
 
 from ..users.models import User
@@ -75,9 +74,11 @@ def check_node_latest_sync(*, limit_seconds: int, ignore_node_ids: list[int] | N
     cache.set("offline_nodes", json.dumps([i.node_id for i in all_offlines_qs]))
     return f"{str(reporting_offlines_qs.count())} are down and {str(back_onlines_qs.count())} are back"
 
+
 @app.task
 def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str, Any]):
     from bigO.proxy_manager.services import set_profile_last_stat
+
     points: list[influxdb_client.Point] = []
     for line in goingto_json_lines.split("\n"):
         if not line:
@@ -97,21 +98,28 @@ def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str,
                     if not stat.name or not stat.value:
                         continue
                     user_traffic_regex = r"user>>>period(\d+)\.profile(\d+)[^>]+>>>traffic>>>(downlink|uplink)"
-                    user_with_id_traffic_regex = r"user>>>period(\d+)\.profile(\d+).user(\d+)[^>]+>>>traffic>>>(downlink|uplink)"
+                    user_with_id_traffic_regex = (
+                        r"user>>>period(\d+)\.profile(\d+).user(\d+)[^>]+>>>traffic>>>(downlink|uplink)"
+                    )
                     inbound_traffic_regex = r"inbound>>>([^>]+)>>>traffic>>>(downlink|uplink)"
                     outbound_traffic_regex = r"outbound>>>([^>]+)>>>traffic>>>(downlink|uplink)"
-                    if len((user_matches := re.findall(user_traffic_regex, stat.name))) == 1 or len((user_with_id_matches := re.findall(user_with_id_traffic_regex, stat.name))) == 1:
+                    if (
+                        len(user_matches := re.findall(user_traffic_regex, stat.name)) == 1
+                        or len(user_with_id_matches := re.findall(user_with_id_traffic_regex, stat.name)) == 1
+                    ):
                         user_id = None
-                        if len((user_matches := re.findall(user_traffic_regex, stat.name))) == 1:
+                        if len(user_matches := re.findall(user_traffic_regex, stat.name)) == 1:
                             profile_id = str(user_matches[0][0])
                             period_id = str(user_matches[0][1])
                             downlink_or_uplink = user_matches[0][2]
-                        elif len((user_with_id_matches := re.findall(user_with_id_traffic_regex, stat.name))) == 1:
+                        elif len(user_with_id_matches := re.findall(user_with_id_traffic_regex, stat.name)) == 1:
                             profile_id = str(user_with_id_matches[0][0])
                             period_id = str(user_with_id_matches[0][1])
                             user_id = str(user_with_id_matches[0][2])
                             downlink_or_uplink = user_with_id_matches[0][3]
-                        set_profile_last_stat(sub_profile_id=profile_id, sub_profile_period_id=period_id, collect_time=collect_time)
+                        set_profile_last_stat(
+                            sub_profile_id=profile_id, sub_profile_period_id=period_id, collect_time=collect_time
+                        )
                         key = f"{profile_id}.{period_id}"
 
                         point = user_points.get(key)
@@ -135,7 +143,7 @@ def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str,
                             point.field("up_bytes", stat.value)
                         else:
                             raise AssertionError(f"{stat.value=} is not downlink or uplink")
-                    elif len((inbound_matches := re.findall(inbound_traffic_regex, stat.name))) == 1:
+                    elif len(inbound_matches := re.findall(inbound_traffic_regex, stat.name)) == 1:
                         inbound_tag = inbound_matches[0][0]
                         downlink_or_uplink = inbound_matches[0][1]
                         point = inbound_points.get(inbound_tag)
@@ -156,7 +164,7 @@ def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str,
                             point.field("up_bytes", stat.value)
                         else:
                             raise AssertionError(f"{stat.value=} is not downlink or uplink")
-                    elif len((outbound_matches := re.findall(outbound_traffic_regex, stat.name))) == 1:
+                    elif len(outbound_matches := re.findall(outbound_traffic_regex, stat.name)) == 1:
                         outbound_tag = outbound_matches[0][0]
                         downlink_or_uplink = outbound_matches[0][1]
                         point = outbound_points.get(outbound_tag)
@@ -264,6 +272,7 @@ def send_to_loki(streams: list[typing.LokiStram]):
         if not res.ok:
             raise Exception(f"faild send to Loki, {res.text=}")
 
+
 @app.task(soft_time_limit=10 * 60)
 def ansible_deploy_node(node_id: int):
     celery_task_id = current_task.request.id
@@ -279,12 +288,14 @@ def ansible_deploy_node(node_id: int):
 
     extravars = {
         "install_dir": str(pathlib.Path(o2spec.working_dir).parent),
-        "smallO2_binary_download_url": urllib.parse.urljoin(o2spec.sync_domain, reverse("node_manager:node_program_binary_content_by_hash", args=[o2_binary.hash])),
+        "smallO2_binary_download_url": urllib.parse.urljoin(
+            o2spec.sync_domain, reverse("node_manager:node_program_binary_content_by_hash", args=[o2_binary.hash])
+        ),
         "smallO2_binary_sha256": o2_binary.hash,
         "api_key": o2spec.api_key,
         "interval_sec": o2spec.interval_sec,
         "sync_url": o2spec.sync_url,
-        "sentry_dsn": o2spec.sentry_dsn
+        "sentry_dsn": o2spec.sentry_dsn,
     }
 
     an_task_obj = models.AnsibleTask()
@@ -318,9 +329,7 @@ def ansible_deploy_node(node_id: int):
     with open(playbook_path, "w") as f:
         f.write(deploy_content)
 
-    ansibletasknode_mapping = {
-        str(ip): ansibletasknode_obj
-    }
+    ansibletasknode_mapping = {str(ip): ansibletasknode_obj}
 
     current_python_path = sys.executable
     # ansible is installed in this python env so
@@ -332,14 +341,18 @@ def ansible_deploy_node(node_id: int):
         inventory=str(inventory_path),
     )
     for event in runner.events:
-        an_task_obj.logs += ("\n" + event["stdout"])
-        if (event_data := event.get("event_data")) and (host_key := event_data.get("host")) and (event["event"] != "runner_on_start"):
+        an_task_obj.logs += "\n" + event["stdout"]
+        if (
+            (event_data := event.get("event_data"))
+            and (host_key := event_data.get("host"))
+            and (event["event"] != "runner_on_start")
+        ):
             related_ansibletasknode_obj = ansibletasknode_mapping[host_key]
             related_ansibletasknode_obj.result = related_ansibletasknode_obj.result or {}
             related_ansibletasknode_obj.result["tasks"] = related_ansibletasknode_obj.result.get("tasks", [])
             related_ansibletasknode_obj.result["tasks"].append({event_data["task"]: event})
             related_ansibletasknode_obj.save()
-        elif event.get("event") == 'playbook_on_stats':
+        elif event.get("event") == "playbook_on_stats":
             an_task_obj.result = event
         an_task_obj.save()
     thread.join()

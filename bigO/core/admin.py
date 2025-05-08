@@ -194,7 +194,7 @@ class PrivateKeyModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.M
 class DomainCertificateInline(admin.StackedInline):
     extra = 1
     model = models.DomainCertificate
-    autocomplete_fields = "certificate",
+    autocomplete_fields = ("certificate",)
 
 
 @admin.register(models.Certificate)
@@ -209,7 +209,7 @@ class CertificateModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.
     )
     search_fields = ["slug", "certbot_info__cert_name"]
     autocomplete_fields = ["private_key", "parent_certificate"]
-    inlines = DomainCertificateInline,
+    inlines = (DomainCertificateInline,)
 
     @admin.display(ordering="private_key")
     def private_key_display(self, obj):
@@ -304,10 +304,10 @@ class CertbotInfoModelAdmin(admin.ModelAdmin):
 @admin.register(models.Domain)
 class DomainModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.ModelAdmin):
     list_display = ("__str__", "name", "root", "dns_provider")
-    list_filter = "is_root",
-    search_fields = "name",
+    list_filter = ("is_root",)
+    search_fields = ("name",)
     actions = ["issue_certificate"]
-    autocomplete_fields = "root",
+    autocomplete_fields = ("root",)
     inlines = [DomainCertificateInline]
 
     @admin.action(description="Issue A valid Certificate")

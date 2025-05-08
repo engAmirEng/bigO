@@ -1,52 +1,21 @@
 import datetime
 import logging
+import pathlib
 from collections import defaultdict
 from hashlib import sha256
 
 import django.template
-from django.urls import reverse
-
 from bigO.core import models as core_models
 from bigO.node_manager import models as node_manager_models
-from bigO.node_manager import services as node_manager_services, typing as node_manager_typing
+from bigO.node_manager import services as node_manager_services
 from bigO.node_manager import typing as node_manager_typing
 from django.db.models import Q
+from django.urls import reverse
 from django.utils import timezone
-import pathlib
+
 from . import models
 
 logger = logging.getLogger(__name__)
-
-def get_sync_node(node: node_manager_models.Node) -> list:
-    from xtlsapi import XrayClient, exception, utils
-
-    # language=json lines
-    template = """
-    {
-        "inbounds": [
-            {
-                "tag": "h2-vless-grpc-new",
-                "listen": "/opt/hiddify-config/xray/run/vlessg.sock,666",
-                "protocol": "vless",
-                "settings": {
-                    "clients": [
-                        {"id": "defaultuserguidsecret", "email": "defaultuserguidsecret@hiddify.com"}
-                    ],
-                  "decryption": "none"
-                },
-                "streamSettings": {
-                    "network": "grpc",
-                    "security": "none",
-                    "grpcSettings": {
-                        "serviceName": "PATH_VLESSPATH_GRPC"
-                    }
-                }
-              }
-        ]
-    }
-    """
-
-    return
 
 
 def get_proxy_manager_nginx_conf_v1(node_obj) -> tuple[str, str, dict] | None:
@@ -60,15 +29,22 @@ def get_proxy_manager_nginx_conf_v1(node_obj) -> tuple[str, str, dict] | None:
     nginx_config_stream_result = django.template.Template(nginx_config_stream_template).render(context=context)
     return nginx_config_http_result, nginx_config_stream_result, context.get("deps", {"globals": []})
 
-def get_proxy_manager_nginx_conf_v2(node_obj, node_work_dir: pathlib.Path, base_url: str) -> tuple[str, str, list[node_manager_typing.FileSchema]] | None:
+
+def get_proxy_manager_nginx_conf_v2(
+    node_obj, node_work_dir: pathlib.Path, base_url: str
+) -> tuple[str, str, list[node_manager_typing.FileSchema]] | None:
     if not node_obj.tmp_xray:
         return None
     proxy_manager_config = models.Config.objects.get()
-    template_context = node_manager_services.NodeTemplateContext({"node_obj": node_obj}, node_work_dir=node_work_dir, base_url=base_url)
+    template_context = node_manager_services.NodeTemplateContext(
+        {"node_obj": node_obj}, node_work_dir=node_work_dir, base_url=base_url
+    )
     nginx_config_http_template = "{% load node_manager %}" + proxy_manager_config.nginx_config_http_template
     nginx_config_http_result = django.template.Template(nginx_config_http_template).render(context=template_context)
     nginx_config_stream_template = "{% load node_manager %}" + proxy_manager_config.nginx_config_stream_template
-    nginx_config_stream_result = django.template.Template(nginx_config_stream_template).render(context=template_context)
+    nginx_config_stream_result = django.template.Template(nginx_config_stream_template).render(
+        context=template_context
+    )
     new_files = node_manager_services.get_configdependentcontents_from_context(template_context)
     return nginx_config_http_result, nginx_config_stream_result, new_files
 
@@ -181,7 +157,9 @@ def get_xray_conf_v1(node_obj) -> tuple[str, str, dict] | None:
     return run_opt, result, context.get("deps", {"globals": []})
 
 
-def get_xray_conf_v2(node_obj, node_work_dir: pathlib.Path, base_url: str) -> tuple[str, list[node_manager_typing.FileSchema]] | None:
+def get_xray_conf_v2(
+    node_obj, node_work_dir: pathlib.Path, base_url: str
+) -> tuple[str, list[node_manager_typing.FileSchema]] | None:
     site_config: core_models.SiteConfiguration = core_models.SiteConfiguration.objects.get()
     if not node_obj.tmp_xray:
         return None
@@ -226,7 +204,9 @@ def get_xray_conf_v2(node_obj, node_work_dir: pathlib.Path, base_url: str) -> tu
             consumers_part = ""
             for subscriptionperiod_obj in subscriptionperiods_obj_list:
                 all_subscriptionperiod_obj[subscriptionperiod_obj.id] = subscriptionperiod_obj
-                template_context = node_manager_services.NodeTemplateContext({"subscriptionperiod_obj": subscriptionperiod_obj}, node_work_dir=node_work_dir, base_url=base_url)
+                template_context = node_manager_services.NodeTemplateContext(
+                    {"subscriptionperiod_obj": subscriptionperiod_obj}, node_work_dir=node_work_dir, base_url=base_url
+                )
                 consumer_obj = django.template.Template(
                     "{% load node_manager proxy_manager %}" + inbound.consumer_obj_template
                 ).render(context=template_context)
@@ -236,7 +216,11 @@ def get_xray_conf_v2(node_obj, node_work_dir: pathlib.Path, base_url: str) -> tu
                     consumers_part += ",\n"
                 consumers_part += consumer_obj
 
-            template_context = node_manager_services.NodeTemplateContext({"node": node_obj, "inbound_tag": inbound_tag, "consumers_part": consumers_part}, node_work_dir=node_work_dir, base_url=base_url)
+            template_context = node_manager_services.NodeTemplateContext(
+                {"node": node_obj, "inbound_tag": inbound_tag, "consumers_part": consumers_part},
+                node_work_dir=node_work_dir,
+                base_url=base_url,
+            )
             xray_inbound = django.template.Template(
                 "{% load node_manager proxy_manager %}" + inbound.inbound_template
             ).render(context=template_context)
@@ -247,7 +231,11 @@ def get_xray_conf_v2(node_obj, node_work_dir: pathlib.Path, base_url: str) -> tu
                 inbound_parts += ",\n"
             inbound_parts += xray_inbound
 
-        template_context = node_manager_services.NodeTemplateContext({"node": node_obj, "inbound_tags": inbound_tags, "outbound_tags": [i["tag"] for i in xray_outbounds]}, node_work_dir=node_work_dir, base_url=base_url)
+        template_context = node_manager_services.NodeTemplateContext(
+            {"node": node_obj, "inbound_tags": inbound_tags, "outbound_tags": [i["tag"] for i in xray_outbounds]},
+            node_work_dir=node_work_dir,
+            base_url=base_url,
+        )
         xray_rules = django.template.Template(
             "{% load node_manager proxy_manager %}" + connection_rule.xray_rules_template
         ).render(context=template_context)
@@ -261,7 +249,8 @@ def get_xray_conf_v2(node_obj, node_work_dir: pathlib.Path, base_url: str) -> tu
         consumers_part = ""
         for i, v in all_subscriptionperiod_obj.items():
             template_context = node_manager_services.NodeTemplateContext(
-                {"subscriptionperiod_obj": v}, node_work_dir=node_work_dir, base_url=base_url)
+                {"subscriptionperiod_obj": v}, node_work_dir=node_work_dir, base_url=base_url
+            )
             consumer_obj = django.template.Template(
                 "{% load node_manager proxy_manager %}" + inbound.consumer_obj_template
             ).render(context=template_context)
@@ -269,7 +258,9 @@ def get_xray_conf_v2(node_obj, node_work_dir: pathlib.Path, base_url: str) -> tu
                 consumers_part += ",\n"
             consumers_part += consumer_obj
 
-        template_context = node_manager_services.NodeTemplateContext({"node": node_obj, "consumers_part": consumers_part}, node_work_dir=node_work_dir, base_url=base_url)
+        template_context = node_manager_services.NodeTemplateContext(
+            {"node": node_obj, "consumers_part": consumers_part}, node_work_dir=node_work_dir, base_url=base_url
+        )
         xray_inbound = django.template.Template("{% load node_manager %}" + inbound.inbound_template).render(
             context=template_context
         )
@@ -279,13 +270,17 @@ def get_xray_conf_v2(node_obj, node_work_dir: pathlib.Path, base_url: str) -> tu
             inbound_parts += ",\n"
         inbound_parts += xray_inbound
 
-    template_context = node_manager_services.NodeTemplateContext({
+    template_context = node_manager_services.NodeTemplateContext(
+        {
             "node": node_obj,
             "inbound_parts": inbound_parts,
             "rule_parts": rule_parts,
             "outbound_parts": [i["conf"] for i in xray_outbounds],
             "balancer_parts": balancer_parts,
-        }, node_work_dir=node_work_dir, base_url=base_url)
+        },
+        node_work_dir=node_work_dir,
+        base_url=base_url,
+    )
     xray_config_template = "{% load node_manager proxy_manager %}" + proxy_manager_config.xray_config_template
     xray_config_content = django.template.Template(xray_config_template).render(context=template_context)
     xray_config_content_hash = sha256(xray_config_content.encode("utf-8")).hexdigest()
@@ -318,7 +313,7 @@ def get_xray_conf_v2(node_obj, node_work_dir: pathlib.Path, base_url: str) -> tu
         url = base_url + reverse("node_manager:node_program_binary_content_by_hash", args=[geosite_file.hash])
         files.append(
             node_manager_typing.FileSchema(
-                dest_path=assets_dir.joinpath(f"geosite.dat"),
+                dest_path=assets_dir.joinpath("geosite.dat"),
                 url=url,
                 hash=geosite_file.hash,
                 permission=node_manager_services.all_permission,
@@ -328,7 +323,7 @@ def get_xray_conf_v2(node_obj, node_work_dir: pathlib.Path, base_url: str) -> tu
         url = base_url + reverse("node_manager:node_program_binary_content_by_hash", args=[geoip_file.hash])
         files.append(
             node_manager_typing.FileSchema(
-                dest_path=assets_dir.joinpath(f"geoip.dat"),
+                dest_path=assets_dir.joinpath("geoip.dat"),
                 url=url,
                 hash=geoip_file.hash,
                 permission=node_manager_services.all_permission,
@@ -353,7 +348,10 @@ def get_agent_current_subscriptionperiods_qs(agent: models.Agent):
         profile__initial_agency_id=agent.agency_id, selected_as_current=True
     )
 
-def set_profile_last_stat(sub_profile_id: str, sub_profile_period_id: str, collect_time: datetime.datetime) -> models.SubscriptionPeriod:
+
+def set_profile_last_stat(
+    sub_profile_id: str, sub_profile_period_id: str, collect_time: datetime.datetime
+) -> models.SubscriptionPeriod:
     subscriptionperiod = models.SubscriptionPeriod.objects.get(id=sub_profile_period_id, profile_id=sub_profile_id)
     if subscriptionperiod.first_usage_at is None:
         subscriptionperiod.first_usage_at = collect_time

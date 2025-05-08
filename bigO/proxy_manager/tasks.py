@@ -2,22 +2,30 @@ from datetime import timedelta
 
 import influxdb_client
 import sentry_sdk
+
+from config.celery_app import app
 from django.conf import settings
 from django.db import transaction
 from django.db.models import F, Q
 from django.utils import timezone
 
 from . import models
-from config.celery_app import app
+
+
 @app.task
 def sync_usage():
     if not getattr(settings, "INFLUX_URL", False):
         return "no INFLUX_URL"
     # todo transaction.atomic(using="main") and select_for_update() had bug
     count = 0
-    subscriptionperiod_qs = models.SubscriptionPeriod.objects.using("main").filter(
-        Q(last_usage_at__gt=F("last_flow_sync_at") + timedelta(minutes=1)) | Q(last_usage_at__isnull=False, last_flow_sync_at__isnull=True)
-    ).order_by("last_flow_sync_at")[:10]
+    subscriptionperiod_qs = (
+        models.SubscriptionPeriod.objects.using("main")
+        .filter(
+            Q(last_usage_at__gt=F("last_flow_sync_at") + timedelta(minutes=1))
+            | Q(last_usage_at__isnull=False, last_flow_sync_at__isnull=True)
+        )
+        .order_by("last_flow_sync_at")[:10]
+    )
     if not subscriptionperiod_qs.exists():
         return "nothing to do"
     for subscriptionperiod in subscriptionperiod_qs:
@@ -34,8 +42,13 @@ from(bucket: "{settings.INFLUX_BUCKET}")
 |> group(columns: ["_field"])  // group by _field to sum separately
 |> sum()
 """
-        df = influxdb_client.InfluxDBClient(
-            url=settings.INFLUX_URL, token=settings.INFLUX_TOKEN, org=settings.INFLUX_ORG).query_api().query_data_frame(query)
+        df = (
+            influxdb_client.InfluxDBClient(
+                url=settings.INFLUX_URL, token=settings.INFLUX_TOKEN, org=settings.INFLUX_ORG
+            )
+            .query_api()
+            .query_data_frame(query)
+        )
         if df.empty:
             sentry_sdk.capture_message("did data not received by influx yet?")
             continue
@@ -65,10 +78,13 @@ def forward_flow_point(flow_point_delta_seconds: int = 5 * 24 * 60 * 60):
         return "no INFLUX_URL"
     flow_point_delta = timedelta(seconds=flow_point_delta_seconds)
     now = timezone.now()
-    new_flow_point = (now - flow_point_delta)
+    new_flow_point = now - flow_point_delta
     with transaction.atomic(using="main"):
-        subscriptionperiod_qs = models.SubscriptionPeriod.objects.filter(
-            flow_point_at__lt=new_flow_point).order_by("flow_point_at")[:10].select_for_update()
+        subscriptionperiod_qs = (
+            models.SubscriptionPeriod.objects.filter(flow_point_at__lt=new_flow_point)
+            .order_by("flow_point_at")[:10]
+            .select_for_update()
+        )
         if not subscriptionperiod_qs.exists():
             return "nothing to do"
         for subscriptionperiod in subscriptionperiod_qs:
@@ -82,10 +98,13 @@ from(bucket: "{settings.INFLUX_BUCKET}")
 |> group(columns: ["_field"])  // group by _field to sum separately
 |> sum()
 """
-            df = influxdb_client.InfluxDBClient(
-                url=settings.INFLUX_URL, token=settings.INFLUX_TOKEN,
-                org=settings.INFLUX_ORG).query_api().query_data_frame(
-                query=query)
+            df = (
+                influxdb_client.InfluxDBClient(
+                    url=settings.INFLUX_URL, token=settings.INFLUX_TOKEN, org=settings.INFLUX_ORG
+                )
+                .query_api()
+                .query_data_frame(query=query)
+            )
             if not df.empty:
                 between_download_bytes = df[df["_field"] == "dl_bytes"].iloc[0].to_dict()["_value"]
                 between_upload_bytes = df[df["_field"] == "up_bytes"].iloc[0].to_dict()["_value"]

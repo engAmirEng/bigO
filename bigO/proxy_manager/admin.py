@@ -1,10 +1,10 @@
-from django.urls import reverse
-from django.utils.html import format_html
 from solo.admin import SingletonModelAdmin
 
 from django.contrib import admin
 from django.contrib.humanize.templatetags.humanize import naturaltime
 from django.template.defaultfilters import filesizeformat
+from django.urls import reverse
+from django.utils.html import format_html
 
 from . import forms, models
 
