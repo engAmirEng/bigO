@@ -126,7 +126,6 @@ THIRD_PARTY_APPS = clean_ellipsis(
         "django_celery_results",
         "django_filters",
         "django_htmx",
-        "django_jalali",
         "django_json_widget",
         "django_jsonform",
         "django_vite",

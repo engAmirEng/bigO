@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "1bfd28db5c94303f843a0b9e2b88eb69a09bc305b1b77355545068d721fef6a7"
+            "sha256": "0bae9ac2339334e524ad9ca914f0f28e5d1dc606b2b330a9f51a9e2abb9e436a"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -729,14 +729,6 @@
             "markers": "python_version >= '3.9'",
             "version": "==1.21.0"
         },
-        "django-jalali": {
-            "hashes": [
-                "sha256:b7472b5bb54a3545607f6c5e03f2778bd555f79015a77e06670a3d9d4045e7e1",
-                "sha256:c1beb70625e5f34f79df488f25073e45049194a0d4193e0e0348369a425c4fb0"
-            ],
-            "index": "pypi",
-            "version": "==7.4.0"
-        },
         "django-json-widget": {
             "hashes": [
                 "sha256:adb4cab17fe5a04139037d7d84725369530ef35b912c3790d3a7b13f99351358"
@@ -1095,6 +1087,7 @@
                 "sha256:c81d5898717b82b609a3ce2a73f8b8d3230b0c757e5c0de9d6b1acfdc224f551",
                 "sha256:d4aa73543e4e6c0e6122b58743773168edee5efe5c5acf05d1dc8c90524ca71c"
             ],
+            "index": "pypi",
             "markers": "python_version >= '3.9'",
             "version": "==5.2.0"
         },
