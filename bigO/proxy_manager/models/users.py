@@ -22,6 +22,7 @@ class Agent(TimeStampedModel, models.Model):
     is_active = models.BooleanField()
 
     class Meta:
+        ordering = ["-created_at"]
         constraints = [UniqueConstraint(fields=("user", "agency"), name="unique_user_agency")]
 
 
@@ -92,6 +93,7 @@ class SubscriptionPeriod(TimeStampedModel, models.Model):
     objects = SubscriptionPeriodQuerySet.as_manager()
 
     class Meta:
+        ordering = ["-created_at"]
         constraints = [
             UniqueConstraint(
                 fields=("profile",), condition=Q(selected_as_current=True), name="one_selected_as_current_each_profile"

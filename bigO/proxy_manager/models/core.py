@@ -51,6 +51,7 @@ class NodeOutbound(TimeStampedModel, models.Model):
     xray_outbound_template = models.TextField(help_text="{{ node }}")
 
     class Meta:
+        ordering = ["-created_at"]
         constraints = [UniqueConstraint(fields=("name", "node"), name="unique_name_node")]
 
     def __str__(self):

@@ -216,6 +216,7 @@ class NodePublicIP(TimeStampedModel):
     ip = models.ForeignKey(PublicIP, on_delete=models.CASCADE, related_name="ip_nodepublicips")
 
     class Meta:
+        ordering = ["-created_at"]
         constraints = [UniqueConstraint(fields=("ip", "node"), name="unique_node_ip")]
 
     def __str__(self):
@@ -242,6 +243,7 @@ class ProgramVersion(TimeStampedModel):
     version = models.CharField(max_length=63)
 
     class Meta:
+        ordering = ["-created_at"]
         constraints = [UniqueConstraint(fields=("program", "version"), name="unique_program_version")]
 
     def get_program_for_node(self, node: Node) -> NodeInnerProgram | ProgramBinary | None:
@@ -285,6 +287,7 @@ class CustomConfigDependantFile(TimeStampedModel, models.Model):
     name_extension = models.CharField(max_length=15, null=True, blank=True)
 
     class Meta:
+        ordering = ["-created_at"]
         constraints = [
             UniqueConstraint(fields=("customconfig", "key"), name="unique_slug_customconfig"),
         ]
@@ -318,6 +321,7 @@ class NodeCustomConfig(TimeStampedModel):
     )
 
     class Meta:
+        ordering = ["-created_at"]
         constraints = [UniqueConstraint(fields=("node", "custom_config"), name="unique_node_custom_config")]
 
     def get_program(self) -> NodeInnerProgram | ProgramBinary | None:
@@ -563,6 +567,7 @@ class EasyTierNodePeer(TimeStampedModel):
     peer_public_ip = models.ForeignKey(NodePublicIP, on_delete=models.CASCADE, related_name="peerpublicip_nodepeers")
 
     class Meta:
+        ordering = ["-created_at"]
         constraints = [
             UniqueConstraint(
                 fields=("node", "peer_listener", "peer_public_ip"), name="unique_peer_listener_peer_public_ip_per_node"
@@ -603,6 +608,7 @@ class ProgramBinary(TimeStampedModel):
     hash = models.CharField(max_length=64, blank=False, db_index=True)
 
     class Meta:
+        ordering = ["-created_at"]
         constraints = [
             UniqueConstraint(
                 fields=("architecture", "program_version"),
@@ -630,6 +636,7 @@ class NodeInnerProgram(TimeStampedModel):
     )
 
     class Meta:
+        ordering = ["-created_at"]
         constraints = [
             UniqueConstraint(
                 fields=("path", "node"),

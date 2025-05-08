@@ -89,6 +89,7 @@ class Certificate(AbstractCryptographicObject, TimeStampedModel, models.Model):
     )
 
     class Meta:
+        ordering = ["-created_at"]
         constraints = [
             CheckConstraint(
                 check=Q(Q(is_ca=False) | Q(parent_certificate__isnull=True)),
@@ -146,6 +147,7 @@ class Domain(TimeStampedModel, models.Model):
     root = models.ForeignKey("self", on_delete=models.PROTECT, related_name="subdomains", null=True, blank=True)
 
     class Meta:
+        ordering = ["-created_at"]
         constraints = [
             CheckConstraint(
                 check=Q(Q(root__isnull=True) | Q(is_root=False)),
