@@ -13,7 +13,7 @@ from . import models
 
 
 @app.task
-def sync_usage():
+def sync_usage(regulate_seconds: int = 1 * 60 * 60):
     if not getattr(settings, "INFLUX_URL", False):
         return "no INFLUX_URL"
     # todo transaction.atomic(using="main") and select_for_update() had bug
@@ -31,7 +31,7 @@ def sync_usage():
     for subscriptionperiod in subscriptionperiod_qs:
         now = timezone.now()
         if subscriptionperiod.flow_point_at is None:
-            subscriptionperiod.flow_point_at = now
+            subscriptionperiod.flow_point_at = now - timedelta(seconds=regulate_seconds)
         query = f"""
 from(bucket: "{settings.INFLUX_BUCKET}")
 |> range(start: {subscriptionperiod.flow_point_at.strftime('%Y-%m-%dT%H:%M:%SZ')})
