@@ -302,7 +302,7 @@ def get_global_haproxy_conf_v1(node: models.Node) -> tuple[str, str, dict] | Non
 
 
 def get_global_haproxy_conf_v2(
-    node_obj, node_work_dir: pathlib.Path, base_url: str
+    node_obj, xray_backends_parts: list, xray_80_matchers_parts: list, xray_443_matchers_parts: list, node_work_dir: pathlib.Path, base_url: str
 ) -> tuple[str, list[typing.FileSchema]] | None:
     site_config: core_models.SiteConfiguration = core_models.SiteConfiguration.objects.get()
     if site_config.main_haproxy is None:
@@ -329,18 +329,9 @@ def get_global_haproxy_conf_v2(
     files = []
     files.append(haproxy_program_file)
 
-    from bigO.proxy_manager.models import InboundType
-
-    xray_backends_part = ""
-    xray_80_matchers_part = ""
-    xray_443_matchers_part = ""
-    for inbound in InboundType.objects.filter(is_active=True):
-        if inbound.haproxy_backend:
-            xray_backends_part += "\n" + inbound.haproxy_backend
-        if inbound.haproxy_matcher_80:
-            xray_80_matchers_part += "\n" + inbound.haproxy_matcher_80
-        if inbound.haproxy_matcher_443:
-            xray_443_matchers_part += "\n" + inbound.haproxy_matcher_443
+    xray_backends_part = "\n".join(xray_backends_parts)
+    xray_80_matchers_part = "\n".join(xray_80_matchers_parts)
+    xray_443_matchers_part = "\n".join(xray_443_matchers_parts)
 
     template_context = NodeTemplateContext(
         {
@@ -497,7 +488,7 @@ http {
 
 
 def get_global_nginx_conf_v2(
-    node_obj, node_work_dir: pathlib.Path, base_url: str
+    node_obj, xray_path_matchers_parts: list, node_work_dir: pathlib.Path, base_url: str,
 ) -> tuple[str, list[typing.FileSchema]] | None:
     site_config: core_models.SiteConfiguration = core_models.SiteConfiguration.objects.get()
     if site_config.main_nginx is None:
@@ -537,7 +528,7 @@ def get_global_nginx_conf_v2(
         files.extend(new_files)
         usage = True
     proxy_manager_nginx_conf = services_models.get_proxy_manager_nginx_conf_v2(
-        node_obj=node_obj, node_work_dir=node_work_dir, base_url=base_url
+        node_obj=node_obj, xray_path_matchers_parts=xray_path_matchers_parts, node_work_dir=node_work_dir, base_url=base_url
     )
     if proxy_manager_nginx_conf and (proxy_manager_nginx_conf[0] or proxy_manager_nginx_conf[1]):
         http_part += proxy_manager_nginx_conf[0]

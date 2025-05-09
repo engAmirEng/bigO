@@ -10,6 +10,9 @@ register = template.Library()
     takes_context=True,
 )
 def nginx_include_xtls_paths(context):
+    """
+    deprecated
+    """
     res_parts = []
     for inbound in models.InboundType.objects.filter(is_active=True):
         res_parts.append(inbound.nginx_path_config)

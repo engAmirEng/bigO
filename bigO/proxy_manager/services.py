@@ -31,13 +31,13 @@ def get_proxy_manager_nginx_conf_v1(node_obj) -> tuple[str, str, dict] | None:
 
 
 def get_proxy_manager_nginx_conf_v2(
-    node_obj, node_work_dir: pathlib.Path, base_url: str
+    node_obj, xray_path_matchers_parts: list, node_work_dir: pathlib.Path, base_url: str
 ) -> tuple[str, str, list[node_manager_typing.FileSchema]] | None:
     if not node_obj.tmp_xray:
         return None
     proxy_manager_config = models.Config.objects.get()
     template_context = node_manager_services.NodeTemplateContext(
-        {"node_obj": node_obj}, node_work_dir=node_work_dir, base_url=base_url
+        {"node_obj": node_obj, "xray_path_matchers": "\n".join(xray_path_matchers_parts)}, node_work_dir=node_work_dir, base_url=base_url
     )
     nginx_config_http_template = "{% load node_manager %}" + proxy_manager_config.nginx_config_http_template
     nginx_config_http_result = django.template.Template(nginx_config_http_template).render(context=template_context)
@@ -159,7 +159,7 @@ def get_xray_conf_v1(node_obj) -> tuple[str, str, dict] | None:
 
 def get_xray_conf_v2(
     node_obj, node_work_dir: pathlib.Path, base_url: str
-) -> tuple[str, list[node_manager_typing.FileSchema]] | None:
+) -> tuple[str, list[node_manager_typing.FileSchema], dict[str, list]] | None:
     site_config: core_models.SiteConfiguration = core_models.SiteConfiguration.objects.get()
     if not node_obj.tmp_xray:
         return None
@@ -187,6 +187,11 @@ def get_xray_conf_v2(
     files = []
     files.append(xray_program_file)
 
+    haproxy_backends_parts = []
+    haproxy_80_matchers_parts = []
+    haproxy_443_matchers_parts = []
+    nginx_path_matchers_parts = []
+
     proxy_manager_config = models.Config.objects.get()
     inbound_parts = ""
     rule_parts = ""
@@ -199,7 +204,7 @@ def get_xray_conf_v2(
             get_connectable_subscriptionperiod_qs().filter(plan__connection_rule=connection_rule)
         )
         inbound_tags = []
-        for inbound in models.InboundType.objects.filter(is_active=True, is_template=True):
+        for inbound in models.InboundType.objects.filter(is_active=True):
             inbound_tag = f"{inbound.name}-{connection_rule.id}"
             consumers_part = ""
             for subscriptionperiod_obj in subscriptionperiods_obj_list:
@@ -217,7 +222,7 @@ def get_xray_conf_v2(
                 consumers_part += consumer_obj
 
             template_context = node_manager_services.NodeTemplateContext(
-                {"node": node_obj, "inbound_tag": inbound_tag, "consumers_part": consumers_part},
+                {"node": node_obj, "connection_rule": connection_rule, "inbound_tag": inbound_tag, "consumers_part": consumers_part},
                 node_work_dir=node_work_dir,
                 base_url=base_url,
             )
@@ -230,6 +235,23 @@ def get_xray_conf_v2(
             if inbound_parts:
                 inbound_parts += ",\n"
             inbound_parts += xray_inbound
+
+            if inbound.haproxy_backend:
+                haproxy_backends_parts.append(
+                    django.template.Template(inbound.haproxy_backend).render(django.template.Context({"connection_rule": connection_rule}))
+                )
+            if inbound.haproxy_matcher_80:
+                haproxy_80_matchers_parts.append(
+                    django.template.Template(inbound.haproxy_matcher_80).render(django.template.Context({"connection_rule": connection_rule}))
+                )
+            if inbound.haproxy_matcher_443:
+                haproxy_443_matchers_parts.append(
+                    django.template.Template(inbound.haproxy_matcher_443).render(django.template.Context({"connection_rule": connection_rule}))
+                )
+            if inbound.nginx_path_config:
+                nginx_path_matchers_parts.append(
+                    django.template.Template(inbound.nginx_path_config).render(django.template.Context({"connection_rule": connection_rule}))
+                )
 
         template_context = node_manager_services.NodeTemplateContext(
             {"node": node_obj, "inbound_tags": inbound_tags, "outbound_tags": [i["tag"] for i in xray_outbounds]},
@@ -244,31 +266,6 @@ def get_xray_conf_v2(
         if rule_parts:
             rule_parts += ", \n"
         rule_parts += xray_rules
-
-    for inbound in models.InboundType.objects.filter(is_active=True, is_template=False):
-        consumers_part = ""
-        for i, v in all_subscriptionperiod_obj.items():
-            template_context = node_manager_services.NodeTemplateContext(
-                {"subscriptionperiod_obj": v}, node_work_dir=node_work_dir, base_url=base_url
-            )
-            consumer_obj = django.template.Template(
-                "{% load node_manager proxy_manager %}" + inbound.consumer_obj_template
-            ).render(context=template_context)
-            if consumers_part:
-                consumers_part += ",\n"
-            consumers_part += consumer_obj
-
-        template_context = node_manager_services.NodeTemplateContext(
-            {"node": node_obj, "consumers_part": consumers_part}, node_work_dir=node_work_dir, base_url=base_url
-        )
-        xray_inbound = django.template.Template("{% load node_manager %}" + inbound.inbound_template).render(
-            context=template_context
-        )
-        new_files = node_manager_services.get_configdependentcontents_from_context(template_context)
-        files.extend(new_files)
-        if inbound_parts:
-            inbound_parts += ",\n"
-        inbound_parts += xray_inbound
 
     template_context = node_manager_services.NodeTemplateContext(
         {
@@ -340,7 +337,12 @@ autostart=true
 autorestart=true
 priority=10
 """
-    return supervisor_config, files
+    return supervisor_config, files, {
+        "haproxy_backends_parts": haproxy_backends_parts,
+        "haproxy_80_matchers_parts": haproxy_80_matchers_parts,
+        "haproxy_443_matchers_parts": haproxy_443_matchers_parts,
+        "nginx_path_matchers_parts": nginx_path_matchers_parts
+    }
 
 
 def get_agent_current_subscriptionperiods_qs(agent: models.Agent):

@@ -433,6 +433,10 @@ async def node_base_sync_v2(request: HttpRequest):
         supervisor_config += telegraf[0]
         files.extend(telegraf[1])
 
+    haproxy_xray_backends_parts = []
+    haproxy_xray_80_matchers_parts = []
+    haproxy_xray_443_matchers_parts = []
+    nginx_xray_path_matchers_parts = []
     try:
         xray = await sync_to_async(proxy_manager_services.get_xray_conf_v2)(
             node_obj=node_obj, node_work_dir=node_config.working_dir, base_url=next_base_url
@@ -444,10 +448,19 @@ async def node_base_sync_v2(request: HttpRequest):
         if xray:
             supervisor_config += xray[0]
             files.extend(xray[1])
+            haproxy_xray_backends_parts = xray[2]["haproxy_backends_parts"]
+            haproxy_xray_80_matchers_parts = xray[2]["haproxy_80_matchers_parts"]
+            haproxy_xray_443_matchers_parts = xray[2]["haproxy_443_matchers_parts"]
+            nginx_xray_path_matchers_parts = xray[2]["nginx_path_matchers_parts"]
 
     try:
         haproxy = await sync_to_async(services.get_global_haproxy_conf_v2)(
-            node_obj=node_obj, node_work_dir=node_config.working_dir, base_url=next_base_url
+            node_obj=node_obj,
+            xray_backends_parts=haproxy_xray_backends_parts,
+            xray_80_matchers_parts=haproxy_xray_80_matchers_parts,
+            xray_443_matchers_parts=haproxy_xray_443_matchers_parts,
+            node_work_dir=node_config.working_dir,
+            base_url=next_base_url
         )
     except services.ProgramNotFound as e:
         logger.critical(f"no program of {e.program_version=} found for {node_obj=}")
@@ -459,7 +472,7 @@ async def node_base_sync_v2(request: HttpRequest):
 
     try:
         nginx = await sync_to_async(services.get_global_nginx_conf_v2)(
-            node_obj=node_obj, node_work_dir=node_config.working_dir, base_url=next_base_url
+            node_obj=node_obj, xray_path_matchers_parts=nginx_xray_path_matchers_parts, node_work_dir=node_config.working_dir, base_url=next_base_url
         )
     except services.ProgramNotFound as e:
         logger.critical(f"no program of {e.program_version=} found for {node_obj=}")

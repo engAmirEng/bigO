@@ -6,7 +6,7 @@ from django.db.models import UniqueConstraint
 
 
 class Config(TimeStampedModel, SingletonModel):
-    nginx_config_http_template = models.TextField(null=True, blank=False, help_text="{{ node_obj }}")
+    nginx_config_http_template = models.TextField(null=True, blank=False, help_text="{{ node_obj, xray_path_matchers }}")
     nginx_config_stream_template = models.TextField(null=True, blank=False, help_text="{{ node_obj }}")
     xray_config_template = models.TextField(
         null=True, blank=False, help_text="{{ node, inbound_parts, rule_parts, balancer_parts }}"
@@ -74,13 +74,13 @@ class InboundType(TimeStampedModel, models.Model):
     is_active = models.BooleanField(default=True)
     is_template = models.BooleanField(default=False)
     name = models.SlugField()
-    inbound_template = models.TextField(help_text="{{ node_obj, inbound_tag, consumers_part }}")
+    inbound_template = models.TextField(help_text="{{ node_obj, connection_rule, inbound_tag, consumers_part }}")
     consumer_obj_template = models.TextField(help_text="{{ subscriptionperiod_obj }}")
     link_template = models.TextField(blank=True, null=True, help_text="{{ subscriptionperiod_obj }}")
-    nginx_path_config = models.TextField(blank=True, null=True)
-    haproxy_backend = models.TextField(blank=True, null=True)
-    haproxy_matcher_80 = models.TextField(blank=True, null=True)
-    haproxy_matcher_443 = models.TextField(blank=True, null=True)
+    nginx_path_config = models.TextField(blank=True, null=True, help_text="{{ connection_rule }}")
+    haproxy_backend = models.TextField(blank=True, null=True, help_text="{{ connection_rule }}")
+    haproxy_matcher_80 = models.TextField(blank=True, null=True, help_text="{{ connection_rule }}")
+    haproxy_matcher_443 = models.TextField(blank=True, null=True, help_text="{{ connection_rule }}")
 
     def __str__(self):
         return f"{self.pk}-{self.name}"
