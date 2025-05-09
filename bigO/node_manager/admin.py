@@ -210,7 +210,7 @@ class NodeAPIKeyModelAdmin(APIKeyModelAdmin):
 
 @admin.register(models.PublicIP)
 class PublicIPModelAdmin(admin.ModelAdmin):
-    pass
+    search_fields = ("name", "ip")
 
 
 class ProgramVersionInline(admin.StackedInline):

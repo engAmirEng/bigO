@@ -24,15 +24,22 @@ class ISPAdmin(admin.ModelAdmin):
     list_display = ("__str__",)
 
 
+class AgentInline(admin.StackedInline):
+    extra = 1
+    model = models.Agent
+    autocomplete_fields = ("user",)
+
+
 @admin.register(models.Agency)
 class AgencyModelAdmin(admin.ModelAdmin):
     list_display = ("__str__",)
     search_fields = ("name",)
+    inlines = (AgentInline,)
 
 
 @admin.register(models.Agent)
 class AgentModelAdmin(admin.ModelAdmin):
-    list_display = ("__str__",)
+    list_display = ("__str__", "user", "agency", "is_active")
     autocomplete_fields = ("user", "agency")
 
 
