@@ -22,7 +22,6 @@ from django.db.models import Subquery
 from django.http import HttpHeaders
 from django.urls import reverse
 from django.utils import timezone
-from rest_framework.request import Request
 
 from . import models, tasks, typing
 from .typing import FileSchema
@@ -264,7 +263,12 @@ def create_default_cert_for_node(node: models.Node) -> core_models.Certificate:
 
 
 def get_global_haproxy_conf_v2(
-    node_obj, xray_backends_parts: list, xray_80_matchers_parts: list, xray_443_matchers_parts: list, node_work_dir: pathlib.Path, base_url: str
+    node_obj,
+    xray_backends_parts: list,
+    xray_80_matchers_parts: list,
+    xray_443_matchers_parts: list,
+    node_work_dir: pathlib.Path,
+    base_url: str,
 ) -> tuple[str, list[typing.FileSchema]] | None:
     site_config: core_models.SiteConfiguration = core_models.SiteConfiguration.objects.get()
     if site_config.main_haproxy is None:
@@ -450,7 +454,10 @@ http {
 
 
 def get_global_nginx_conf_v2(
-    node_obj, xray_path_matchers_parts: list, node_work_dir: pathlib.Path, base_url: str,
+    node_obj,
+    xray_path_matchers_parts: list,
+    node_work_dir: pathlib.Path,
+    base_url: str,
 ) -> tuple[str, list[typing.FileSchema]] | None:
     site_config: core_models.SiteConfiguration = core_models.SiteConfiguration.objects.get()
     if site_config.main_nginx is None:
@@ -490,7 +497,10 @@ def get_global_nginx_conf_v2(
         files.extend(new_files)
         usage = True
     proxy_manager_nginx_conf = services_models.get_proxy_manager_nginx_conf_v2(
-        node_obj=node_obj, xray_path_matchers_parts=xray_path_matchers_parts, node_work_dir=node_work_dir, base_url=base_url
+        node_obj=node_obj,
+        xray_path_matchers_parts=xray_path_matchers_parts,
+        node_work_dir=node_work_dir,
+        base_url=base_url,
     )
     if proxy_manager_nginx_conf and (proxy_manager_nginx_conf[0] or proxy_manager_nginx_conf[1]):
         http_part += proxy_manager_nginx_conf[0]

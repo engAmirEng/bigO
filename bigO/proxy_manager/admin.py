@@ -181,6 +181,72 @@ class ConnectionRuleModelAdmin(admin.ModelAdmin):
     list_display = ("__str__",)
 
 
+class InboundComboInline(admin.StackedInline):
+    extra = 0
+    model = models.InboundCombo
+
+
 @admin.register(models.InboundType)
-class InboundModelAdmin(admin.ModelAdmin):
+class InboundTypeModelAdmin(admin.ModelAdmin):
+    list_display = ("__str__", "is_active", "is_template")
+    search_fields = ("name", "inbound_template")
+    inlines = (InboundComboInline,)
+
+
+class InboundComboChoiceGroupInline(admin.StackedInline):
+    extra = 1
+    model = models.InboundComboChoiceGroup
+    autocomplete_fields = ("combo",)
+
+
+@admin.register(models.InboundComboGroup)
+class InboundComboGroupModelAdmin(admin.ModelAdmin):
     list_display = ("__str__",)
+    inlines = (InboundComboChoiceGroupInline,)
+
+
+class InboundComboDomainAddressInline(admin.TabularInline):
+    extra = 0
+    model = models.InboundComboDomainAddress
+    autocomplete_fields = ("domain",)
+
+
+class InboundComboIPAddressInline(admin.TabularInline):
+    extra = 0
+    model = models.InboundComboIPAddress
+    autocomplete_fields = ("ip",)
+
+
+class InboundComboDomainSniInline(admin.TabularInline):
+    extra = 0
+    model = models.InboundComboDomainSni
+    autocomplete_fields = ("domain",)
+
+
+class InboundComboDomainHostHeaderInline(admin.TabularInline):
+    extra = 0
+    model = models.InboundComboDomainHostHeader
+    autocomplete_fields = ("domain",)
+
+
+@admin.register(models.InboundCombo)
+class InboundComboModelAdmin(admin.ModelAdmin):
+    list_display = ("__str__", "inbound_type_display", "ports")
+    list_select_related = ("inbound_type",)
+    list_filter = ("inbound_type",)
+    search_fields = ("remark", "inbound_type__name")
+    autocomplete_fields = ("inbound_type",)
+    inlines = (
+        InboundComboDomainAddressInline,
+        InboundComboIPAddressInline,
+        InboundComboDomainSniInline,
+        InboundComboDomainHostHeaderInline,
+    )
+
+    @admin.display(ordering="inbound_type")
+    def inbound_type_display(self, obj):
+        return format_html(
+            "<a href='{}'>{}</a>",
+            reverse("admin:proxy_manager_inboundtype_change", args=[obj.inbound_type.id]),
+            str(obj.inbound_type),
+        )

@@ -402,7 +402,7 @@ async def node_base_sync_v2(request: HttpRequest):
             xray_80_matchers_parts=haproxy_xray_80_matchers_parts,
             xray_443_matchers_parts=haproxy_xray_443_matchers_parts,
             node_work_dir=node_config.working_dir,
-            base_url=next_base_url
+            base_url=next_base_url,
         )
     except services.ProgramNotFound as e:
         logger.critical(f"no program of {e.program_version=} found for {node_obj=}")
@@ -414,7 +414,10 @@ async def node_base_sync_v2(request: HttpRequest):
 
     try:
         nginx = await sync_to_async(services.get_global_nginx_conf_v2)(
-            node_obj=node_obj, xray_path_matchers_parts=nginx_xray_path_matchers_parts, node_work_dir=node_config.working_dir, base_url=next_base_url
+            node_obj=node_obj,
+            xray_path_matchers_parts=nginx_xray_path_matchers_parts,
+            node_work_dir=node_config.working_dir,
+            base_url=next_base_url,
         )
     except services.ProgramNotFound as e:
         logger.critical(f"no program of {e.program_version=} found for {node_obj=}")

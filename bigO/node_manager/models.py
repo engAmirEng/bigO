@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import urllib.parse
 from hashlib import sha256
-from typing import TYPE_CHECKING, Self, TypedDict
+from typing import Self, TypedDict
 
 import netfields
 from rest_framework_api_key.models import AbstractAPIKey

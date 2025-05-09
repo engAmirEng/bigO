@@ -37,7 +37,9 @@ def get_proxy_manager_nginx_conf_v2(
         return None
     proxy_manager_config = models.Config.objects.get()
     template_context = node_manager_services.NodeTemplateContext(
-        {"node_obj": node_obj, "xray_path_matchers": "\n".join(xray_path_matchers_parts)}, node_work_dir=node_work_dir, base_url=base_url
+        {"node_obj": node_obj, "xray_path_matchers": "\n".join(xray_path_matchers_parts)},
+        node_work_dir=node_work_dir,
+        base_url=base_url,
     )
     nginx_config_http_template = "{% load node_manager %}" + proxy_manager_config.nginx_config_http_template
     nginx_config_http_result = django.template.Template(nginx_config_http_template).render(context=template_context)
@@ -154,7 +156,12 @@ def get_xray_conf_v2(
                 consumers_part += consumer_obj
 
             template_context = node_manager_services.NodeTemplateContext(
-                {"node": node_obj, "connection_rule": connection_rule, "inbound_tag": inbound_tag, "consumers_part": consumers_part},
+                {
+                    "node": node_obj,
+                    "connection_rule": connection_rule,
+                    "inbound_tag": inbound_tag,
+                    "consumers_part": consumers_part,
+                },
                 node_work_dir=node_work_dir,
                 base_url=base_url,
             )
@@ -170,19 +177,27 @@ def get_xray_conf_v2(
 
             if inbound.haproxy_backend:
                 haproxy_backends_parts.append(
-                    django.template.Template(inbound.haproxy_backend).render(django.template.Context({"connection_rule": connection_rule}))
+                    django.template.Template(inbound.haproxy_backend).render(
+                        django.template.Context({"connection_rule": connection_rule})
+                    )
                 )
             if inbound.haproxy_matcher_80:
                 haproxy_80_matchers_parts.append(
-                    django.template.Template(inbound.haproxy_matcher_80).render(django.template.Context({"connection_rule": connection_rule}))
+                    django.template.Template(inbound.haproxy_matcher_80).render(
+                        django.template.Context({"connection_rule": connection_rule})
+                    )
                 )
             if inbound.haproxy_matcher_443:
                 haproxy_443_matchers_parts.append(
-                    django.template.Template(inbound.haproxy_matcher_443).render(django.template.Context({"connection_rule": connection_rule}))
+                    django.template.Template(inbound.haproxy_matcher_443).render(
+                        django.template.Context({"connection_rule": connection_rule})
+                    )
                 )
             if inbound.nginx_path_config:
                 nginx_path_matchers_parts.append(
-                    django.template.Template(inbound.nginx_path_config).render(django.template.Context({"connection_rule": connection_rule}))
+                    django.template.Template(inbound.nginx_path_config).render(
+                        django.template.Context({"connection_rule": connection_rule})
+                    )
                 )
 
         template_context = node_manager_services.NodeTemplateContext(
@@ -269,12 +284,16 @@ autostart=true
 autorestart=true
 priority=10
 """
-    return supervisor_config, files, {
-        "haproxy_backends_parts": haproxy_backends_parts,
-        "haproxy_80_matchers_parts": haproxy_80_matchers_parts,
-        "haproxy_443_matchers_parts": haproxy_443_matchers_parts,
-        "nginx_path_matchers_parts": nginx_path_matchers_parts
-    }
+    return (
+        supervisor_config,
+        files,
+        {
+            "haproxy_backends_parts": haproxy_backends_parts,
+            "haproxy_80_matchers_parts": haproxy_80_matchers_parts,
+            "haproxy_443_matchers_parts": haproxy_443_matchers_parts,
+            "nginx_path_matchers_parts": nginx_path_matchers_parts,
+        },
+    )
 
 
 def get_agent_current_subscriptionperiods_qs(agent: models.Agent):

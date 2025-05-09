@@ -6,7 +6,9 @@ from django.db.models import UniqueConstraint
 
 
 class Config(TimeStampedModel, SingletonModel):
-    nginx_config_http_template = models.TextField(null=True, blank=False, help_text="{{ node_obj, xray_path_matchers }}")
+    nginx_config_http_template = models.TextField(
+        null=True, blank=False, help_text="{{ node_obj, xray_path_matchers }}"
+    )
     nginx_config_stream_template = models.TextField(null=True, blank=False, help_text="{{ node_obj }}")
     xray_config_template = models.TextField(
         null=True, blank=False, help_text="{{ node, inbound_parts, rule_parts, balancer_parts }}"
@@ -65,6 +67,14 @@ class ConnectionRule(TimeStampedModel, models.Model):
         Region, on_delete=models.CASCADE, related_name="destinationregion_connectionrules"
     )
     xray_rules_template = models.TextField(help_text="[RuleObject], {{ node, inbound_tags }}")
+    inboundcombogroup = models.ForeignKey(
+        "InboundComboGroup",
+        on_delete=models.PROTECT,
+        related_name="inboundcombogroup_connectionrules",
+        null=True,
+        blank=False,
+    )
+    inbound_remarks_prefix = models.CharField(max_length=255, null=True, blank=True)
 
     def __str__(self):
         return f"{self.pk}-{self.name}"
@@ -76,7 +86,11 @@ class InboundType(TimeStampedModel, models.Model):
     name = models.SlugField()
     inbound_template = models.TextField(help_text="{{ node_obj, connection_rule, inbound_tag, consumers_part }}")
     consumer_obj_template = models.TextField(help_text="{{ subscriptionperiod_obj }}")
-    link_template = models.TextField(blank=True, null=True, help_text="{{ subscriptionperiod_obj }}")
+    link_template = models.TextField(
+        blank=True,
+        null=True,
+        help_text="{{ subscriptionperiod_obj, combo_stat: {'address', 'port', 'sni', 'domainhostheader'}, remark_prefix }}",
+    )
     nginx_path_config = models.TextField(blank=True, null=True, help_text="{{ connection_rule }}")
     haproxy_backend = models.TextField(blank=True, null=True, help_text="{{ connection_rule }}")
     haproxy_matcher_80 = models.TextField(blank=True, null=True, help_text="{{ connection_rule }}")
