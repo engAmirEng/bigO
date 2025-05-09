@@ -263,44 +263,6 @@ def create_default_cert_for_node(node: models.Node) -> core_models.Certificate:
     return certificate_obj
 
 
-def get_global_haproxy_conf_v1(node: models.Node) -> tuple[str, str, dict] | None:
-    context = django.template.Context({})
-    res = django.template.Template(
-        """global
-        log /dev/log local0
-
-    defaults
-        log global
-        retry-on all-retryable-errors
-
-        timeout connect 5s
-        timeout client 50s
-        timeout client-fin 50s
-        timeout server 50s
-        timeout tunnel 1h
-        default-server init-addr none
-        default-server inter 15s fastinter 2s downinter 5s rise 3 fall 3
-        mode tcp
-
-    frontend https-in
-        bind :443,:::443 v4v6
-        bind :443,:::443 v4v6 tfo
-        # option tcplog
-        # option dontlognull
-        tcp-request inspect-delay 5s
-        tcp-request content accept if { req.ssl_hello_type 1 }
-        use_backend xray_force
-
-    backend xray_force
-        # server xray unix@/dev/shm/hiddify-xtls-main.sock
-        server xray unix@/var/run/o_xtls_main.sock send-proxy-v2
-    """
-    ).render(context=context)
-
-    run_opt = django.template.Template("-f *#path:main#* -d").render(context=context)
-    return run_opt, res, context.get("deps", {"globals": []})
-
-
 def get_global_haproxy_conf_v2(
     node_obj, xray_backends_parts: list, xray_80_matchers_parts: list, xray_443_matchers_parts: list, node_work_dir: pathlib.Path, base_url: str
 ) -> tuple[str, list[typing.FileSchema]] | None:

@@ -242,64 +242,6 @@ class NodeBaseSyncAPIView(APIView):
                     ).data
                 )
 
-        xray_conf = proxy_manager_services.get_xray_conf_v1(node_obj=node_obj)
-        xray_program = site_config.main_xray.get_program_for_node(node_obj) if site_config.main_xray else None
-        if xray_conf:
-            if xray_program is None:
-                logger.critical("no program found for xray_conf")
-            else:
-                influential_global_deps = [i["content"] for i in global_deps if i["key"] in xray_conf[2]["globals"]]
-                xray_conf_hash = sha256(
-                    (xray_conf[0] + xray_conf[1] + "".join(influential_global_deps)).encode("utf-8")
-                ).hexdigest()
-                configs.append(
-                    ConfigSerializer(
-                        {
-                            "id": "xray_conf",
-                            "program": xray_program,
-                            "run_opts": xray_conf[0],
-                            "new_run_opts": xray_conf[0],
-                            "configfile_content": xray_conf[1],
-                            "config_file_ext": ".json",
-                            "hash": xray_conf_hash,
-                            "dependant_files": ConfigDependantFileSerializer(
-                                [{"key": "main", "content": xray_conf[1], "extension": ".json"}], many=True
-                            ).data,
-                        }
-                    ).data
-                )
-
-        global_haproxy_conf = services.get_global_haproxy_conf_v1(node=node_obj)
-        haproxy_program = site_config.main_haproxy.get_program_for_node(node_obj) if site_config.main_haproxy else None
-        if global_haproxy_conf:
-            if haproxy_program is None:
-                logger.critical("no program found for global_haproxy_conf")
-            else:
-                influential_global_deps = [
-                    i["content"] for i in global_deps if i["key"] in global_haproxy_conf[2]["globals"]
-                ]
-                global_haproxy_conf_hash = sha256(
-                    (global_haproxy_conf[0] + global_haproxy_conf[1] + "".join(influential_global_deps)).encode(
-                        "utf-8"
-                    )
-                ).hexdigest()
-                configs.append(
-                    ConfigSerializer(
-                        {
-                            "id": "global_haproxy_conf",
-                            "program": haproxy_program,
-                            "run_opts": global_haproxy_conf[0],
-                            "new_run_opts": global_haproxy_conf[0],
-                            "configfile_content": global_haproxy_conf[1],
-                            "config_file_ext": None,
-                            "hash": global_haproxy_conf_hash,
-                            "dependant_files": ConfigDependantFileSerializer(
-                                [{"key": "main", "content": global_haproxy_conf[1], "extension": None}], many=True
-                            ).data,
-                        }
-                    ).data
-                )
-
         global_nginx_conf = services.get_global_nginx_conf_v1(node=node_obj)
         nginx_program = site_config.main_nginx.get_program_for_node(node_obj)
         if global_nginx_conf:
