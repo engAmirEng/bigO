@@ -48,4 +48,3 @@ class InboundComboDomainHostHeader(TimeStampedModel, models.Model):
     combo = models.ForeignKey(InboundCombo, on_delete=models.CASCADE, related_name="domainhostheaders")
     domain = models.ForeignKey("core.Domain", on_delete=models.CASCADE, related_name="+")
     weight = models.PositiveSmallIntegerField()
-

@@ -98,8 +98,7 @@ async def sublink_view(request, subscription_uuid: uuid.UUID):
                 }
             )
             remark_prefix = (
-                subscriptionperiod_obj.plan.connection_rule.inbound_remarks_prefix
-                + f"({combo.pk}-{counter})"
+                subscriptionperiod_obj.plan.connection_rule.inbound_remarks_prefix + f"({combo.pk}-{counter})"
             )
             link_res = django.template.Template(link_template).render(
                 context=django.template.Context(
@@ -107,6 +106,7 @@ async def sublink_view(request, subscription_uuid: uuid.UUID):
                         "subscriptionperiod_obj": subscriptionperiod_obj,
                         "combo_stat": combo_stat,
                         "remark_prefix": remark_prefix,
+                        "connection_rule": subscriptionperiod_obj.plan.connection_rule,
                     }
                 )
             )

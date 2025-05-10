@@ -89,7 +89,7 @@ class InboundType(TimeStampedModel, models.Model):
     link_template = models.TextField(
         blank=True,
         null=True,
-        help_text="{{ subscriptionperiod_obj, combo_stat: {'address', 'port', 'sni', 'domainhostheader'}, remark_prefix }}",
+        help_text="{{ subscriptionperiod_obj, connection_rule, combo_stat: {'address', 'port', 'sni', 'domainhostheader'}, remark_prefix }}",
     )
     nginx_path_config = models.TextField(blank=True, null=True, help_text="{{ connection_rule }}")
     haproxy_backend = models.TextField(blank=True, null=True, help_text="{{ connection_rule }}")

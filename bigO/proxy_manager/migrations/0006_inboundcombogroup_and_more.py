@@ -63,7 +63,7 @@ class Migration(migrations.Migration):
             name="link_template",
             field=models.TextField(
                 blank=True,
-                help_text="{{ subscriptionperiod_obj, combo_stat: {'address', 'port', 'sni', 'domainhostheader'}, remark_prefix }}",
+                help_text="{{ subscriptionperiod_obj, connection_rule, combo_stat: {'address', 'port', 'sni', 'domainhostheader'}, remark_prefix }}",
                 null=True,
             ),
         ),
