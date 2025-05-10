@@ -43,7 +43,7 @@ async def sublink_view(request, subscription_uuid: uuid.UUID):
 
     if (inboundcombogroup := subscriptionperiod_obj.plan.connection_rule.inboundcombogroup) is None:
         logger.error(f"no inboundcombogroup is set for {subscriptionperiod_obj.plan.connection_rule=}")
-        return Http404()
+        raise Http404()
 
     async for inboundcombochoicegroup in models.InboundComboChoiceGroup.objects.filter(
         group=inboundcombogroup
@@ -98,7 +98,7 @@ async def sublink_view(request, subscription_uuid: uuid.UUID):
                 }
             )
             remark_prefix = (
-                subscriptionperiod_obj.plan.connection_rule.inbound_remarks_prefix + f"({combo.pk}-{counter})"
+                (subscriptionperiod_obj.plan.connection_rule.inbound_remarks_prefix or "") + f"({combo.pk}-{counter})"
             )
             link_res = django.template.Template(link_template).render(
                 context=django.template.Context(
