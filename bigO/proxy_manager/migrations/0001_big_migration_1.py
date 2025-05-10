@@ -145,7 +145,7 @@ class Migration(migrations.Migration):
                 ("created_at", models.DateTimeField(auto_now_add=True)),
                 ("updated_at", models.DateTimeField(auto_now=True)),
                 ("name", models.SlugField()),
-                ("xray_rules_template", models.TextField(help_text="[RuleObject], {{ node, inbound_tags }}")),
+                ("xray_rules_template", models.TextField(help_text="[RuleObject], {{ node, subscriptionperiods, inbound_tags }}")),
                 (
                     "destination_region",
                     models.ForeignKey(

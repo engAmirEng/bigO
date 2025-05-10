@@ -41,22 +41,22 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name="inboundtype",
             name="haproxy_backend",
-            field=models.TextField(blank=True, help_text="{{ connection_rule }}", null=True),
+            field=models.TextField(blank=True, null=True),
         ),
         migrations.AlterField(
             model_name="inboundtype",
             name="haproxy_matcher_443",
-            field=models.TextField(blank=True, help_text="{{ connection_rule }}", null=True),
+            field=models.TextField(blank=True, null=True),
         ),
         migrations.AlterField(
             model_name="inboundtype",
             name="haproxy_matcher_80",
-            field=models.TextField(blank=True, help_text="{{ connection_rule }}", null=True),
+            field=models.TextField(blank=True, null=True),
         ),
         migrations.AlterField(
             model_name="inboundtype",
             name="inbound_template",
-            field=models.TextField(help_text="{{ node_obj, connection_rule, inbound_tag, consumers_part }}"),
+            field=models.TextField(help_text="{{ node_obj, inbound_tag, consumers_part }}"),
         ),
         migrations.AlterField(
             model_name="inboundtype",
@@ -70,7 +70,7 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name="inboundtype",
             name="nginx_path_config",
-            field=models.TextField(blank=True, help_text="{{ connection_rule }}", null=True),
+            field=models.TextField(blank=True, null=True),
         ),
         migrations.CreateModel(
             name="InboundCombo",

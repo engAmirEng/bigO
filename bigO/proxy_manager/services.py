@@ -132,76 +132,60 @@ def get_xray_conf_v2(
 
     xray_outbounds, balancer_parts = get_xray_outbounds(node_obj=node_obj)
 
-    all_subscriptionperiod_obj = {}
-    for connection_rule in models.ConnectionRule.objects.filter():
-        subscriptionperiods_obj_list = list(
-            get_connectable_subscriptionperiod_qs().filter(plan__connection_rule=connection_rule)
-        )
-        inbound_tags = []
-        for inbound in models.InboundType.objects.filter(is_active=True):
-            inbound_tag = f"{inbound.name}-{connection_rule.id}"
-            consumers_part = ""
-            for subscriptionperiod_obj in subscriptionperiods_obj_list:
-                all_subscriptionperiod_obj[subscriptionperiod_obj.id] = subscriptionperiod_obj
-                template_context = node_manager_services.NodeTemplateContext(
-                    {"subscriptionperiod_obj": subscriptionperiod_obj}, node_work_dir=node_work_dir, base_url=base_url
-                )
-                consumer_obj = django.template.Template(
-                    "{% load node_manager proxy_manager %}" + inbound.consumer_obj_template
-                ).render(context=template_context)
-                new_files = node_manager_services.get_configdependentcontents_from_context(template_context)
-                files.extend(new_files)
-                if consumers_part:
-                    consumers_part += ",\n"
-                consumers_part += consumer_obj
+    all_subscriptionperiods_obj_list = get_connectable_subscriptionperiod_qs().select_related("plan")
+    connection_rule_id_subs: dict[int, set[models.SubscriptionPeriod]] = defaultdict(set)
 
+    inbound_tags = []
+    for inbound in models.InboundType.objects.filter(is_active=True):
+        inbound_tag = inbound.name
+        consumers_part = ""
+        for subscriptionperiod_obj in all_subscriptionperiods_obj_list:
+            connection_rule_id_subs[subscriptionperiod_obj.plan.connection_rule_id].add(subscriptionperiod_obj)
             template_context = node_manager_services.NodeTemplateContext(
-                {
-                    "node": node_obj,
-                    "connection_rule": connection_rule,
-                    "inbound_tag": inbound_tag,
-                    "consumers_part": consumers_part,
-                },
-                node_work_dir=node_work_dir,
-                base_url=base_url,
+                {"subscriptionperiod_obj": subscriptionperiod_obj}, node_work_dir=node_work_dir, base_url=base_url
             )
-            xray_inbound = django.template.Template(
-                "{% load node_manager proxy_manager %}" + inbound.inbound_template
+            consumer_obj = django.template.Template(
+                "{% load node_manager proxy_manager %}" + inbound.consumer_obj_template
             ).render(context=template_context)
             new_files = node_manager_services.get_configdependentcontents_from_context(template_context)
             files.extend(new_files)
-            inbound_tags.append(inbound_tag)
-            if inbound_parts:
-                inbound_parts += ",\n"
-            inbound_parts += xray_inbound
-
-            if inbound.haproxy_backend:
-                haproxy_backends_parts.append(
-                    django.template.Template(inbound.haproxy_backend).render(
-                        django.template.Context({"connection_rule": connection_rule})
-                    )
-                )
-            if inbound.haproxy_matcher_80:
-                haproxy_80_matchers_parts.append(
-                    django.template.Template(inbound.haproxy_matcher_80).render(
-                        django.template.Context({"connection_rule": connection_rule})
-                    )
-                )
-            if inbound.haproxy_matcher_443:
-                haproxy_443_matchers_parts.append(
-                    django.template.Template(inbound.haproxy_matcher_443).render(
-                        django.template.Context({"connection_rule": connection_rule})
-                    )
-                )
-            if inbound.nginx_path_config:
-                nginx_path_matchers_parts.append(
-                    django.template.Template(inbound.nginx_path_config).render(
-                        django.template.Context({"connection_rule": connection_rule})
-                    )
-                )
+            if consumers_part:
+                consumers_part += ",\n"
+            consumers_part += consumer_obj
 
         template_context = node_manager_services.NodeTemplateContext(
-            {"node": node_obj, "inbound_tags": inbound_tags, "outbound_tags": [i["tag"] for i in xray_outbounds]},
+            {
+                "node": node_obj,
+                "inbound_tag": inbound_tag,
+                "consumers_part": consumers_part,
+            },
+            node_work_dir=node_work_dir,
+            base_url=base_url,
+        )
+        xray_inbound = django.template.Template(
+            "{% load node_manager proxy_manager %}" + inbound.inbound_template
+        ).render(context=template_context)
+        new_files = node_manager_services.get_configdependentcontents_from_context(template_context)
+        files.extend(new_files)
+        inbound_tags.append(inbound_tag)
+        if inbound_parts:
+            inbound_parts += ",\n"
+        inbound_parts += xray_inbound
+
+        if inbound.haproxy_backend:
+            haproxy_backends_parts.append(inbound.haproxy_backend)
+        if inbound.haproxy_matcher_80:
+            haproxy_80_matchers_parts.append(inbound.haproxy_matcher_80)
+        if inbound.haproxy_matcher_443:
+            haproxy_443_matchers_parts.append(inbound.haproxy_matcher_443)
+        if inbound.nginx_path_config:
+            nginx_path_matchers_parts.append(inbound.nginx_path_config)
+
+    for connection_rule in models.ConnectionRule.objects.filter():
+        subscriptionperiods_obj_list = connection_rule_id_subs[connection_rule.id]
+
+        template_context = node_manager_services.NodeTemplateContext(
+            {"node": node_obj, "subscriptionperiods": subscriptionperiods_obj_list, "inbound_tags": inbound_tags, "outbound_tags": [i["tag"] for i in xray_outbounds]},
             node_work_dir=node_work_dir,
             base_url=base_url,
         )

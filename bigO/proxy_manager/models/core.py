@@ -66,7 +66,7 @@ class ConnectionRule(TimeStampedModel, models.Model):
     destination_region = models.ForeignKey(
         Region, on_delete=models.CASCADE, related_name="destinationregion_connectionrules"
     )
-    xray_rules_template = models.TextField(help_text="[RuleObject], {{ node, inbound_tags }}")
+    xray_rules_template = models.TextField(help_text="[RuleObject], {{ node, subscriptionperiods, inbound_tags }}")
     inboundcombogroup = models.ForeignKey(
         "InboundComboGroup",
         on_delete=models.PROTECT,
@@ -84,17 +84,17 @@ class InboundType(TimeStampedModel, models.Model):
     is_active = models.BooleanField(default=True)
     is_template = models.BooleanField(default=False)
     name = models.SlugField()
-    inbound_template = models.TextField(help_text="{{ node_obj, connection_rule, inbound_tag, consumers_part }}")
+    inbound_template = models.TextField(help_text="{{ node_obj, inbound_tag, consumers_part }}")
     consumer_obj_template = models.TextField(help_text="{{ subscriptionperiod_obj }}")
     link_template = models.TextField(
         blank=True,
         null=True,
         help_text="{{ subscriptionperiod_obj, connection_rule, combo_stat: {'address', 'port', 'sni', 'domainhostheader'}, remark_prefix }}",
     )
-    nginx_path_config = models.TextField(blank=True, null=True, help_text="{{ connection_rule }}")
-    haproxy_backend = models.TextField(blank=True, null=True, help_text="{{ connection_rule }}")
-    haproxy_matcher_80 = models.TextField(blank=True, null=True, help_text="{{ connection_rule }}")
-    haproxy_matcher_443 = models.TextField(blank=True, null=True, help_text="{{ connection_rule }}")
+    nginx_path_config = models.TextField(blank=True, null=True)
+    haproxy_backend = models.TextField(blank=True, null=True)
+    haproxy_matcher_80 = models.TextField(blank=True, null=True)
+    haproxy_matcher_443 = models.TextField(blank=True, null=True)
 
     def __str__(self):
         return f"{self.pk}-{self.name}"
