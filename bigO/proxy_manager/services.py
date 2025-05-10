@@ -183,6 +183,9 @@ def get_xray_conf_v2(
 
     for connection_rule in models.ConnectionRule.objects.filter():
         subscriptionperiods_obj_list = connection_rule_id_subs[connection_rule.id]
+        if not subscriptionperiods_obj_list:
+            # because the routing will be messed up
+            continue
 
         template_context = node_manager_services.NodeTemplateContext(
             {"node": node_obj, "subscriptionperiods": subscriptionperiods_obj_list, "inbound_tags": inbound_tags, "outbound_tags": [i["tag"] for i in xray_outbounds]},
