@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -151,7 +152,8 @@ MainLoop:
 					if err := os.MkdirAll(filepath.Dir(fileInfo.DestPath), 0755); err != nil {
 						logger.Error(fmt.Sprintf("error in creating parent directories for %s", fileInfo.DestPath))
 					}
-					err = os.WriteFile(fileInfo.DestPath, []byte(*fileInfo.Content), os.FileMode(fileInfo.Permission))
+					content := strings.ReplaceAll(*fileInfo.Content, "\r", "") // fix the end of line encoding
+					err = os.WriteFile(fileInfo.DestPath, []byte(content), os.FileMode(fileInfo.Permission))
 					if err != nil {
 						logger.Error(fmt.Sprintf("error in writing content for %s", fileInfo.DestPath))
 					}
