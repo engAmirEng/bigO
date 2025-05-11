@@ -163,6 +163,7 @@ class SubscriptionPeriodModelAdmin(admin.ModelAdmin):
 class NodeOutboundInline(admin.StackedInline):
     extra = 0
     model = models.NodeOutbound
+    autocomplete_fields = ("node",)
 
 
 @admin.register(models.OutboundGroup)

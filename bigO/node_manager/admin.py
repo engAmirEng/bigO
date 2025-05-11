@@ -47,6 +47,7 @@ class NodeSupervisorConfigInline(admin.StackedInline):
 
 class O2SpecInline(admin.StackedInline):
     model = models.O2Spec
+    autocomplete_fields = ("program", "ansible_deploy_snippet")
 
 
 @admin.register(models.Node)
@@ -63,6 +64,7 @@ class NodeModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.ModelAd
         "view_supervisor_page_display",
     )
     list_editable = ["collect_metrics", "collect_logs"]
+    search_fields = ("name",)
     actions = ["do_deploy"]
     inlines = [
         NodePublicIPInline,
@@ -220,7 +222,7 @@ class ProgramVersionInline(admin.StackedInline):
 
 @admin.register(models.Snippet)
 class SnippetModelAdmin(admin.ModelAdmin):
-    pass
+    search_fields = ("name", "template")
 
 
 @admin.register(models.Program)
@@ -248,6 +250,7 @@ class CustomConfigDependantFileInline(admin.StackedInline):
 @admin.register(models.CustomConfig)
 class CustomConfigModelAdmin(admin.ModelAdmin):
     list_display = ("__str__", "used_by_count")
+    list_filter = ("nodecustomconfigs__node",)
     inlines = [CustomConfigDependantFileInline, NodeCustomConfigInline]
 
     def get_queryset(self, request):
