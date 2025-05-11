@@ -773,7 +773,7 @@ async def get_custom(
             elif isinstance(file, models.NodeInnerProgram):
                 dest_path = file.path
                 proccessed_dependantfiles_map[dependantfile.key] = FileSchema(
-                    dest_path=dest_path, pepermission=all_permission
+                    dest_path=dest_path, permission=all_permission
                 )
             else:
                 raise AssertionError

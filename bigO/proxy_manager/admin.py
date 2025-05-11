@@ -234,7 +234,7 @@ class InboundComboModelAdmin(admin.ModelAdmin):
     list_display = ("__str__", "inbound_type_display", "ports")
     list_select_related = ("inbound_type",)
     list_filter = ("inbound_type",)
-    search_fields = ("remark", "inbound_type__name")
+    search_fields = ("name", "inbound_type__name")
     autocomplete_fields = ("inbound_type",)
     inlines = (
         InboundComboDomainAddressInline,
