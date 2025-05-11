@@ -55,6 +55,7 @@ func mainLoop(configPath string) {
 	defer logger.Sync()
 	defer func() {
 		if r := recover(); r != nil {
+			sentry.CurrentHub().Recover(r)
 			logger.Error("Recovered from panic", zap.Any("panic", r))
 		}
 	}()
