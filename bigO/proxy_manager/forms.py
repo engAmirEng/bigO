@@ -19,6 +19,16 @@ class SubscriptionProfileModelForm(forms.ModelForm):
         fields = "__all__"
 
 
+class InternalUserModelForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["xray_uuid"].initial = uuid.uuid4()
+
+    class Meta:
+        model = models.InternalUser
+        fields = "__all__"
+
+
 class SubscriptionPlanModelForm(forms.ModelForm):
     class Meta:
         model = models.SubscriptionPlan

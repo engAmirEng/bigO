@@ -4,6 +4,8 @@ from bigO.utils.models import TimeStampedModel
 from django.db import models
 from django.db.models import UniqueConstraint
 
+from . import base
+
 
 class Config(TimeStampedModel, SingletonModel):
     nginx_config_http_template = models.TextField(
@@ -50,7 +52,7 @@ class NodeOutbound(TimeStampedModel, models.Model):
     name = models.SlugField()
     node = models.ForeignKey("node_manager.Node", on_delete=models.CASCADE, related_name="node_nodeoutbounds")
     group = models.ForeignKey(OutboundGroup, on_delete=models.CASCADE, related_name="group_nodeoutbounds")
-    xray_outbound_template = models.TextField(help_text="{{ node }}")
+    xray_outbound_template = models.TextField(help_text="{{ node, tag }}")
 
     class Meta:
         ordering = ["-created_at"]
@@ -80,6 +82,19 @@ class ConnectionRule(TimeStampedModel, models.Model):
         return f"{self.pk}-{self.name}"
 
 
+class InternalUser(TimeStampedModel, base.AbstractProxyUser, models.Model):
+    connection_rule = models.ForeignKey(ConnectionRule, on_delete=models.CASCADE, related_name="+")
+    node = models.ForeignKey("node_manager.Node", on_delete=models.CASCADE, related_name="+")
+
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        constraints = [UniqueConstraint(fields=("connection_rule", "node"), name="unique_connection_rule_ip")]
+
+    def xray_email(self):
+        return f"rule{self.connection_rule_id}.node{self.node_id}@love.com"
+
+
 class InboundType(TimeStampedModel, models.Model):
     is_active = models.BooleanField(default=True)
     is_template = models.BooleanField(default=False)
@@ -98,15 +113,6 @@ class InboundType(TimeStampedModel, models.Model):
 
     def __str__(self):
         return f"{self.pk}-{self.name}"
-
-
-# class InboundTypeFallback(TimeStampedModel, models.Model):
-#     ref_type = models.ForeignKey(InboundType, on_delete=models.PROTECT, related_name="reftype_inboundtypefallback")
-#     dest_type = models.ForeignKey(InboundType, on_delete=models.PROTECT, related_name="desttype_inboundtypefallback")
-
-# class InboundGroup(TimeStampedModel, models.Model):
-#     template = models.ForeignKey
-#     inbound_groups = models.ManyToManyField("self")
 
 
 class SubscriptionNodeUsage(TimeStampedModel, models.Model):

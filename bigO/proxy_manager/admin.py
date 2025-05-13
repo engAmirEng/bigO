@@ -1,3 +1,4 @@
+from django.db.models import OuterRef, Subquery
 from solo.admin import SingletonModelAdmin
 
 from django.contrib import admin
@@ -7,7 +8,7 @@ from django.urls import reverse
 from django.utils.html import format_html
 
 from . import forms, models
-
+from bigO.node_manager import models as node_manager_models
 
 @admin.register(models.Config)
 class ConfigModelAdmin(SingletonModelAdmin):
@@ -180,6 +181,23 @@ class NodeOutboundModelAdmin(admin.ModelAdmin):
 @admin.register(models.ConnectionRule)
 class ConnectionRuleModelAdmin(admin.ModelAdmin):
     list_display = ("__str__",)
+
+@admin.register(models.InternalUser)
+class InternalUserModelAdmin(admin.ModelAdmin):
+    list_display = ("id", "node", "connection_rule", "is_active")
+    list_filter = ("node",)
+    form = forms.InternalUserModelForm
+
+    def get_queryset(self, request):
+        np_qs = node_manager_models.NodePublicIP.objects.filter(ip=OuterRef("ip"))
+        return super().get_queryset(request).annotate(
+            node_name=Subquery(np_qs.values("node__name")),
+            node_id=Subquery(np_qs.values("node__id"))
+        )
+
+    @admin.display(ordering="node_id")
+    def node_display(self, obj):
+        return obj.node_name
 
 
 class InboundComboInline(admin.StackedInline):

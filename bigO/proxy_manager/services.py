@@ -59,7 +59,7 @@ def get_xray_outbounds(node_obj):
         res.append(
             {
                 "tag": i.name,
-                "conf": django.template.Template(i.xray_outbound_template).render(context=django.template.Context({})),
+                "conf": django.template.Template(i.xray_outbound_template).render(context=django.template.Context({"tag": i.name, "node": node_obj})),
             }
         )
         balancers[i.group.name].append(i.name)
@@ -133,16 +133,23 @@ def get_xray_conf_v2(
     xray_outbounds, balancer_parts = get_xray_outbounds(node_obj=node_obj)
 
     all_subscriptionperiods_obj_list = get_connectable_subscriptionperiod_qs().select_related("plan")
-    connection_rule_id_subs: dict[int, set[models.SubscriptionPeriod]] = defaultdict(set)
+    all_internaluser_ob_list = models.InternalUser.objects.filter(is_active=True).exclude(
+        node=node_obj
+    )
+    all_proxyusers_list = [
+        *[(i, i.plan.connection_rule_id, i.resource_pool_id) for i in all_subscriptionperiods_obj_list],
+        *[(i, i.connection_rule_id, i.resource_pool_id) for i in all_internaluser_ob_list],
+    ]
+    connection_rule_id_proxyusers: dict[int, set[models.SubscriptionPeriod | models.InternalUser]] = defaultdict(set)
 
     inbound_tags = []
     for inbound in models.InboundType.objects.filter(is_active=True):
         inbound_tag = inbound.name
         consumers_part = ""
-        for subscriptionperiod_obj in all_subscriptionperiods_obj_list:
-            connection_rule_id_subs[subscriptionperiod_obj.plan.connection_rule_id].add(subscriptionperiod_obj)
+        for proxyuser, connection_rule_id, resource_pool_id in all_proxyusers_list:
+            connection_rule_id_proxyusers[connection_rule_id].add(proxyuser)
             template_context = node_manager_services.NodeTemplateContext(
-                {"subscriptionperiod_obj": subscriptionperiod_obj}, node_work_dir=node_work_dir, base_url=base_url
+                {"subscriptionperiod_obj": proxyuser}, node_work_dir=node_work_dir, base_url=base_url
             )
             consumer_obj = django.template.Template(
                 "{% load node_manager proxy_manager %}" + inbound.consumer_obj_template
@@ -182,13 +189,18 @@ def get_xray_conf_v2(
             nginx_path_matchers_parts.append(inbound.nginx_path_config)
 
     for connection_rule in models.ConnectionRule.objects.filter():
-        subscriptionperiods_obj_list = connection_rule_id_subs[connection_rule.id]
-        if not subscriptionperiods_obj_list:
+        proxyusers_obj_list = connection_rule_id_proxyusers[connection_rule.id][connectionruleresourcepool.id]
+        if not proxyusers_obj_list:
             # because the routing will be messed up
             continue
 
         template_context = node_manager_services.NodeTemplateContext(
-            {"node": node_obj, "subscriptionperiods": subscriptionperiods_obj_list, "inbound_tags": inbound_tags, "outbound_tags": [i["tag"] for i in xray_outbounds]},
+            {
+                "node": node_obj,
+                "subscriptionperiods": proxyusers_obj_list,
+                "inbound_tags": inbound_tags,
+                "outbound_tags": [i["tag"] for i in xray_outbounds],
+            },
             node_work_dir=node_work_dir,
             base_url=base_url,
         )
