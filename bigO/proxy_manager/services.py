@@ -189,7 +189,7 @@ def get_xray_conf_v2(
             nginx_path_matchers_parts.append(inbound.nginx_path_config)
 
     for connection_rule in models.ConnectionRule.objects.filter():
-        proxyusers_obj_list = connection_rule_id_proxyusers[connection_rule.id][connectionruleresourcepool.id]
+        proxyusers_obj_list = connection_rule_id_proxyusers[connection_rule.id]
         if not proxyusers_obj_list:
             # because the routing will be messed up
             continue
