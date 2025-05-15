@@ -189,8 +189,9 @@ class ConnectionRuleOutboundModelAdmin(admin.ModelAdmin):
 
 @admin.register(models.InternalUser)
 class InternalUserModelAdmin(admin.ModelAdmin):
-    list_display = ("id", "node", "connection_rule", "is_active")
+    list_display = ("id", "node", "connection_rule", "is_active", "first_usage_at", "last_usage_at")
     list_filter = ("node",)
+    search_fields = ("xray_uuid", )
     form = forms.InternalUserModelForm
     autocomplete_fields = ("node", "connection_rule")
 

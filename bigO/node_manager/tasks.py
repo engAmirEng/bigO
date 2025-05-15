@@ -147,7 +147,7 @@ def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str,
                             point.field("up_bytes", stat.value)
                         else:
                             raise AssertionError(f"{stat.value=} is not downlink or uplink")
-                    elif len(internal_user_matches := re.findall(internal_user_traffic_regex)) == 1:
+                    elif len(internal_user_matches := re.findall(internal_user_traffic_regex, stat.name)) == 1:
                         rule_id = internal_user_matches[0]
                         node_user_id = internal_user_matches[1]
                         set_internal_user_last_stat(
