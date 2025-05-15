@@ -221,7 +221,7 @@ def get_xray_conf_v2(
         rule_parts += xray_rules
 
     all_balancer_parts = ",\n".join(
-        ['{{"tag": "{0}", "selector": [{1}]}}'.format(tag, ",".join(selectors)) for tag, selectors in all_xray_balancers.items()]
+        ['{{"tag": "{0}", "selector": [{1}]}}'.format(tag, ",".join([f'"{i}"' for i in selectors])) for tag, selectors in all_xray_balancers.items()]
     )
 
     template_context = node_manager_services.NodeTemplateContext(
