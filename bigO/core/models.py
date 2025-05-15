@@ -20,6 +20,7 @@ class LogActionType(models.IntegerChoices):
 
 
 class SiteConfiguration(SingletonModel):
+    sync_brake = models.BooleanField(default=True)
     nodes_ca_cert = models.ForeignKey("Certificate", on_delete=models.PROTECT, null=True, blank=False)
     main_nginx = models.ForeignKey(
         "node_manager.ProgramVersion", on_delete=models.PROTECT, related_name="+", null=True, blank=False

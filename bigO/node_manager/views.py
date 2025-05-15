@@ -316,6 +316,11 @@ async def node_base_sync_v2(request: HttpRequest):
     if not has_perm:
         return JsonResponse({"error_info": "invalid api key"}, status=403)
     node_obj = await sync_to_async(lambda: perm.api_key.node)()
+
+    site_config: core_models.SiteConfiguration = await core_models.SiteConfiguration.objects.aget()
+    if site_config.sync_brake:
+        return JsonResponse({"error_info": "sync_brake is on"}, status=403)
+
     node_sync_stat_obj = await sync_to_async(services.create_node_sync_stat)(
         request_headers=request.headers, node=node_obj
     )
