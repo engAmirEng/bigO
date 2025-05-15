@@ -180,16 +180,16 @@ func getSupervisorXmlRpcClient() (*xmlrpc.Client, error) {
 	}
 	return supervisorXmlRpcClient, nil
 }
-func IsSupervisorRunning(supervisorXmlRpcClient *xmlrpc.Client) bool {
+func IsSupervisorRunning(supervisorXmlRpcClient *xmlrpc.Client) (bool, error) {
 	supervisorStateInfos := struct {
 		Statecode int    `xmlrpc:"statecode"`
 		Statename string `xmlrpc:"statename"`
 	}{}
 	err := supervisorXmlRpcClient.Call("supervisor.getState", nil, &supervisorStateInfos)
 	if err != nil {
-		return false
+		return false, err
 	}
-	return true
+	return true, nil
 }
 func getAPIRequest(config Config, supervisorXmlRpcClient *xmlrpc.Client) (*APIRequest, []error) {
 	var apiRequest = APIRequest{}

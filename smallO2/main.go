@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	Release   = "1.0.0"
+	Release   = "1.0.1"
 	BuildTime = "unknown"
 )
 
@@ -70,10 +70,13 @@ func mainLoop(configPath string) {
 
 MainLoop:
 	for {
-		isSupervisorRunning := IsSupervisorRunning(supervisorXmlRpcClient)
+		isSupervisorRunning, err := IsSupervisorRunning(supervisorXmlRpcClient)
 		if isSupervisorRunning == false {
-			logger.Warn("Supervisor not running")
-			if config.FullControlSupervisord {
+			logger.Warn(fmt.Sprintf("Supervisor not running with err: %s", err))
+			if config.FullControlSupervisord == false {
+				sentry.CaptureException(err)
+				panic(fmt.Sprintf("supervisor is not running, start it !!!, err is %s", err))
+			} else {
 				supervisorDir, err := getSupervisorDir(config)
 				if err != nil {
 					panic(fmt.Sprintf("Error in getSupervisorDir: %v", err))
@@ -96,8 +99,6 @@ MainLoop:
 				if err != nil {
 					logger.Error(fmt.Sprintf("Error starting supervisor: %v", err))
 				}
-			} else {
-				panic("supervisor is not running, start it !!!")
 			}
 		}
 
