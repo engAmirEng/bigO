@@ -1,8 +1,12 @@
+import uuid
+
 from solo.models import SingletonModel
 
 from bigO.utils.models import TimeStampedModel
 from django.db import models
 from django.db.models import UniqueConstraint
+
+from . import base
 
 
 class Config(TimeStampedModel, SingletonModel):
@@ -11,7 +15,7 @@ class Config(TimeStampedModel, SingletonModel):
     )
     nginx_config_stream_template = models.TextField(null=True, blank=False, help_text="{{ node_obj }}")
     xray_config_template = models.TextField(
-        null=True, blank=False, help_text="{{ node, inbound_parts, rule_parts, balancer_parts }}"
+        null=True, blank=False, help_text="{{ node, inbound_parts, rule_parts, balancer_parts, outbound_parts }}"
     )
     geosite = models.ForeignKey(
         "node_manager.ProgramVersion",
@@ -39,18 +43,11 @@ class ISP(TimeStampedModel, models.Model):
         return f"{self.pk}-{self.name}"
 
 
-class OutboundGroup(TimeStampedModel, models.Model):
-    name = models.SlugField(unique=True)
-
-    def __str__(self):
-        return f"{self.id}-{self.name}"
-
-
 class NodeOutbound(TimeStampedModel, models.Model):
     name = models.SlugField()
     node = models.ForeignKey("node_manager.Node", on_delete=models.CASCADE, related_name="node_nodeoutbounds")
-    group = models.ForeignKey(OutboundGroup, on_delete=models.CASCADE, related_name="group_nodeoutbounds")
-    xray_outbound_template = models.TextField(help_text="{{ node }}")
+    to_inbound_type = models.ForeignKey("InboundType", on_delete=models.CASCADE, related_name="toinboundtype_nodeoutbounds", null=True, blank=True)
+    xray_outbound_template = models.TextField(help_text="{{ node, tag, nodeinternaluser }}")
 
     class Meta:
         ordering = ["-created_at"]
@@ -79,6 +76,44 @@ class ConnectionRule(TimeStampedModel, models.Model):
     def __str__(self):
         return f"{self.pk}-{self.name}"
 
+class ConnectionRuleOutbound(TimeStampedModel, models.Model):
+    name = models.CharField()
+    rule = models.ForeignKey(ConnectionRule, on_delete=models.CASCADE, related_name="rule_connectionruleoutbounds")
+    node_outbound = models.ForeignKey(NodeOutbound, on_delete=models.PROTECT, related_name="nodeoutbound_connectionruleoutbounds")
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.id}-{self.name}|{self.rule}"
+
+
+class InternalUser(TimeStampedModel, base.AbstractProxyUser, models.Model):
+    connection_rule = models.ForeignKey(ConnectionRule, on_delete=models.CASCADE, related_name="+")
+    node = models.ForeignKey("node_manager.Node", on_delete=models.CASCADE, related_name="+")
+
+    is_active = models.BooleanField(default=True)
+
+    first_usage_at = models.DateTimeField(null=True, blank=True)
+    last_usage_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [UniqueConstraint(fields=("connection_rule", "node"), name="unique_connection_rule_ip")]
+
+    def xray_email(self):
+        return f"rule{self.connection_rule_id}.node{self.node_id}@love.com"
+
+    @classmethod
+    def init_for_node(cls, node, connection_rule):
+        obj = cls()
+        obj.node = node
+        obj.xray_uuid = uuid.uuid4()
+        obj.connection_rule = connection_rule
+        obj.is_active = True
+        obj.save()
+        return obj
+
 
 class InboundType(TimeStampedModel, models.Model):
     is_active = models.BooleanField(default=True)
@@ -98,15 +133,6 @@ class InboundType(TimeStampedModel, models.Model):
 
     def __str__(self):
         return f"{self.pk}-{self.name}"
-
-
-# class InboundTypeFallback(TimeStampedModel, models.Model):
-#     ref_type = models.ForeignKey(InboundType, on_delete=models.PROTECT, related_name="reftype_inboundtypefallback")
-#     dest_type = models.ForeignKey(InboundType, on_delete=models.PROTECT, related_name="desttype_inboundtypefallback")
-
-# class InboundGroup(TimeStampedModel, models.Model):
-#     template = models.ForeignKey
-#     inbound_groups = models.ManyToManyField("self")
 
 
 class SubscriptionNodeUsage(TimeStampedModel, models.Model):

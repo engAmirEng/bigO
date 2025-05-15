@@ -9,7 +9,7 @@ from bigO.core import models as core_models
 from bigO.node_manager import models as node_manager_models
 from bigO.node_manager import services as node_manager_services
 from bigO.node_manager import typing as node_manager_typing
-from django.db.models import Q
+from django.db.models import Q, Prefetch
 from django.urls import reverse
 from django.utils import timezone
 
@@ -49,34 +49,6 @@ def get_proxy_manager_nginx_conf_v2(
     )
     new_files = node_manager_services.get_configdependentcontents_from_context(template_context)
     return nginx_config_http_result, nginx_config_stream_result, new_files
-
-
-def get_xray_outbounds(node_obj):
-    res = []
-    balancers = defaultdict(list)
-    nodeoutbound_qs = models.NodeOutbound.objects.filter(node=node_obj).select_related("group")
-    for i in nodeoutbound_qs:
-        res.append(
-            {
-                "tag": i.name,
-                "conf": django.template.Template(i.xray_outbound_template).render(context=django.template.Context({})),
-            }
-        )
-        balancers[i.group.name].append(i.name)
-    balancers_res = ", ".join(
-        [
-            """
-    {{
-      "tag": "{}",
-      "selector": [{}]
-    }}
-    """.format(
-                tag, ", ".join([f'"{i}"' for i in selectors])
-            )
-            for tag, selectors in balancers.items()
-        ]
-    )
-    return res, balancers_res
 
 
 def get_connectable_subscriptionperiod_qs():
@@ -130,19 +102,38 @@ def get_xray_conf_v2(
     inbound_parts = ""
     rule_parts = ""
 
-    xray_outbounds, balancer_parts = get_xray_outbounds(node_obj=node_obj)
 
-    all_subscriptionperiods_obj_list = get_connectable_subscriptionperiod_qs().select_related("plan")
-    connection_rule_id_subs: dict[int, set[models.SubscriptionPeriod]] = defaultdict(set)
+    connectionrule_qs = models.ConnectionRule.objects.filter(
+        rule_connectionruleoutbounds__node_outbound__node=node_obj
+    ).prefetch_related(
+        Prefetch(
+            "rule_connectionruleoutbounds",
+            to_attr="node_connection_outbounds",
+            queryset=models.ConnectionRuleOutbound.objects.filter(node_outbound__node=node_obj)
+        )
+    ).distinct()
+    # connectionrule_outbound_qs = list(models.ConnectionRuleOutbound.objects.filter(node_outbound__node=node_obj).select_related("rule"))
+    if not connectionrule_qs:
+        return None
+
+    all_subscriptionperiods_obj_list = get_connectable_subscriptionperiod_qs().filter(plan__connection_rule_id__in=[i.id for i in connectionrule_qs]).select_related("plan")
+    all_nodeinternaluser_ob_list = models.InternalUser.objects.filter(is_active=True, connection_rule_id__in=[i.id for i in connectionrule_qs]).exclude(
+        node=node_obj
+    )
+    all_proxyusers_list = [
+        *[(i, i.plan.connection_rule_id) for i in all_subscriptionperiods_obj_list],
+        *[(i, i.connection_rule_id) for i in all_nodeinternaluser_ob_list],
+    ]
+    connection_rule_id_proxyusers: dict[int, set[models.SubscriptionPeriod | models.InternalUser]] = defaultdict(set)
 
     inbound_tags = []
     for inbound in models.InboundType.objects.filter(is_active=True):
         inbound_tag = inbound.name
         consumers_part = ""
-        for subscriptionperiod_obj in all_subscriptionperiods_obj_list:
-            connection_rule_id_subs[subscriptionperiod_obj.plan.connection_rule_id].add(subscriptionperiod_obj)
+        for proxyuser, connection_rule_id in all_proxyusers_list:
+            connection_rule_id_proxyusers[connection_rule_id].add(proxyuser)
             template_context = node_manager_services.NodeTemplateContext(
-                {"subscriptionperiod_obj": subscriptionperiod_obj}, node_work_dir=node_work_dir, base_url=base_url
+                {"subscriptionperiod_obj": proxyuser}, node_work_dir=node_work_dir, base_url=base_url
             )
             consumer_obj = django.template.Template(
                 "{% load node_manager proxy_manager %}" + inbound.consumer_obj_template
@@ -181,14 +172,42 @@ def get_xray_conf_v2(
         if inbound.nginx_path_config:
             nginx_path_matchers_parts.append(inbound.nginx_path_config)
 
-    for connection_rule in models.ConnectionRule.objects.filter():
-        subscriptionperiods_obj_list = connection_rule_id_subs[connection_rule.id]
-        if not subscriptionperiods_obj_list:
+    all_xray_outbounds = {}
+    all_xray_balancers = {}
+    for connection_rule in connectionrule_qs:
+        proxyusers_obj_list = connection_rule_id_proxyusers[connection_rule.id]
+        if not proxyusers_obj_list:
             # because the routing will be messed up
             continue
 
+        nodeinternaluser = models.InternalUser.objects.filter(connection_rule=connection_rule, node=node_obj).first()
+        if nodeinternaluser is None:
+            nodeinternaluser = models.InternalUser.init_for_node(node=node_obj, connection_rule=connection_rule)
+        if nodeinternaluser and not nodeinternaluser.is_active:
+            nodeinternaluser = None
+        xray_outbounds = defaultdict(list)
+        xray_balancers = defaultdict(list)
+        for connectionruleoutbound in connection_rule.node_connection_outbounds:
+            balancer_tag = f"{connection_rule.id}_{connectionruleoutbound.name}"
+            outbound_tag = f"{connection_rule.id}_{connectionruleoutbound.node_outbound.name}"
+            xray_balancers[balancer_tag].append(outbound_tag)
+            xray_outbounds[outbound_tag].append(
+                django.template.Template(
+                    connectionruleoutbound.node_outbound.xray_outbound_template
+                ).render(django.template.Context({"tag": outbound_tag, "node": node_obj, "nodeinternaluser": nodeinternaluser}))
+            )
+        all_xray_outbounds = {**all_xray_outbounds, **xray_outbounds}
+        all_xray_balancers = {**all_xray_balancers, **xray_balancers}
+
         template_context = node_manager_services.NodeTemplateContext(
-            {"node": node_obj, "subscriptionperiods": subscriptionperiods_obj_list, "inbound_tags": inbound_tags, "outbound_tags": [i["tag"] for i in xray_outbounds]},
+            {
+                "node": node_obj,
+                "connection_rule": connection_rule,
+                "subscriptionperiods": proxyusers_obj_list,
+                "inbound_tags": inbound_tags,
+                "outbound_tags": list(xray_outbounds.keys()),
+                "xray_balancers": xray_balancers,
+            },
             node_work_dir=node_work_dir,
             base_url=base_url,
         )
@@ -201,13 +220,17 @@ def get_xray_conf_v2(
             rule_parts += ", \n"
         rule_parts += xray_rules
 
+    all_balancer_parts = ",\n".join(
+        ['{{"tag": "{0}", "selector": [{1}]}}'.format(tag, ",".join(selectors)) for tag, selectors in all_xray_balancers.items()]
+    )
+
     template_context = node_manager_services.NodeTemplateContext(
         {
             "node": node_obj,
             "inbound_parts": inbound_parts,
             "rule_parts": rule_parts,
-            "outbound_parts": [i["conf"] for i in xray_outbounds],
-            "balancer_parts": balancer_parts,
+            "outbound_parts": list(all_xray_outbounds.values()),
+            "balancer_parts": all_balancer_parts,
         },
         node_work_dir=node_work_dir,
         base_url=base_url,
@@ -291,8 +314,11 @@ def get_agent_current_subscriptionperiods_qs(agent: models.Agent):
 
 def set_profile_last_stat(
     sub_profile_id: str, sub_profile_period_id: str, collect_time: datetime.datetime
-) -> models.SubscriptionPeriod:
-    subscriptionperiod = models.SubscriptionPeriod.objects.get(id=sub_profile_period_id, profile_id=sub_profile_id)
+) -> models.SubscriptionPeriod | None:
+    subscriptionperiod = models.SubscriptionPeriod.objects.filter(id=sub_profile_period_id, profile_id=sub_profile_id).first()
+    if subscriptionperiod is None:
+        logger.critical(f"no SubscriptionPeriod found with {sub_profile_id=} and {sub_profile_period_id=}")
+        return None
     if subscriptionperiod.first_usage_at is None:
         subscriptionperiod.first_usage_at = collect_time
     if subscriptionperiod.first_usage_at > collect_time:
@@ -304,3 +330,23 @@ def set_profile_last_stat(
         subscriptionperiod.last_usage_at = collect_time
     subscriptionperiod.save()
     return subscriptionperiod
+
+
+def set_internal_user_last_stat(
+    rule_id: str, node_user_id: str, collect_time: datetime.datetime
+) -> models.InternalUser | None:
+    internaluser = models.InternalUser.objects.filter(connection_rule_id=rule_id, node_id=node_user_id).first()
+    if internaluser is None:
+        logger.critical(f"no InternalUser found with {rule_id=} and {node_user_id=}")
+        return
+    if internaluser.first_usage_at is None:
+        internaluser.first_usage_at = collect_time
+    if internaluser.first_usage_at > collect_time:
+        internaluser.first_usage_at = collect_time
+
+    if internaluser.last_usage_at is None:
+        internaluser.last_usage_at = collect_time
+    if internaluser.last_usage_at < collect_time:
+        internaluser.last_usage_at = collect_time
+    internaluser.save()
+    return internaluser

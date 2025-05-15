@@ -111,7 +111,7 @@ class Migration(migrations.Migration):
                 ("nginx_config_stream_template", models.TextField(help_text="{{ node_obj }}", null=True)),
                 (
                     "xray_config_template",
-                    models.TextField(help_text="{{ node, inbound_parts, rule_parts, balancer_parts }}", null=True),
+                    models.TextField(help_text="{{ node, inbound_parts, rule_parts, balancer_parts, outbound_parts }}", null=True),
                 ),
                 (
                     "geoip",

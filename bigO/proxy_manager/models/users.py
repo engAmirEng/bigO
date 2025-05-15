@@ -6,6 +6,8 @@ from bigO.utils.models import TimeStampedModel
 from django.db import models
 from django.db.models import Case, F, OuterRef, Q, Subquery, UniqueConstraint, When
 
+from . import base
+
 
 class Agency(TimeStampedModel, models.Model):
     name = models.SlugField()
@@ -141,7 +143,7 @@ class SubscriptionPeriod(TimeStampedModel, models.Model):
         self._total_limit_bytes = value
 
 
-class SubscriptionProfile(TimeStampedModel, models.Model):
+class SubscriptionProfile(TimeStampedModel, base.AbstractProxyUser, models.Model):
     class SubscriptionProfileQuerySet(models.QuerySet):
         def ann_last_usage_at(self):
             subscriptionperiod_sub_qs = SubscriptionPeriod.objects.filter(profile=OuterRef("id")).order_by(
@@ -161,7 +163,6 @@ class SubscriptionProfile(TimeStampedModel, models.Model):
     title = models.CharField(max_length=127)
     uuid = models.UUIDField(unique=True)
     user = models.ForeignKey("users.User", on_delete=models.PROTECT, null=True, blank=True)
-    xray_uuid = models.UUIDField(blank=True, unique=True)
     description = models.TextField(max_length=4095, null=True, blank=True)
     is_active = models.BooleanField()
 
