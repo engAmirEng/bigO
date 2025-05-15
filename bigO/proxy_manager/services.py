@@ -185,16 +185,16 @@ def get_xray_conf_v2(
             nodeinternaluser = models.InternalUser.init_for_node(node=node_obj, connection_rule=connection_rule)
         if nodeinternaluser and not nodeinternaluser.is_active:
             nodeinternaluser = None
-        xray_outbounds = defaultdict(list)
+        xray_outbounds = {}
         xray_balancers = defaultdict(list)
         for connectionruleoutbound in connection_rule.node_connection_outbounds:
             balancer_tag = f"{connection_rule.id}_{connectionruleoutbound.name}"
             outbound_tag = f"{connection_rule.id}_{connectionruleoutbound.node_outbound.name}"
             xray_balancers[balancer_tag].append(outbound_tag)
-            xray_outbounds[outbound_tag].append(
-                django.template.Template(
-                    connectionruleoutbound.node_outbound.xray_outbound_template
-                ).render(django.template.Context({"tag": outbound_tag, "node": node_obj, "nodeinternaluser": nodeinternaluser}))
+            xray_outbounds[outbound_tag] = django.template.Template(
+                connectionruleoutbound.node_outbound.xray_outbound_template
+            ).render(
+                django.template.Context({"tag": outbound_tag, "node": node_obj, "nodeinternaluser": nodeinternaluser})
             )
         all_xray_outbounds = {**all_xray_outbounds, **xray_outbounds}
         all_xray_balancers = {**all_xray_balancers, **xray_balancers}
