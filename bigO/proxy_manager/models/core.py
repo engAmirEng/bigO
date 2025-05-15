@@ -6,8 +6,6 @@ from bigO.utils.models import TimeStampedModel
 from django.db import models
 from django.db.models import UniqueConstraint
 
-from . import base
-
 
 class Config(TimeStampedModel, SingletonModel):
     nginx_config_http_template = models.TextField(
@@ -88,9 +86,10 @@ class ConnectionRuleOutbound(TimeStampedModel, models.Model):
         return f"{self.id}-{self.name}|{self.rule}"
 
 
-class InternalUser(TimeStampedModel, base.AbstractProxyUser, models.Model):
+class InternalUser(TimeStampedModel, models.Model):
     connection_rule = models.ForeignKey(ConnectionRule, on_delete=models.CASCADE, related_name="+")
     node = models.ForeignKey("node_manager.Node", on_delete=models.CASCADE, related_name="+")
+    xray_uuid = models.UUIDField(blank=True, unique=True)
 
     is_active = models.BooleanField(default=True)
 

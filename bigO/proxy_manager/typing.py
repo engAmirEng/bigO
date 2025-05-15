@@ -1,3 +1,5 @@
+from typing import Protocol
+
 import pydantic
 
 
@@ -7,6 +9,14 @@ class ComboStat(pydantic.BaseModel):
     sni: str | None
     domainhostheader: str | None
 
+
+class ProxyUserProtocol(Protocol):
+    @property
+    def xray_uuid(self):
+        ...
+
+    def xray_email(self):
+        ...
 
 #
 # class VLESSClient(pydantic.BaseModel):

@@ -13,7 +13,7 @@ from django.db.models import Q, Prefetch
 from django.urls import reverse
 from django.utils import timezone
 
-from . import models
+from . import models, typing
 
 logger = logging.getLogger(__name__)
 
@@ -120,7 +120,7 @@ def get_xray_conf_v2(
     all_nodeinternaluser_ob_list = models.InternalUser.objects.filter(is_active=True, connection_rule_id__in=[i.id for i in connectionrule_qs]).exclude(
         node=node_obj
     )
-    all_proxyusers_list = [
+    all_proxyusers_list: list[tuple[typing.ProxyUserProtocol, int]] = [
         *[(i, i.plan.connection_rule_id) for i in all_subscriptionperiods_obj_list],
         *[(i, i.connection_rule_id) for i in all_nodeinternaluser_ob_list],
     ]
