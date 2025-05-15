@@ -15,7 +15,7 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name="nodeoutbound",
             name="xray_outbound_template",
-            field=models.TextField(help_text="{{ node, tag }}"),
+            field=models.TextField(help_text="{{ node, tag, nodeinternaluser }}"),
         ),
         migrations.CreateModel(
             name="InternalUser",

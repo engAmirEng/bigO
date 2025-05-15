@@ -161,43 +161,38 @@ class SubscriptionPeriodModelAdmin(admin.ModelAdmin):
         return naturaltime(obj.last_sublink_at)
 
 
-class NodeOutboundInline(admin.StackedInline):
-    extra = 0
-    model = models.NodeOutbound
-    autocomplete_fields = ("node",)
-
-
-@admin.register(models.OutboundGroup)
-class OutboundGroupModelAdmin(admin.ModelAdmin):
-    list_display = ("__str__",)
-    inlines = [NodeOutboundInline]
-
-
 @admin.register(models.NodeOutbound)
 class NodeOutboundModelAdmin(admin.ModelAdmin):
-    list_display = ("__str__",)
+    list_display = ("__str__", "name", "node", "to_inbound_type")
+    search_fields = ("name", "xray_outbound_template")
+    list_filter = ("to_inbound_type", "nodeoutbound_connectionruleoutbounds__rule")
+
+
+class ConnectionRuleOutboundInline(admin.StackedInline):
+    extra = 0
+    model = models.ConnectionRuleOutbound
+    autocomplete_fields = ("rule", "node_outbound")
 
 
 @admin.register(models.ConnectionRule)
 class ConnectionRuleModelAdmin(admin.ModelAdmin):
     list_display = ("__str__",)
+    inlines = (ConnectionRuleOutboundInline,)
+    search_fields = ("name", "xray_rules_template")
+
+
+@admin.register(models.ConnectionRuleOutbound)
+class ConnectionRuleOutboundModelAdmin(admin.ModelAdmin):
+    list_display = ("__str__", "name", "rule", "node_outbound")
+    list_filter = ("rule", "node_outbound")
+
 
 @admin.register(models.InternalUser)
 class InternalUserModelAdmin(admin.ModelAdmin):
     list_display = ("id", "node", "connection_rule", "is_active")
     list_filter = ("node",)
     form = forms.InternalUserModelForm
-
-    def get_queryset(self, request):
-        np_qs = node_manager_models.NodePublicIP.objects.filter(ip=OuterRef("ip"))
-        return super().get_queryset(request).annotate(
-            node_name=Subquery(np_qs.values("node__name")),
-            node_id=Subquery(np_qs.values("node__id"))
-        )
-
-    @admin.display(ordering="node_id")
-    def node_display(self, obj):
-        return obj.node_name
+    autocomplete_fields = ("node", "connection_rule")
 
 
 class InboundComboInline(admin.StackedInline):
@@ -205,11 +200,16 @@ class InboundComboInline(admin.StackedInline):
     model = models.InboundCombo
 
 
+class NodeOutboundInline(admin.StackedInline):
+    extra = 0
+    model = models.NodeOutbound
+
+
 @admin.register(models.InboundType)
 class InboundTypeModelAdmin(admin.ModelAdmin):
     list_display = ("__str__", "is_active", "is_template")
     search_fields = ("name", "inbound_template")
-    inlines = (InboundComboInline,)
+    inlines = (InboundComboInline, NodeOutboundInline)
 
 
 class InboundComboChoiceGroupInline(admin.StackedInline):

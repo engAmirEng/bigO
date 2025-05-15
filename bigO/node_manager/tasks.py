@@ -77,7 +77,7 @@ def check_node_latest_sync(*, limit_seconds: int, ignore_node_ids: list[int] | N
 
 @app.task
 def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str, Any]):
-    from bigO.proxy_manager.services import set_profile_last_stat
+    from bigO.proxy_manager.services import set_profile_last_stat, set_internal_user_last_stat
 
     points: list[influxdb_client.Point] = []
     for line in goingto_json_lines.split("\n"):
@@ -119,6 +119,8 @@ def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str,
                             period_id = str(user_with_id_matches[0][1])
                             user_id = str(user_with_id_matches[0][2])
                             downlink_or_uplink = user_with_id_matches[0][3]
+                        else:
+                            raise AssertionError
                         set_profile_last_stat(
                             sub_profile_id=profile_id, sub_profile_period_id=period_id, collect_time=collect_time
                         )
@@ -146,35 +148,33 @@ def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str,
                         else:
                             raise AssertionError(f"{stat.value=} is not downlink or uplink")
                     elif len(internal_user_matches := re.findall(internal_user_traffic_regex)) == 1:
-                        pass
-                        # todo
-                        # rule_id = internal_user_matches[0]
-                        # node_id = internal_user_matches[1]
-                        # # set_internal_user_last_stat(
-                        # #     sub_profile_id=profile_id, sub_profile_period_id=period_id, collect_time=collect_time
-                        # # )
-                        # key = f"{rule_id}.{node_id}"
-                        #
-                        # point = internal_user_points.get(key)
-                        # if point is None:
-                        #     point = influxdb_client.Point("xray_usage")
-                        #     point.time(
-                        #         collect_time,
-                        #         write_precision=influxdb_client.domain.write_precision.WritePrecision.S,
-                        #     )
-                        #     internal_user_points[key] = point
-                        #     point.tag("usage_type", "internal_user")
-                        #     point.tag("rule_id", rule_id)
-                        #     point.tag("node_id", node_id)
-                        #
-                        #     for tag_name, tag_value in base_labels.items():
-                        #         point.tag(tag_name, tag_value)
-                        # if downlink_or_uplink == "downlink":
-                        #     point.field("dl_bytes", stat.value)
-                        # elif downlink_or_uplink == "uplink":
-                        #     point.field("up_bytes", stat.value)
-                        # else:
-                        #     raise AssertionError(f"{stat.value=} is not downlink or uplink")
+                        rule_id = internal_user_matches[0]
+                        node_user_id = internal_user_matches[1]
+                        set_internal_user_last_stat(
+                            rule_id=rule_id, node_user_id=node_user_id, collect_time=collect_time
+                        )
+                        key = f"{rule_id}.{node_user_id}"
+
+                        point = internal_user_points.get(key)
+                        if point is None:
+                            point = influxdb_client.Point("xray_usage")
+                            point.time(
+                                collect_time,
+                                write_precision=influxdb_client.domain.write_precision.WritePrecision.S,
+                            )
+                            internal_user_points[key] = point
+                            point.tag("usage_type", "internal_user")
+                            point.tag("rule_id", rule_id)
+                            point.tag("node_user_id", node_user_id)
+
+                            for tag_name, tag_value in base_labels.items():
+                                point.tag(tag_name, tag_value)
+                        if downlink_or_uplink == "downlink":
+                            point.field("dl_bytes", stat.value)
+                        elif downlink_or_uplink == "uplink":
+                            point.field("up_bytes", stat.value)
+                        else:
+                            raise AssertionError(f"{stat.value=} is not downlink or uplink")
                     elif len(inbound_matches := re.findall(inbound_traffic_regex, stat.name)) == 1:
                         inbound_tag = inbound_matches[0][0]
                         downlink_or_uplink = inbound_matches[0][1]
@@ -220,7 +220,7 @@ def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str,
                     else:
                         continue
                         # raise NotImplementedError
-                points.extend([*user_points.values(), *inbound_points.values(), *outbound_points.values()])
+                points.extend([*user_points.values(), *internal_user_points.values(), *inbound_points.values(), *outbound_points.values()])
 
     if not points:
         return "no points!!!"
