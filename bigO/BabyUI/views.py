@@ -133,8 +133,8 @@ async def dashboard(request):
     if not current_agency_id or not (
         agent_obj := await agent_accounts_qs.filter(agency_id=current_agency_id).afirst()
     ):
-        current_agency_id = agent_accounts[0].id
-        agent_obj = await agent_accounts_qs.filter(agency_id=current_agency_id).afirst()
+        current_agency_id = agent_accounts[0].agency_id
+        agent_obj = await agent_accounts_qs.aget(agency_id=current_agency_id)
         await request.session.aset(CURRENT_AGENCY_KEY, current_agency_id)
 
     users_qs = proxy_manager_services.get_agent_current_subscriptionperiods_qs(agent=agent_obj)
@@ -213,8 +213,8 @@ async def dashboard_users(request):
     if not current_agency_id or not (
         agent_obj := await agent_accounts_qs.filter(agency_id=current_agency_id).afirst()
     ):
-        current_agency_id = agent_accounts[0].id
-        agent_obj = await agent_accounts_qs.filter(agency_id=current_agency_id).afirst()
+        current_agency_id = agent_accounts[0].agency_id
+        agent_obj = await agent_accounts_qs.aget(agency_id=current_agency_id)
         await request.session.aset(CURRENT_AGENCY_KEY, current_agency_id)
 
     users_qs = proxy_manager_services.get_agent_current_subscriptionperiods_qs(agent=agent_obj)
