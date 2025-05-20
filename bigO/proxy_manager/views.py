@@ -9,7 +9,7 @@ from bigO.utils import py_helpers
 from django.http import Http404, HttpResponse
 from django.utils import timezone
 
-from . import models, typing
+from . import models, typing, metrics
 
 logger = logging.getLogger(__name__)
 
@@ -117,6 +117,9 @@ async def sublink_view(request, subscription_uuid: uuid.UUID):
 
     if request.GET.get("base64"):
         sublink_content = base64.b64encode(sublink_content.encode())
+        metrics.sublink_total.labels(variant=metrics.SublinkVariant.SIMPLE_BASE64).inc()
+    else:
+        metrics.sublink_total.labels(variant=metrics.SublinkVariant.SIMPLE).inc()
 
     return HttpResponse(sublink_content, content_type="text/plain; charset=utf-8")
 

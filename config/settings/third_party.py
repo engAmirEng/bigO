@@ -1,9 +1,10 @@
+import os
 from datetime import timedelta
 
 import sentry_sdk
 from sentry_sdk.integrations.django import DjangoIntegration
 
-from ._setup import PLUGGABLE_FUNCS, clean_ellipsis, env
+from ._setup import PLUGGABLE_FUNCS, clean_ellipsis, env, BASE_DIR
 from .django import DEBUG
 
 # Celery
@@ -96,3 +97,8 @@ if sentry_dsn := env.url("SENTRY_DSN", default=None):
 
 # django-vite
 DJANGO_VITE = {"BabyUI": {"dev_mode": DEBUG, "dev_server_port": 5225, "static_url_prefix": "BabyUI"}}  # todo  # todo
+
+# prometheus
+PROMETHEUS_MULTIPROC_DIR = BASE_DIR.joinpath("prometheus_multiproc_dir")
+PROMETHEUS_MULTIPROC_DIR.mkdir(exist_ok=True)
+os.environ["PROMETHEUS_MULTIPROC_DIR"] = str(PROMETHEUS_MULTIPROC_DIR)

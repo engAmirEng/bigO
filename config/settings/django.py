@@ -128,6 +128,7 @@ THIRD_PARTY_APPS = clean_ellipsis(
         "django_htmx",
         "django_json_widget",
         "django_jsonform",
+        "django_prometheus",
         "django_vite",
         "drf_spectacular",
         "graphene_django",
@@ -195,6 +196,7 @@ AUTH_PASSWORD_VALIDATORS = (
 MIDDLEWARE = clean_ellipsis(
     [
         "debug_toolbar.middleware.DebugToolbarMiddleware" if PLUGGABLE_FUNCS.DEBUG_TOOLBAR else ...,
+        "django_prometheus.middleware.PrometheusBeforeMiddleware",
         "django.middleware.security.SecurityMiddleware",
         "corsheaders.middleware.CorsMiddleware",
         "whitenoise.middleware.WhiteNoiseMiddleware" if PLUGGABLE_FUNCS.SERVE_STATICFILES else ...,
@@ -212,6 +214,7 @@ MIDDLEWARE = clean_ellipsis(
         # If you do not want Axes to override the authentication response
         # you can skip installing the middleware and use your own views.
         "axes.middleware.AxesMiddleware",
+        "django_prometheus.middleware.PrometheusAfterMiddleware",
     ]
 )
 
