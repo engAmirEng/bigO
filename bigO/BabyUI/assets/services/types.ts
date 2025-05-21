@@ -34,7 +34,8 @@ export interface ListPage<RecordT, ColumnsT> {
 export interface UserRecord {
   id: string;
   title: string;
-  last_usage_at_repr: string;
+  last_sublink_at_repr: string | null;
+  last_usage_at_repr: string | null;
   online_status: 'online' | 'offline' | 'never';
   used_bytes: number;
   total_limit_bytes: number;
@@ -43,9 +44,25 @@ export interface UserRecord {
 
 export interface UserRecordColumns {
   used_bytes?: Column;
+  last_sublink_at?: Column;
+  last_usage_at?: Column;
+  expires_at?: Column;
 }
 
 export interface UrlReverse {
   name: string;
   url: string;
+}
+
+export enum PlanProvider {
+  SimpleStrict1 = "type_simple_strict1",
+  TypeSimpleDynamic1 = "type_simple_dynamic1",
+}
+
+export interface PlanRecord {
+  id: string
+  name: string;
+  plan_provider_key: PlanProvider;
+  plan_provider_args: any;
+  remained_cap: number;
 }

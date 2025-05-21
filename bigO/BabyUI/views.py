@@ -15,7 +15,7 @@ from django.contrib.auth import alogout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.humanize.templatetags.humanize import naturaltime
-from django.db.models import QuerySet
+from django.db.models import QuerySet, Exists, OuterRef
 from django.db.models.functions import Coalesce
 from django.http import HttpResponseRedirect
 from django.shortcuts import redirect, render
@@ -25,7 +25,7 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.translation import gettext
 from django.views.decorators.http import require_POST
 
-from . import utils
+from . import utils, forms, services
 
 logger = logging.getLogger(__name__)
 
@@ -196,6 +196,7 @@ async def dashboard(request):
 @prop_urls()
 async def dashboard_users(request):
     user = await request.auser()
+    # agent
     agent_accounts_qs = proxy_manager_models.Agent.objects.filter(user=user, is_active=True).select_related("agency")
     agent_accounts = [i async for i in agent_accounts_qs[:9]]
     if not agent_accounts:
@@ -216,7 +217,23 @@ async def dashboard_users(request):
         current_agency_id = agent_accounts[0].agency_id
         agent_obj = await agent_accounts_qs.aget(agency_id=current_agency_id)
         await request.session.aset(CURRENT_AGENCY_KEY, current_agency_id)
+    # end
 
+    # form
+    form_errors = {}
+
+    bb = proxy_manager_models.AgencyPlanSpec.objects.filter(capacity__gt=0, plan=OuterRef("id"))
+    aa = proxy_manager_models.SubscriptionPlan.objects.filter(Exists(bb))
+    if request.POST:
+        form = forms.NewUserForm(request.POST)
+        if form.is_valid():
+            services.create_new_user()
+    else:
+        form = forms.NewUserForm()
+    # end
+
+
+    # users
     users_qs = proxy_manager_services.get_agent_current_subscriptionperiods_qs(agent=agent_obj)
     users_qs = users_qs.select_related("profile").ann_expires_at().ann_total_limit_bytes().order_by("-pk")
 
@@ -228,6 +245,7 @@ async def dashboard_users(request):
             id=str(i.profile_id),
             title=i.profile.title,
             last_usage_at_repr=naturaltime(i.last_usage_at),
+            last_sublink_at_repr=naturaltime(i.last_sublink_at) if i.last_usage_at else "never",
             online_status="online"
             if i.last_usage_at and (timezone.now() - i.last_usage_at < timedelta(minutes=2))
             else "offline"
@@ -249,6 +267,12 @@ async def dashboard_users(request):
                     used_bytes=Coalesce("current_download_bytes", 0) + Coalesce("current_upload_bytes", 0)
                 )
                 order_bys.append(("" if is_asc else "-") + "used_bytes")
+            elif key == "last_sublink_at":
+                order_bys.append(("" if is_asc else "-") + "last_sublink_at")
+            elif key == "last_usage_at":
+                order_bys.append(("" if is_asc else "-") + "last_usage_at")
+            elif key == "expires_at":
+                order_bys.append(("" if is_asc else "-") + "expires_at")
             res_orderings.append((key, is_asc))
         return queryset.order_by(*order_bys), res_orderings
 
@@ -258,14 +282,23 @@ async def dashboard_users(request):
         search_callback=users_search_callback,
         render_record_callback=users_render_record_callback,
         sort_callback=users_sort_callback,
-        sortables={"used_bytes"},
+        sortables={"used_bytes", "last_sublink_at", "last_usage_at", "expires_at"},
         prefix="users",
     )
     users_res = await user_listpagehandler.to_response()
+    # end
 
     return {
         "current_agency_id": current_agency_id,
         "agencies": [{"id": i.agency.id, "name": i.agency.name} for i in agent_accounts],
+        "creatable_plans": [
+            {
+                "id": str(i.id),
+                "name": i.name,
+                "plan_provider_key": i.plan_provider_key,
+                "plan_provider_args": i.plan_provider_args} async for i in aa
+        ],
         "logout_url": reverse("BabyUI:logout"),
         "users_list_page": users_res.model_dump(),
+        "form_errors": form_errors
     }
