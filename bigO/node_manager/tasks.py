@@ -150,6 +150,7 @@ def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str,
                     elif len(internal_user_matches := re.findall(internal_user_traffic_regex, stat.name)) == 1:
                         rule_id = internal_user_matches[0][0]
                         node_user_id = internal_user_matches[0][1]
+                        downlink_or_uplink = internal_user_matches[0][2]
                         set_internal_user_last_stat(
                             rule_id=rule_id, node_user_id=node_user_id, collect_time=collect_time
                         )
