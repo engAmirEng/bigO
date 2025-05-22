@@ -1,14 +1,13 @@
-from django.db.models import OuterRef, Subquery
+import humanize.filesize
 from solo.admin import SingletonModelAdmin
 
 from django.contrib import admin
 from django.contrib.humanize.templatetags.humanize import naturaltime
-from django.template.defaultfilters import filesizeformat
 from django.urls import reverse
 from django.utils.html import format_html
 
 from . import forms, models
-from bigO.node_manager import models as node_manager_models
+
 
 @admin.register(models.Config)
 class ConfigModelAdmin(SingletonModelAdmin):
@@ -128,19 +127,19 @@ class SubscriptionPeriodModelAdmin(admin.ModelAdmin):
 
     @admin.display(ordering="dl_bytes_remained")
     def dl_bytes_remained(self, obj):
-        return filesizeformat(obj.dl_bytes_remained)
+        return humanize.filesize.naturalsize(obj.dl_bytes_remained)
 
     @admin.display(ordering="up_bytes_remained")
     def up_bytes_remained(self, obj):
-        return filesizeformat(obj.up_bytes_remained)
+        return humanize.filesize.naturalsize(obj.up_bytes_remained)
 
     @admin.display(ordering="current_upload_bytes")
     def current_upload_bytes_display(self, obj):
-        return filesizeformat(obj.current_upload_bytes)
+        return humanize.filesize.naturalsize(obj.current_upload_bytes)
 
     @admin.display(ordering="current_download_bytes")
     def current_download_bytes_display(self, obj):
-        return filesizeformat(obj.current_download_bytes)
+        return humanize.filesize.naturalsize(obj.current_download_bytes)
 
     @admin.display(ordering="first_usage_at", description="first usage at")
     def first_usage_at_display(self, obj):
@@ -191,7 +190,7 @@ class ConnectionRuleOutboundModelAdmin(admin.ModelAdmin):
 class InternalUserModelAdmin(admin.ModelAdmin):
     list_display = ("id", "node", "connection_rule", "is_active", "first_usage_at", "last_usage_at")
     list_filter = ("node",)
-    search_fields = ("xray_uuid", )
+    search_fields = ("xray_uuid",)
     form = forms.InternalUserModelForm
     autocomplete_fields = ("node", "connection_rule")
 

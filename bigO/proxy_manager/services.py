@@ -9,7 +9,7 @@ from bigO.core import models as core_models
 from bigO.node_manager import models as node_manager_models
 from bigO.node_manager import services as node_manager_services
 from bigO.node_manager import typing as node_manager_typing
-from django.db.models import Q, Prefetch
+from django.db.models import Prefetch, Q
 from django.urls import reverse
 from django.utils import timezone
 
@@ -102,24 +102,29 @@ def get_xray_conf_v2(
     inbound_parts = ""
     rule_parts = ""
 
-
-    connectionrule_qs = models.ConnectionRule.objects.filter(
-        rule_connectionruleoutbounds__node_outbound__node=node_obj
-    ).prefetch_related(
-        Prefetch(
-            "rule_connectionruleoutbounds",
-            to_attr="node_connection_outbounds",
-            queryset=models.ConnectionRuleOutbound.objects.filter(node_outbound__node=node_obj)
+    connectionrule_qs = (
+        models.ConnectionRule.objects.filter(rule_connectionruleoutbounds__node_outbound__node=node_obj)
+        .prefetch_related(
+            Prefetch(
+                "rule_connectionruleoutbounds",
+                to_attr="node_connection_outbounds",
+                queryset=models.ConnectionRuleOutbound.objects.filter(node_outbound__node=node_obj),
+            )
         )
-    ).distinct()
+        .distinct()
+    )
     # connectionrule_outbound_qs = list(models.ConnectionRuleOutbound.objects.filter(node_outbound__node=node_obj).select_related("rule"))
     if not connectionrule_qs:
         return None
 
-    all_subscriptionperiods_obj_list = get_connectable_subscriptionperiod_qs().filter(plan__connection_rule_id__in=[i.id for i in connectionrule_qs]).select_related("plan")
-    all_nodeinternaluser_ob_list = models.InternalUser.objects.filter(is_active=True, connection_rule_id__in=[i.id for i in connectionrule_qs]).exclude(
-        node=node_obj
+    all_subscriptionperiods_obj_list = (
+        get_connectable_subscriptionperiod_qs()
+        .filter(plan__connection_rule_id__in=[i.id for i in connectionrule_qs])
+        .select_related("plan")
     )
+    all_nodeinternaluser_ob_list = models.InternalUser.objects.filter(
+        is_active=True, connection_rule_id__in=[i.id for i in connectionrule_qs]
+    ).exclude(node=node_obj)
     all_proxyusers_list: list[tuple[typing.ProxyUserProtocol, int]] = [
         *[(i, i.plan.connection_rule_id) for i in all_subscriptionperiods_obj_list],
         *[(i, i.connection_rule_id) for i in all_nodeinternaluser_ob_list],
@@ -221,7 +226,10 @@ def get_xray_conf_v2(
         rule_parts += xray_rules
 
     all_balancer_parts = ",\n".join(
-        ['{{"tag": "{0}", "selector": [{1}]}}'.format(tag, ",".join([f'"{i}"' for i in selectors])) for tag, selectors in all_xray_balancers.items()]
+        [
+            '{{"tag": "{0}", "selector": [{1}]}}'.format(tag, ",".join([f'"{i}"' for i in selectors]))
+            for tag, selectors in all_xray_balancers.items()
+        ]
     )
 
     template_context = node_manager_services.NodeTemplateContext(
@@ -315,7 +323,9 @@ def get_agent_current_subscriptionperiods_qs(agent: models.Agent):
 def set_profile_last_stat(
     sub_profile_id: str, sub_profile_period_id: str, collect_time: datetime.datetime
 ) -> models.SubscriptionPeriod | None:
-    subscriptionperiod = models.SubscriptionPeriod.objects.filter(id=sub_profile_period_id, profile_id=sub_profile_id).first()
+    subscriptionperiod = models.SubscriptionPeriod.objects.filter(
+        id=sub_profile_period_id, profile_id=sub_profile_id
+    ).first()
     if subscriptionperiod is None:
         logger.critical(f"no SubscriptionPeriod found with {sub_profile_id=} and {sub_profile_period_id=}")
         return None

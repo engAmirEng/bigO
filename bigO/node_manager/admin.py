@@ -2,6 +2,7 @@ from decimal import ROUND_HALF_DOWN, Decimal
 
 import admin_extra_buttons.decorators
 import admin_extra_buttons.mixins
+import humanize.filesize
 from django_json_widget.widgets import JSONEditorWidget
 from render_block import render_block_to_string
 from rest_framework_api_key.admin import APIKeyModelAdmin
@@ -13,7 +14,6 @@ from django.contrib.humanize.templatetags.humanize import naturaltime
 from django.db.models import Count, JSONField, Q, QuerySet
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, render
-from django.template.defaultfilters import filesizeformat
 from django.urls import reverse
 from django.utils.html import format_html
 from django.utils.translation import gettext
@@ -312,7 +312,7 @@ class ProgramBinaryModelAdmin(admin.ModelAdmin):
     @admin.display(description="file size")
     def file_size_display(self, obj: models.ProgramBinary):
         try:
-            return filesizeformat(obj.file.size)
+            return humanize.filesize.naturalsize(obj.file.size)
         except FileNotFoundError as e:
             return str(e)
 

@@ -18,6 +18,7 @@ class ProxyUserProtocol(Protocol):
     def xray_email(self):
         ...
 
+
 #
 # class VLESSClient(pydantic.BaseModel):
 #     id: uuid.uuid5

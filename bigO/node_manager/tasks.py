@@ -77,7 +77,7 @@ def check_node_latest_sync(*, limit_seconds: int, ignore_node_ids: list[int] | N
 
 @app.task
 def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str, Any]):
-    from bigO.proxy_manager.services import set_profile_last_stat, set_internal_user_last_stat
+    from bigO.proxy_manager.services import set_internal_user_last_stat, set_profile_last_stat
 
     points: list[influxdb_client.Point] = []
     for line in goingto_json_lines.split("\n"):
@@ -220,7 +220,14 @@ def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str,
                     else:
                         continue
                         # raise NotImplementedError
-                points.extend([*user_points.values(), *internal_user_points.values(), *inbound_points.values(), *outbound_points.values()])
+                points.extend(
+                    [
+                        *user_points.values(),
+                        *internal_user_points.values(),
+                        *inbound_points.values(),
+                        *outbound_points.values(),
+                    ]
+                )
 
     if not points:
         return "no points!!!"

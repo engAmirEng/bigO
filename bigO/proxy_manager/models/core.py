@@ -44,7 +44,9 @@ class ISP(TimeStampedModel, models.Model):
 class NodeOutbound(TimeStampedModel, models.Model):
     name = models.SlugField()
     node = models.ForeignKey("node_manager.Node", on_delete=models.CASCADE, related_name="node_nodeoutbounds")
-    to_inbound_type = models.ForeignKey("InboundType", on_delete=models.CASCADE, related_name="toinboundtype_nodeoutbounds", null=True, blank=True)
+    to_inbound_type = models.ForeignKey(
+        "InboundType", on_delete=models.CASCADE, related_name="toinboundtype_nodeoutbounds", null=True, blank=True
+    )
     xray_outbound_template = models.TextField(help_text="{{ node, tag, nodeinternaluser }}")
 
     class Meta:
@@ -74,10 +76,13 @@ class ConnectionRule(TimeStampedModel, models.Model):
     def __str__(self):
         return f"{self.pk}-{self.name}"
 
+
 class ConnectionRuleOutbound(TimeStampedModel, models.Model):
     name = models.CharField()
     rule = models.ForeignKey(ConnectionRule, on_delete=models.CASCADE, related_name="rule_connectionruleoutbounds")
-    node_outbound = models.ForeignKey(NodeOutbound, on_delete=models.PROTECT, related_name="nodeoutbound_connectionruleoutbounds")
+    node_outbound = models.ForeignKey(
+        NodeOutbound, on_delete=models.PROTECT, related_name="nodeoutbound_connectionruleoutbounds"
+    )
 
     class Meta:
         ordering = ["-created_at"]
