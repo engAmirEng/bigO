@@ -54,7 +54,7 @@ async def sublink_view(request, subscription_uuid: uuid.UUID):
         domain_addresses = [
             (i.domain.name, i.weight) async for i in combo.domainaddresses.select_related("domain").all()
         ]
-        ip_addresses = [(i.ip.ip.ip, i.weight) async for i in combo.ipaddresses.select_related("ip").all()]
+        ip_addresses = [(str(i.ip.ip.ip), i.weight) async for i in combo.ipaddresses.select_related("ip").all()]
         all_addressed = [*domain_addresses, *ip_addresses]
 
         ports = combo.ports.split(",")
