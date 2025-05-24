@@ -1,3 +1,4 @@
+import enum
 import pathlib
 from typing import Annotated, Any, TypedDict
 
@@ -36,6 +37,17 @@ class MetricSchema(pydantic.BaseModel):
     ]
 
 
+class SupervisorProcessStates(enum.IntEnum):
+    STOPPED = 0
+    STARTING = 10
+    RUNNING = 20
+    BACKOFF = 30
+    STOPPING = 40
+    EXITED = 100
+    FATAL = 200
+    UNKNOWN = 1000
+
+
 class SupervisorProcessInfoSchema(pydantic.BaseModel):
     name: str
     group: str
@@ -43,7 +55,7 @@ class SupervisorProcessInfoSchema(pydantic.BaseModel):
     start: int
     stop: int
     now: int
-    state: int
+    state: SupervisorProcessStates
     statename: str
     spawnerr: str
     exitstatus: int

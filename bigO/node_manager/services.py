@@ -11,6 +11,7 @@ from collections import defaultdict
 from datetime import timedelta
 from hashlib import sha256
 
+import sentry_sdk
 from asgiref.sync import sync_to_async
 
 import django.template
@@ -51,6 +52,66 @@ def node_spec_create(*, node: models.Node, ip_a: str):
         container_spec.save()
 
 
+def process_process_state(
+    supervisorprocessinfo_list: list[typing.SupervisorProcessInfoSchema], node: models.Node
+):
+    last_captured_for_node = models.SupervisorProcessInfo.objects.filter(node=node).order_by("-captured_at").first()
+    if last_captured_for_node:
+        latest_supervisorprocessinfo_list = [
+            i for i in supervisorprocessinfo_list if i.now > last_captured_for_node.captured_at.timestamp()
+        ]
+    else:
+        latest_supervisorprocessinfo_list = supervisorprocessinfo_list
+    latest_supervisorprocessinfo_list.sort(key=lambda x: x.now)
+    if last_captured_for_node and latest_supervisorprocessinfo_list:
+        removed_proccesses = models.SupervisorProcessInfo.objects.filter(
+            node=node, captured_at__gt=last_captured_for_node.captured_at
+        ).exclude(name__in=[i.name for i in latest_supervisorprocessinfo_list])
+        if removed_proccesses:
+            removed_proccesses.delete()
+
+    for i in latest_supervisorprocessinfo_list:
+        process_instance_qs = models.SupervisorProcessInfo.objects.filter(node=node, name=i.name).order_by(
+            "captured_at"
+        )
+        if len(process_instance_qs) == 0:
+            obj = models.SupervisorProcessInfo()
+            obj.node = node
+            obj.name = i.name
+        elif len(process_instance_qs) == 1:
+            if process_instance_qs[0].state != i.state:
+                obj = models.SupervisorProcessInfo()
+                obj.node = node
+                obj.name = i.name
+            else:
+                obj = process_instance_qs[0]
+        elif len(process_instance_qs) == 2:
+            if process_instance_qs[1].state != i.state:
+                process_instance_qs[0].delete()
+                obj = models.SupervisorProcessInfo()
+                obj.node = node
+                obj.name = i.name
+            else:
+                obj = process_instance_qs[1]
+        else:
+            raise Exception(f"{len(process_instance_qs)=} for process {i.name} for {node=}")
+
+        obj.group = i.group
+        obj.description = i.description
+        obj.start = datetime.datetime.fromtimestamp(i.start, tz=zoneinfo.ZoneInfo("UTC"))
+        if i.stop:
+            obj.stop = datetime.datetime.fromtimestamp(i.stop, tz=zoneinfo.ZoneInfo("UTC"))
+        obj.captured_at = datetime.datetime.fromtimestamp(i.now, tz=zoneinfo.ZoneInfo("UTC"))
+        obj.state = i.state
+        obj.statename = i.statename
+        obj.spawnerr = i.spawnerr or None
+        obj.exitstatus = i.exitstatus or None
+        obj.stderr_logfile = i.stderr_logfile
+        obj.stderr_logfile = i.stderr_logfile
+        obj.pid = i.pid or None
+        obj.save()
+
+
 def node_process_stats(
     node_obj: models.Node,
     configs_states: list[typing.ConfigStateSchema] | None,
@@ -60,6 +121,13 @@ def node_process_stats(
     streams: list[typing.LokiStram] = []
     configs_states = configs_states or []
     base_labels = {"service_name": "bigo", "node_id": node_obj.id, "node_name": node_obj.name}
+    try:
+        process_process_state(
+            supervisorprocessinfo_list=[i.supervisorprocessinfo for i in configs_states], node=node_obj
+        )
+    except Exception as e:
+        # TODO remove this
+        sentry_sdk.capture_exception(e)
     for i in configs_states:
         service_name = i.supervisorprocessinfo.name
         send_stdout = False

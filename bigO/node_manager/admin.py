@@ -237,6 +237,15 @@ class ProgramVersionModelAdmin(admin.ModelAdmin):
     search_fields = ("program__name", "version")
 
 
+@admin.register(models.SupervisorProcessInfo)
+class SupervisorProcessInfoModelAdmin(admin.ModelAdmin):
+    ordering = ("node", "name", "-captured_at")
+    list_display = ("id", "node", "name", "description", "statename", "captured_at", "start")
+    list_filter = ("node", "name", "state")
+    search_fields = ("name",)
+    autocomplete_fields = ("node",)
+
+
 class NodeCustomConfigInline(admin.StackedInline):
     extra = 1
     model = models.NodeCustomConfig

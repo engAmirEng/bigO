@@ -260,6 +260,39 @@ class ProgramVersion(TimeStampedModel):
         return f"{self.pk}-{program_str} ({self.version})"
 
 
+class SupervisorProcessInfo(TimeStampedModel, models.Model):
+    class ProcessState(models.IntegerChoices):
+        STOPPED = 0, "stopped"
+        STARTING = 10, "starting"
+        RUNNING = 20, "running"
+        BACKOFF = 30, "backoff"
+        STOPPING = 40, "stopping"
+        EXITED = 100, "exited"
+        FATAL = 200, "fatal"
+        UNKNOWN = 1000, "unknown"
+
+    node = models.ForeignKey("Node", on_delete=models.CASCADE, related_name="node_processstates")
+    name = models.CharField(max_length=255)
+    group: models.CharField(max_length=255)
+    description = models.CharField(max_length=255)
+    start = models.DateTimeField()
+    stop = models.DateTimeField(null=True, blank=True)
+    captured_at = models.DateTimeField()
+    state = models.PositiveSmallIntegerField(choices=ProcessState.choices)
+    statename = models.CharField(max_length=255)
+    spawnerr = models.CharField(max_length=255, null=True, blank=True)
+    exitstatus = models.PositiveSmallIntegerField(null=True, blank=True)
+    stdout_logfile = models.CharField(max_length=255)
+    stderr_logfile = models.CharField(max_length=255)
+    pid = models.PositiveSmallIntegerField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-captured_at"]
+
+    def __str__(self):
+        return f"{self.name}|{self.node}"
+
+
 class CustomConfig(TimeStampedModel, models.Model):
     name = models.CharField(max_length=255)
     program_version = models.ForeignKey(
