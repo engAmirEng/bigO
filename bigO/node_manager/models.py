@@ -284,7 +284,7 @@ class SupervisorProcessInfo(TimeStampedModel, models.Model):
     exitstatus = models.PositiveSmallIntegerField(null=True, blank=True)
     stdout_logfile = models.CharField(max_length=255)
     stderr_logfile = models.CharField(max_length=255)
-    pid = models.PositiveSmallIntegerField(null=True, blank=True)
+    pid = models.PositiveBigIntegerField(null=True, blank=True)
 
     class Meta:
         ordering = ["-captured_at"]

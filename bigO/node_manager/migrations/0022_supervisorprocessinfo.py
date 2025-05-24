@@ -30,7 +30,7 @@ class Migration(migrations.Migration):
                             (10, "starting"),
                             (20, "running"),
                             (30, "backoff"),
-                            (40, "STOPPING"),
+                            (40, "stopping"),
                             (100, "exited"),
                             (200, "fatal"),
                             (1000, "unknown"),
