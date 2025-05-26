@@ -59,7 +59,7 @@ class SubscriptionPlanModelForm(forms.ModelForm):
                     )
 
 
-class SubscriptionPeriodModelAdmin(forms.ModelForm):
+class SubscriptionPeriodModelForm(forms.ModelForm):
     class Meta:
         model = models.SubscriptionPeriod
         fields = "__all__"

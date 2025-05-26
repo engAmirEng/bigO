@@ -89,7 +89,7 @@ class SubscriptionPeriodModelAdmin(admin.ModelAdmin):
         "up_bytes_remained",
         "dl_bytes_remained",
     )
-    form = forms.SubscriptionPeriodModelAdmin
+    form = forms.SubscriptionPeriodModelForm
     autocomplete_fields = ("profile",)
     search_fields = (
         "profile__title",
