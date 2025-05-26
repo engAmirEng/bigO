@@ -111,12 +111,12 @@ def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str,
                     ):
                         user_id = None
                         if len(user_matches) == 1:
-                            profile_id = str(user_matches[0][0])
-                            period_id = str(user_matches[0][1])
+                            period_id = str(user_matches[0][0])
+                            profile_id = str(user_matches[0][1])
                             downlink_or_uplink = user_matches[0][2]
                         elif len(user_with_id_matches) == 1:
-                            profile_id = str(user_with_id_matches[0][0])
-                            period_id = str(user_with_id_matches[0][1])
+                            period_id = str(user_with_id_matches[0][0])
+                            profile_id = str(user_with_id_matches[0][1])
                             user_id = str(user_with_id_matches[0][2])
                             downlink_or_uplink = user_with_id_matches[0][3]
                         else:
