@@ -2,7 +2,7 @@ import aiohttp
 import cloudflare
 import pydantic
 
-from .base import BaseDNSProvider
+from .base import BaseDNSProvider, RecordType
 
 
 class CloudflareDNS(BaseDNSProvider):
@@ -23,7 +23,7 @@ class CloudflareDNS(BaseDNSProvider):
             raise e
 
     async def create_record(
-        self, base_domain_name: str, name: str, content: str, type: str, comment: str | None = None
+        self, base_domain_name: str, name: str, content: str, type: RecordType, comment: str | None = None, proxied: bool|None=None
     ):
         zones = await self.client.zones.list(name=base_domain_name)
         async for zone in zones:
@@ -31,8 +31,24 @@ class CloudflareDNS(BaseDNSProvider):
             break
         else:
             raise AssertionError(f"domain {base_domain_name} not found")
+        proxied = proxied if proxied is not None else cloudflare.NOT_GIVEN
         r = await self.client.dns.records.create(
-            zone_id=zone_id, name=name, content=content, type=type, comment=comment
+            zone_id=zone_id, name=name, content=content, type=type, comment=comment, proxied=proxied
+        )
+        if r is not None:
+            return r.id
+
+    async def update_record(
+        self, record_id: str, base_domain_name: str, name: str, content: str, type: RecordType, comment: str | None = None, proxied: bool|None=None
+    ):
+        zones = await self.client.zones.list(name=base_domain_name)
+        async for zone in zones:
+            zone_id = zone.id
+            break
+        else:
+            raise AssertionError(f"domain {base_domain_name} not found")
+        r = await self.client.dns.records.update(
+            dns_record_id=record_id, zone_id=zone_id, name=name, content=content, type=type, comment=comment
         )
         if r is not None:
             return r.id
@@ -79,17 +95,24 @@ class AbrArvanDNS(BaseDNSProvider):
                     raise Exception(await response.text())
 
     async def create_record(
-        self, base_domain_name: str, name: str, content: str, type: str, comment: str | None = None
+        self, base_domain_name: str, name: str, content: str, type: RecordType, comment: str | None = None, proxied: bool|None=None
     ) -> str:
-        if type != "TXT":
+        if type == RecordType.TXT:
+            value = {"text": content}
+        elif type == RecordType.A or type == RecordType.AAAA:
+            value = {"ip": content}
+        elif type == RecordType.CNAME:
+            value = {"host": content}
+        else:
             raise NotImplementedError
         name = name.removesuffix(base_domain_name)
         url = f"{self.BASE_URL}/domains/{base_domain_name}/dns-records"
         data = {
-            "value": {"text": content},
+            "value": value,
             "type": type.lower(),
             "name": name,
             "ttl": 120,
+            "cloud": bool(proxied)
         }
         async with aiohttp.ClientSession(
             headers={"Authorization": self.args.api_key, "Content-type": "application/json"}
@@ -99,6 +122,36 @@ class AbrArvanDNS(BaseDNSProvider):
                     raise Exception(await response.text())
                 response_dict = await response.json()
                 return response_dict["data"]["id"]
+
+    async def update_record(
+        self, record_id: str, base_domain_name: str, name: str, content: str, type: RecordType, comment: str | None = None, proxied: bool|None=None
+    ):
+        if type == RecordType.TXT:
+            value = {"text": content}
+        elif type == RecordType.A or type == RecordType.AAAA:
+            value = {"ip": content}
+        elif type == RecordType.CNAME:
+            value = {"host": content}
+        else:
+            raise NotImplementedError
+        name = name.removesuffix(base_domain_name)
+        url = f"{self.BASE_URL}/domains/{base_domain_name}/dns-records/{record_id}"
+        data = {
+            "value": value,
+            "type": type.lower(),
+            "name": name,
+            "ttl": 120,
+            "cloud": bool(proxied)
+        }
+        async with aiohttp.ClientSession(
+            headers={"Authorization": self.args.api_key, "Content-type": "application/json"}
+        ) as session:
+            async with session.put(url, json=data) as response:
+                if response.status != 201:
+                    raise Exception(await response.text())
+                response_dict = await response.json()
+                return response_dict["data"]["id"]
+
 
     async def get_record_id(self, base_domain_name: str, name: str):
         url = f"{self.BASE_URL}/domains/{base_domain_name}/dns-records"

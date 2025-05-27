@@ -109,6 +109,7 @@ CACHES = {
 # ------------------------------------------------------------------------------
 LOCAL_APPS = [
     "bigO.core",
+    "bigO.net_manager",
     "bigO.node_manager",
     "bigO.proxy_manager",
     "bigO.users",

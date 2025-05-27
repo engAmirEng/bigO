@@ -1,10 +1,17 @@
 import abc
+import enum
 from typing import TypeVar
 
 import pydantic
 
 A = TypeVar("A", bound=pydantic.BaseModel)
 
+
+class RecordType(enum.StrEnum):
+    A = "A"
+    AAAA = "AAAA"
+    CNAME = "CNAME"
+    TXT = "TXT"
 
 class BaseDNSProvider(abc.ABC):
     ProviderArgsModel: A
@@ -19,8 +26,14 @@ class BaseDNSProvider(abc.ABC):
 
     @abc.abstractmethod
     async def create_record(
-        self, base_domain_name: str, name: str, content: str, type: str, comment: str | None = None
+        self, base_domain_name: str, name: str, content: str, type: RecordType, comment: str | None = None, proxied: bool|None=None
     ) -> str:
+        ...
+
+    @abc.abstractmethod
+    async def update_record(
+        self, record_id: str, base_domain_name: str, name: str, content: str, type: RecordType, comment: str | None = None, proxied: bool|None=None
+    ):
         ...
 
     @abc.abstractmethod
