@@ -129,7 +129,7 @@ def get_xray_conf_v2(
         *[(i, i.plan.connection_rule_id) for i in all_subscriptionperiods_obj_list],
         *[(i, i.connection_rule_id) for i in all_nodeinternaluser_ob_list],
     ]
-    connection_rule_id_proxyusers: dict[int, set[models.SubscriptionPeriod | models.InternalUser]] = defaultdict(set)
+    connection_rule_id_proxyusers: dict[int, set[typing.ProxyUserProtocol]] = defaultdict(set)
 
     inbound_tags = []
     for inbound in models.InboundType.objects.filter(is_active=True):
