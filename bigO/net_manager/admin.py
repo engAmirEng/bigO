@@ -74,7 +74,7 @@ class DNSRecordModelForm(forms.ModelForm):
 
 @admin.register(models.DNSRecord)
 class DNSRecordModelAdmin(admin.ModelAdmin):
-    list_display = ("id", "domain", "type", "proxied", "value_ip", "value_domain")
+    list_display = ("id", "domain", "type", "proxied", "value_ip", "value_domain", "provider_sync_at_display")
     search_fields = ("domain__name", "value_ip__ip", "value_domain__name")
     form = DNSRecordModelForm
     autocomplete_fields = ("domain", "value_ip", "value_domain")
@@ -88,3 +88,9 @@ class DNSRecordModelAdmin(admin.ModelAdmin):
             dns_provider = dns_provider_obj.get_provider()
             async_to_sync(dns_provider.delete_record)(base_domain_name=root_domain.name, record_id=obj.id_provider)
         return super().delete_model(request=request, obj=obj)
+
+    @admin.display(ordering="provider_sync_at", description="provider sync at")
+    def provider_sync_at_display(self, obj):
+        if obj.provider_sync_at is None:
+            return "never"
+        return naturaltime(obj.provider_sync_at)

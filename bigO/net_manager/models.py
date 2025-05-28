@@ -22,9 +22,15 @@ class DNSRecord(TimeStampedModel, models.Model):
     value_domain = models.ForeignKey("core.Domain", on_delete=models.CASCADE, related_name="value_domain_dnsrecords", null=True, blank=True)
 
     class Meta:
+        ordering = ["-created_at"]
         constraints = [
             CheckConstraint(
                 condition=Q(value_ip__isnull=True, value_domain__isnull=False) | Q(value_ip__isnull=False, value_domain__isnull=True),
                 name="valueip_or_valuedomain_dnsrecord"
             )
         ]
+
+    def __str__(self):
+        check = "🔵" if self.proxied else "⚪"
+        value = self.value_ip.ip if self.value_ip else self.value_domain.name
+        return f"{self.pk}-({self.get_type_display()}){check}{self.domain.name}->{value}"

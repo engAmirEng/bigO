@@ -19,6 +19,7 @@ from django.utils.html import format_html
 from django.utils.translation import gettext
 
 from . import forms, models, tasks
+from bigO.net_manager import models as net_manager_models
 
 
 class NodeLatestSyncStatInline(admin.StackedInline):
@@ -210,9 +211,17 @@ class NodeAPIKeyModelAdmin(APIKeyModelAdmin):
     pass
 
 
+class DNSRecordIPValueInline(admin.StackedInline):
+    model = net_manager_models.DNSRecord
+    extra = 0
+    verbose_name = "IP Value DNS Record"
+    show_change_link = True
+
+
 @admin.register(models.PublicIP)
 class PublicIPModelAdmin(admin.ModelAdmin):
     search_fields = ("name", "ip")
+    inlines = (DNSRecordIPValueInline,)
 
 
 class ProgramVersionInline(admin.StackedInline):

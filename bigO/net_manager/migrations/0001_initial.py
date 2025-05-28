@@ -52,6 +52,7 @@ class Migration(migrations.Migration):
                 ),
             ],
             options={
+                "ordering": ["-created_at"],
                 "constraints": [
                     models.CheckConstraint(
                         condition=models.Q(
