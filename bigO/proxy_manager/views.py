@@ -56,7 +56,9 @@ async def sublink_view(request, subscription_uuid: uuid.UUID):
         )
         rule_specs = [i async for i in rule_specs]
         for in_rule in inbound_choose_rule.inbounds:
-            related_rule_specs = [i for i in rule_specs if i.key == in_rule.key_name]
+            related_rule_specs = [i for i in rule_specs if i.key == in_rule.key_name if i.weight > 0]
+            if not related_rule_specs:
+                continue
             selected_rule_specs = random.choices(
                 related_rule_specs, weights=[i.weight for i in related_rule_specs], k=in_rule.count
             )
