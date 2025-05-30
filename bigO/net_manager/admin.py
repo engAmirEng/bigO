@@ -1,12 +1,13 @@
 from asgiref.sync import async_to_sync
+
+from bigO.core import models as core_models
+from bigO.node_manager import models as node_manager_models
 from django import forms
+from django.contrib import admin
+from django.contrib.humanize.templatetags.humanize import naturaltime
 from django.utils import timezone
 
 from . import models
-from django.contrib import admin
-from bigO.core import models as core_models
-from bigO.node_manager import models as node_manager_models
-
 
 
 class DNSRecordModelForm(forms.ModelForm):
@@ -15,7 +16,6 @@ class DNSRecordModelForm(forms.ModelForm):
     class Meta:
         model = models.DNSRecord
         fields = "__all__"
-
 
     def clean(self):
         cleaned_data = super().clean()
@@ -38,7 +38,9 @@ class DNSRecordModelForm(forms.ModelForm):
             if self.instance and self.instance.pk and cleaned_data.get("id_provider"):
                 id_provider = cleaned_data.get("id_provider")
             else:
-                id_provider = async_to_sync(dns_provider.get_record_id)(base_domain_name=root_domain.name, name=domain.name)
+                id_provider = async_to_sync(dns_provider.get_record_id)(
+                    base_domain_name=root_domain.name, name=domain.name
+                )
             if id_provider:
                 async_to_sync(dns_provider.update_record)(
                     record_id=id_provider,
@@ -47,7 +49,8 @@ class DNSRecordModelForm(forms.ModelForm):
                     content=value,
                     type=models.DNSRecord.TypeChoices(record_type).to_record_type(),
                     proxied=proxied,
-                    comment="dns record")
+                    comment="dns record",
+                )
             else:
                 id_provider = async_to_sync(dns_provider.create_record)(
                     base_domain_name=root_domain.name,
@@ -55,7 +58,8 @@ class DNSRecordModelForm(forms.ModelForm):
                     content=value,
                     type=models.DNSRecord.TypeChoices(record_type).to_record_type(),
                     proxied=proxied,
-                    comment="dns record")
+                    comment="dns record",
+                )
 
             if not id_provider:
                 raise forms.ValidationError(f"no id returned form {str(dns_provider)}")
@@ -70,8 +74,6 @@ class DNSRecordModelForm(forms.ModelForm):
         return super().save(commit=commit)
 
 
-
-
 @admin.register(models.DNSRecord)
 class DNSRecordModelAdmin(admin.ModelAdmin):
     list_display = ("id", "domain", "type", "proxied", "value_ip", "value_domain", "provider_sync_at_display")
@@ -84,7 +86,11 @@ class DNSRecordModelAdmin(admin.ModelAdmin):
         return super().delete_queryset(request=request, queryset=queryset)
 
     def delete_model(self, request, obj: models.DNSRecord):
-        if obj.id_provider and (dns_provider_obj := obj.domain.get_dns_provider()) and (root_domain := obj.domain.get_root()):
+        if (
+            obj.id_provider
+            and (dns_provider_obj := obj.domain.get_dns_provider())
+            and (root_domain := obj.domain.get_root())
+        ):
             dns_provider = dns_provider_obj.get_provider()
             async_to_sync(dns_provider.delete_record)(base_domain_name=root_domain.name, record_id=obj.id_provider)
         return super().delete_model(request=request, obj=obj)

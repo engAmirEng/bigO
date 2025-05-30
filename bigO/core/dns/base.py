@@ -13,6 +13,7 @@ class RecordType(enum.StrEnum):
     CNAME = "CNAME"
     TXT = "TXT"
 
+
 class BaseDNSProvider(abc.ABC):
     ProviderArgsModel: A
     TYPE_IDENTIFIER: str
@@ -26,13 +27,26 @@ class BaseDNSProvider(abc.ABC):
 
     @abc.abstractmethod
     async def create_record(
-        self, base_domain_name: str, name: str, content: str, type: RecordType, comment: str | None = None, proxied: bool|None=None
+        self,
+        base_domain_name: str,
+        name: str,
+        content: str,
+        type: RecordType,
+        comment: str | None = None,
+        proxied: bool | None = None,
     ) -> str:
         ...
 
     @abc.abstractmethod
     async def update_record(
-        self, record_id: str, base_domain_name: str, name: str, content: str, type: RecordType, comment: str | None = None, proxied: bool|None=None
+        self,
+        record_id: str,
+        base_domain_name: str,
+        name: str,
+        content: str,
+        type: RecordType,
+        comment: str | None = None,
+        proxied: bool | None = None,
     ):
         ...
 

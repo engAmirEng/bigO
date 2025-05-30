@@ -46,12 +46,20 @@ async def sublink_view(request, subscription_uuid: uuid.UUID):
         if connection_rule.inbound_choose_rule is None:
             return "todo"
         inbound_choose_rule = typing.InboundChooseRuleSchema(**connection_rule.inbound_choose_rule)
-        rule_specs = models.ConnectionRuleInboundSpec.objects.filter(rule=subscriptionperiod_obj.plan.connection_rule)\
-            .select_related("spec__inbound_type").select_related("spec__domain_address__domain").select_related("spec__ip_address").select_related("spec__domain_sni").select_related("spec__domainhost_header")
+        rule_specs = (
+            models.ConnectionRuleInboundSpec.objects.filter(rule=subscriptionperiod_obj.plan.connection_rule)
+            .select_related("spec__inbound_type")
+            .select_related("spec__domain_address__domain")
+            .select_related("spec__ip_address")
+            .select_related("spec__domain_sni")
+            .select_related("spec__domainhost_header")
+        )
         rule_specs = [i async for i in rule_specs]
         for in_rule in inbound_choose_rule.inbounds:
             related_rule_specs = [i for i in rule_specs if i.key == in_rule.key_name]
-            selected_rule_specs = random.choices(related_rule_specs, weights=[i.weight for i in related_rule_specs], k=in_rule.count)
+            selected_rule_specs = random.choices(
+                related_rule_specs, weights=[i.weight for i in related_rule_specs], k=in_rule.count
+            )
             for counter in range(in_rule.count):
                 selected_rule_spec = selected_rule_specs[counter]
                 selected_spec: models.InboundSpec = selected_rule_spec.spec
@@ -80,8 +88,10 @@ async def sublink_view(request, subscription_uuid: uuid.UUID):
                     }
                 )
                 remark_prefix = (
-                    subscriptionperiod_obj.plan.connection_rule.inbound_remarks_prefix or ""
-                ) + in_rule.prefix + f"({selected_spec.id}-{counter})"
+                    (subscriptionperiod_obj.plan.connection_rule.inbound_remarks_prefix or "")
+                    + in_rule.prefix
+                    + f"({selected_spec.id}-{counter})"
+                )
                 link_res = django.template.Template(link_template).render(
                     context=django.template.Context(
                         {
@@ -117,7 +127,9 @@ async def sublink_view(request, subscription_uuid: uuid.UUID):
 
             selected_addresses = (
                 random.choices(
-                    [i[0] for i in all_addressed], weights=[i[1] for i in all_addressed], k=inboundcombochoicegroup.count
+                    [i[0] for i in all_addressed],
+                    weights=[i[1] for i in all_addressed],
+                    k=inboundcombochoicegroup.count,
                 )
                 if all_addressed
                 else []
@@ -132,7 +144,9 @@ async def sublink_view(request, subscription_uuid: uuid.UUID):
             )
             selected_domainhostheaders = (
                 random.choices(
-                    [i[0] for i in domainhostheaders], weights=[i[1] for i in domain_snis], k=inboundcombochoicegroup.count
+                    [i[0] for i in domainhostheaders],
+                    weights=[i[1] for i in domain_snis],
+                    k=inboundcombochoicegroup.count,
                 )
                 if domainhostheaders
                 else []

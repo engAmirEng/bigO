@@ -6,7 +6,9 @@ from solo.models import SingletonModel
 from bigO.utils.models import TimeStampedModel
 from django.db import models
 from django.db.models import UniqueConstraint
+
 from .. import typing
+
 
 class Config(TimeStampedModel, SingletonModel):
     nginx_config_http_template = models.TextField(
@@ -75,7 +77,9 @@ class ConnectionRule(TimeStampedModel, models.Model):
     )
     inbound_remarks_prefix = models.CharField(max_length=255, null=True, blank=True)
     INBOUND_CHOOSE_RULE_SCHEMA = typing.InboundChooseRuleSchema.model_json_schema()
-    inbound_choose_rule = django_jsonform.models.fields.JSONField(schema=INBOUND_CHOOSE_RULE_SCHEMA, null=True, blank=True)
+    inbound_choose_rule = django_jsonform.models.fields.JSONField(
+        schema=INBOUND_CHOOSE_RULE_SCHEMA, null=True, blank=True
+    )
 
     def __str__(self):
         return f"{self.pk}-{self.name}"

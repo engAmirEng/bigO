@@ -23,7 +23,13 @@ class CloudflareDNS(BaseDNSProvider):
             raise e
 
     async def create_record(
-        self, base_domain_name: str, name: str, content: str, type: RecordType, comment: str | None = None, proxied: bool|None=None
+        self,
+        base_domain_name: str,
+        name: str,
+        content: str,
+        type: RecordType,
+        comment: str | None = None,
+        proxied: bool | None = None,
     ):
         zones = await self.client.zones.list(name=base_domain_name)
         async for zone in zones:
@@ -39,7 +45,14 @@ class CloudflareDNS(BaseDNSProvider):
             return r.id
 
     async def update_record(
-        self, record_id: str, base_domain_name: str, name: str, content: str, type: RecordType, comment: str | None = None, proxied: bool|None=None
+        self,
+        record_id: str,
+        base_domain_name: str,
+        name: str,
+        content: str,
+        type: RecordType,
+        comment: str | None = None,
+        proxied: bool | None = None,
     ):
         zones = await self.client.zones.list(name=base_domain_name)
         async for zone in zones:
@@ -95,7 +108,13 @@ class AbrArvanDNS(BaseDNSProvider):
                     raise Exception(await response.text())
 
     async def create_record(
-        self, base_domain_name: str, name: str, content: str, type: RecordType, comment: str | None = None, proxied: bool|None=None
+        self,
+        base_domain_name: str,
+        name: str,
+        content: str,
+        type: RecordType,
+        comment: str | None = None,
+        proxied: bool | None = None,
     ) -> str:
         if type == RecordType.TXT:
             value = {"text": content}
@@ -107,13 +126,7 @@ class AbrArvanDNS(BaseDNSProvider):
             raise NotImplementedError
         name = name.removesuffix(base_domain_name)
         url = f"{self.BASE_URL}/domains/{base_domain_name}/dns-records"
-        data = {
-            "value": value,
-            "type": type.lower(),
-            "name": name,
-            "ttl": 120,
-            "cloud": bool(proxied)
-        }
+        data = {"value": value, "type": type.lower(), "name": name, "ttl": 120, "cloud": bool(proxied)}
         async with aiohttp.ClientSession(
             headers={"Authorization": self.args.api_key, "Content-type": "application/json"}
         ) as session:
@@ -124,7 +137,14 @@ class AbrArvanDNS(BaseDNSProvider):
                 return response_dict["data"]["id"]
 
     async def update_record(
-        self, record_id: str, base_domain_name: str, name: str, content: str, type: RecordType, comment: str | None = None, proxied: bool|None=None
+        self,
+        record_id: str,
+        base_domain_name: str,
+        name: str,
+        content: str,
+        type: RecordType,
+        comment: str | None = None,
+        proxied: bool | None = None,
     ):
         if type == RecordType.TXT:
             value = {"text": content}
@@ -136,13 +156,7 @@ class AbrArvanDNS(BaseDNSProvider):
             raise NotImplementedError
         name = name.removesuffix(base_domain_name)
         url = f"{self.BASE_URL}/domains/{base_domain_name}/dns-records/{record_id}"
-        data = {
-            "value": value,
-            "type": type.lower(),
-            "name": name,
-            "ttl": 120,
-            "cloud": bool(proxied)
-        }
+        data = {"value": value, "type": type.lower(), "name": name, "ttl": 120, "cloud": bool(proxied)}
         async with aiohttp.ClientSession(
             headers={"Authorization": self.args.api_key, "Content-type": "application/json"}
         ) as session:
@@ -151,7 +165,6 @@ class AbrArvanDNS(BaseDNSProvider):
                     raise Exception(await response.text())
                 response_dict = await response.json()
                 return response_dict["data"]["id"]
-
 
     async def get_record_id(self, base_domain_name: str, name: str):
         url = f"{self.BASE_URL}/domains/{base_domain_name}/dns-records"

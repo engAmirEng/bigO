@@ -7,6 +7,7 @@ from django_json_widget.widgets import JSONEditorWidget
 from render_block import render_block_to_string
 from rest_framework_api_key.admin import APIKeyModelAdmin
 
+from bigO.net_manager import models as net_manager_models
 from django.conf import settings
 from django.contrib import admin, messages
 from django.contrib.auth.decorators import login_required
@@ -19,7 +20,6 @@ from django.utils.html import format_html
 from django.utils.translation import gettext
 
 from . import forms, models, tasks
-from bigO.net_manager import models as net_manager_models
 
 
 class NodeLatestSyncStatInline(admin.StackedInline):

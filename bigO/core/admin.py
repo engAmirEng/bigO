@@ -6,6 +6,7 @@ from asgiref.sync import async_to_sync
 from django_jsonform.forms.fields import JSONFormField
 from solo.admin import SingletonModelAdmin
 
+from bigO.net_manager import models as net_manager_models
 from django import forms
 from django.conf import settings
 from django.contrib import admin, messages
@@ -20,7 +21,6 @@ from django.utils.translation import gettext
 
 from . import models, tasks
 from .dns import AVAILABLE_DNS_PROVIDERS
-from bigO.net_manager import models as net_manager_models
 
 
 @admin.register(models.SiteConfiguration)

@@ -52,9 +52,7 @@ def node_spec_create(*, node: models.Node, ip_a: str):
         container_spec.save()
 
 
-def process_process_state(
-    supervisorprocessinfo_list: list[typing.SupervisorProcessInfoSchema], node: models.Node
-):
+def process_process_state(supervisorprocessinfo_list: list[typing.SupervisorProcessInfoSchema], node: models.Node):
     last_captured_for_node = models.SupervisorProcessInfo.objects.filter(node=node).order_by("-captured_at").first()
     if last_captured_for_node:
         latest_supervisorprocessinfo_list = [

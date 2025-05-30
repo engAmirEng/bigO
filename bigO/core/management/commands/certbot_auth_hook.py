@@ -8,7 +8,7 @@ from asgiref.sync import async_to_sync
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from ... import models, services, dns
+from ... import dns, models, services
 
 
 class Command(BaseCommand):

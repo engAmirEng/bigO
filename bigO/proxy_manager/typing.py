@@ -4,11 +4,11 @@ from typing import Protocol
 import pydantic
 
 
-
 class ChooseRuleItemsSchema(pydantic.BaseModel):
     key_name: str
     prefix: str = ""
     count: int
+
 
 class InboundChooseRuleSchema(pydantic.BaseModel):
     name: str

@@ -276,12 +276,28 @@ class InboundComboModelAdmin(admin.ModelAdmin):
             str(obj.inbound_type),
         )
 
+
 @admin.register(models.InboundSpec)
 class InboundSpecModelAdmin(admin.ModelAdmin):
-    list_display = ("id", "name", "inbound_type", "port", "domain_address", "ip_address", "domain_sni", "domainhost_header")
+    list_display = (
+        "id",
+        "name",
+        "inbound_type",
+        "port",
+        "domain_address",
+        "ip_address",
+        "domain_sni",
+        "domainhost_header",
+    )
     list_select_related = ("inbound_type",)
     list_filter = ("inbound_type",)
-    search_fields = ("name", "inbound_type__name", "domain_address__domain__name", "ip_address__ip", "domain_sni__name")
+    search_fields = (
+        "name",
+        "inbound_type__name",
+        "domain_address__domain__name",
+        "ip_address__ip",
+        "domain_sni__name",
+    )
     autocomplete_fields = ("domain_address", "ip_address", "domain_sni", "domainhost_header")
 
     @admin.display(ordering="inbound_type")

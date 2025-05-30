@@ -1,8 +1,8 @@
-from django.db.models import CheckConstraint
+from bigO.core.dns import RecordType
 from bigO.utils.models import TimeStampedModel
 from django.db import models
-from django.db.models import Q
-from bigO.core.dns import RecordType
+from django.db.models import CheckConstraint, Q
+
 
 class DNSRecord(TimeStampedModel, models.Model):
     class TypeChoices(models.IntegerChoices):
@@ -18,15 +18,20 @@ class DNSRecord(TimeStampedModel, models.Model):
     domain = models.ForeignKey("core.Domain", on_delete=models.CASCADE, related_name="domain_dnsrecords")
     type = models.PositiveSmallIntegerField(choices=TypeChoices.choices)
     proxied = models.BooleanField(default=False)
-    value_ip = models.ForeignKey("node_manager.PublicIP", on_delete=models.CASCADE, related_name="+", null=True, blank=True)
-    value_domain = models.ForeignKey("core.Domain", on_delete=models.CASCADE, related_name="value_domain_dnsrecords", null=True, blank=True)
+    value_ip = models.ForeignKey(
+        "node_manager.PublicIP", on_delete=models.CASCADE, related_name="+", null=True, blank=True
+    )
+    value_domain = models.ForeignKey(
+        "core.Domain", on_delete=models.CASCADE, related_name="value_domain_dnsrecords", null=True, blank=True
+    )
 
     class Meta:
         ordering = ["-created_at"]
         constraints = [
             CheckConstraint(
-                condition=Q(value_ip__isnull=True, value_domain__isnull=False) | Q(value_ip__isnull=False, value_domain__isnull=True),
-                name="valueip_or_valuedomain_dnsrecord"
+                condition=Q(value_ip__isnull=True, value_domain__isnull=False)
+                | Q(value_ip__isnull=False, value_domain__isnull=True),
+                name="valueip_or_valuedomain_dnsrecord",
             )
         ]
 
