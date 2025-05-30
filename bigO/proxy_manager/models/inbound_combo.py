@@ -2,6 +2,8 @@ from bigO.utils.models import TimeStampedModel
 from django.core import validators
 from django.db import models
 
+from .. import typing
+
 
 class InboundComboGroup(TimeStampedModel, models.Model):
     name = models.SlugField(unique=True)
@@ -77,3 +79,27 @@ class InboundSpec(TimeStampedModel, models.Model):
 
     def __str__(self):
         return f"{self.pk}-{self.name}|{self.inbound_type}"
+
+    def get_combo_stat(self):
+        if self.domain_address:
+            address = self.domain_address.domain.name
+        elif self.ip_address:
+            address = self.ip_address.ip.ip
+        else:
+            raise NotImplementedError
+        if self.domain_sni:
+            sni = self.domain_sni.name
+        else:
+            sni = None
+        if self.domainhost_header:
+            domainhost_header = self.domainhost_header.name
+        else:
+            domainhost_header = None
+        return typing.ComboStat(
+            **{
+                "address": address,
+                "port": self.port,
+                "sni": sni,
+                "domainhostheader": domainhost_header,
+            }
+        )

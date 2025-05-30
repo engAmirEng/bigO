@@ -50,7 +50,12 @@ class NodeOutbound(TimeStampedModel, models.Model):
     to_inbound_type = models.ForeignKey(
         "InboundType", on_delete=models.CASCADE, related_name="toinboundtype_nodeoutbounds", null=True, blank=True
     )
-    xray_outbound_template = models.TextField(help_text="{{ node, tag, nodeinternaluser }}")
+    xray_outbound_template = models.TextField(
+        help_text="{{ node, tag, nodeinternaluser, combo_stat: {'address', 'port', 'sni', 'domainhostheader'} }}"
+    )
+    inbound_spec = models.ForeignKey(
+        "InboundSpec", on_delete=models.CASCADE, related_name="inboundspec_nodeoutbounds", null=True, blank=True
+    )
 
     class Meta:
         ordering = ["-created_at"]

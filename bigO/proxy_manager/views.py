@@ -3,6 +3,8 @@ import logging
 import random
 import uuid
 
+from asgiref.sync import sync_to_async
+
 import django.template
 import django.urls.resolvers
 from bigO.utils import py_helpers
@@ -66,29 +68,7 @@ async def sublink_view(request, subscription_uuid: uuid.UUID):
                 selected_rule_spec = selected_rule_specs[counter]
                 selected_spec: models.InboundSpec = selected_rule_spec.spec
                 link_template = selected_spec.inbound_type.link_template
-                if selected_spec.domain_address:
-                    address = selected_spec.domain_address.domain.name
-                elif selected_spec.ip_address:
-                    address = selected_spec.ip_address.ip.ip
-                else:
-                    raise NotImplementedError
-                if selected_spec.domain_sni:
-                    sni = selected_spec.domain_sni.name
-                else:
-                    sni = None
-                if selected_spec.domainhost_header:
-                    domainhost_header = selected_spec.domainhost_header.name
-                else:
-                    domainhost_header = None
-
-                combo_stat = typing.ComboStat(
-                    **{
-                        "address": address,
-                        "port": selected_spec.port,
-                        "sni": sni,
-                        "domainhostheader": domainhost_header,
-                    }
-                )
+                combo_stat = await sync_to_async(selected_spec.get_combo_stat)()
                 remark_prefix = (
                     (subscriptionperiod_obj.plan.connection_rule.inbound_remarks_prefix or "")
                     + in_rule.prefix

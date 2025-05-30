@@ -277,6 +277,18 @@ class InboundComboModelAdmin(admin.ModelAdmin):
         )
 
 
+class ConnectionRuleInboundSpec(admin.StackedInline):
+    model = models.ConnectionRuleInboundSpec
+    extra = 0
+
+
+class InboundSpecNodeOutboundInline(admin.StackedInline):
+    model = models.NodeOutbound
+    extra = 0
+    autocomplete_fields = ("node",)
+    show_change_link = True
+
+
 @admin.register(models.InboundSpec)
 class InboundSpecModelAdmin(admin.ModelAdmin):
     list_display = (
@@ -299,6 +311,7 @@ class InboundSpecModelAdmin(admin.ModelAdmin):
         "domain_sni__name",
     )
     autocomplete_fields = ("domain_address", "ip_address", "domain_sni", "domainhost_header")
+    inlines = (InboundSpecNodeOutboundInline, ConnectionRuleInboundSpec)
 
     @admin.display(ordering="inbound_type")
     def inbound_type_display(self, obj):

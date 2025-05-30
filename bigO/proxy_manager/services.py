@@ -108,7 +108,9 @@ def get_xray_conf_v2(
             Prefetch(
                 "rule_connectionruleoutbounds",
                 to_attr="node_connection_outbounds",
-                queryset=models.ConnectionRuleOutbound.objects.filter(node_outbound__node=node_obj),
+                queryset=models.ConnectionRuleOutbound.objects.filter(node_outbound__node=node_obj).select_related(
+                    "node_outbound__inbound_spec"
+                ),
             )
         )
         .distinct()
@@ -196,10 +198,21 @@ def get_xray_conf_v2(
             balancer_tag = f"{connection_rule.id}_{connectionruleoutbound.name}"
             outbound_tag = f"{connection_rule.id}_{connectionruleoutbound.node_outbound.name}"
             xray_balancers[balancer_tag].append(outbound_tag)
+            if connectionruleoutbound.node_outbound.inbound_spec:
+                combo_stat = connectionruleoutbound.node_outbound.inbound_spec.get_combo_stat()
+            else:
+                combo_stat = None
             xray_outbounds[outbound_tag] = django.template.Template(
                 connectionruleoutbound.node_outbound.xray_outbound_template
             ).render(
-                django.template.Context({"tag": outbound_tag, "node": node_obj, "nodeinternaluser": nodeinternaluser})
+                django.template.Context(
+                    {
+                        "tag": outbound_tag,
+                        "node": node_obj,
+                        "nodeinternaluser": nodeinternaluser,
+                        "combo_stat": combo_stat,
+                    }
+                )
             )
         all_xray_outbounds = {**all_xray_outbounds, **xray_outbounds}
         all_xray_balancers = {**all_xray_balancers, **xray_balancers}
