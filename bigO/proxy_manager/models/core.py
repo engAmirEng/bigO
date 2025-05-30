@@ -1,10 +1,13 @@
 import uuid
 
+import django_jsonform.models.fields
 from solo.models import SingletonModel
 
 from bigO.utils.models import TimeStampedModel
 from django.db import models
 from django.db.models import UniqueConstraint
+
+from .. import typing
 
 
 class Config(TimeStampedModel, SingletonModel):
@@ -47,7 +50,12 @@ class NodeOutbound(TimeStampedModel, models.Model):
     to_inbound_type = models.ForeignKey(
         "InboundType", on_delete=models.CASCADE, related_name="toinboundtype_nodeoutbounds", null=True, blank=True
     )
-    xray_outbound_template = models.TextField(help_text="{{ node, tag, nodeinternaluser }}")
+    xray_outbound_template = models.TextField(
+        help_text="{{ node, tag, nodeinternaluser, combo_stat: {'address', 'port', 'sni', 'domainhostheader'} }}"
+    )
+    inbound_spec = models.ForeignKey(
+        "InboundSpec", on_delete=models.CASCADE, related_name="inboundspec_nodeoutbounds", null=True, blank=True
+    )
 
     class Meta:
         ordering = ["-created_at"]
@@ -64,17 +72,29 @@ class ConnectionRule(TimeStampedModel, models.Model):
         Region, on_delete=models.CASCADE, related_name="destinationregion_connectionrules"
     )
     xray_rules_template = models.TextField(help_text="[RuleObject], {{ node, subscriptionperiods, inbound_tags }}")
+
     inboundcombogroup = models.ForeignKey(
         "InboundComboGroup",
         on_delete=models.PROTECT,
         related_name="inboundcombogroup_connectionrules",
         null=True,
-        blank=False,
+        blank=True,
     )
     inbound_remarks_prefix = models.CharField(max_length=255, null=True, blank=True)
+    INBOUND_CHOOSE_RULE_SCHEMA = typing.InboundChooseRuleSchema.model_json_schema()
+    inbound_choose_rule = django_jsonform.models.fields.JSONField(
+        schema=INBOUND_CHOOSE_RULE_SCHEMA, null=True, blank=True
+    )
 
     def __str__(self):
         return f"{self.pk}-{self.name}"
+
+
+class ConnectionRuleInboundSpec(TimeStampedModel, models.Model):
+    key = models.CharField(max_length=63)
+    rule = models.ForeignKey(ConnectionRule, on_delete=models.CASCADE, related_name="rule_connectionruleinboundspecs")
+    spec = models.ForeignKey("InboundSpec", on_delete=models.CASCADE, related_name="+")
+    weight = models.PositiveSmallIntegerField(default=0)
 
 
 class ConnectionRuleOutbound(TimeStampedModel, models.Model):

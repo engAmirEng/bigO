@@ -7,6 +7,7 @@ from django_json_widget.widgets import JSONEditorWidget
 from render_block import render_block_to_string
 from rest_framework_api_key.admin import APIKeyModelAdmin
 
+from bigO.net_manager import models as net_manager_models
 from django.conf import settings
 from django.contrib import admin, messages
 from django.contrib.auth.decorators import login_required
@@ -210,9 +211,17 @@ class NodeAPIKeyModelAdmin(APIKeyModelAdmin):
     pass
 
 
+class DNSRecordIPValueInline(admin.StackedInline):
+    model = net_manager_models.DNSRecord
+    extra = 0
+    verbose_name = "IP Value DNS Record"
+    show_change_link = True
+
+
 @admin.register(models.PublicIP)
 class PublicIPModelAdmin(admin.ModelAdmin):
     search_fields = ("name", "ip")
+    inlines = (DNSRecordIPValueInline,)
 
 
 class ProgramVersionInline(admin.StackedInline):

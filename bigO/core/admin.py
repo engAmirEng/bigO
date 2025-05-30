@@ -6,6 +6,7 @@ from asgiref.sync import async_to_sync
 from django_jsonform.forms.fields import JSONFormField
 from solo.admin import SingletonModelAdmin
 
+from bigO.net_manager import models as net_manager_models
 from django import forms
 from django.conf import settings
 from django.contrib import admin, messages
@@ -301,6 +302,22 @@ class CertbotInfoModelAdmin(admin.ModelAdmin):
         )
 
 
+class DNSRecordNameInline(admin.StackedInline):
+    model = net_manager_models.DNSRecord
+    extra = 0
+    fk_name = "domain"
+    verbose_name = "Name DNS Record"
+    show_change_link = True
+
+
+class DNSRecordValueInline(admin.StackedInline):
+    model = net_manager_models.DNSRecord
+    extra = 0
+    fk_name = "value_domain"
+    verbose_name = "Value DNS Record"
+    show_change_link = True
+
+
 @admin.register(models.Domain)
 class DomainModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.ModelAdmin):
     list_display = ("__str__", "name", "root", "dns_provider")
@@ -308,7 +325,7 @@ class DomainModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.Model
     search_fields = ("name",)
     actions = ["issue_certificate"]
     autocomplete_fields = ("root",)
-    inlines = [DomainCertificateInline]
+    inlines = (DomainCertificateInline, DNSRecordNameInline, DNSRecordValueInline)
 
     @admin.action(description="Issue A valid Certificate")
     def issue_certificate(self, request, queryset: QuerySet[models.Domain]):

@@ -109,8 +109,20 @@ from(bucket: "{settings.INFLUX_BUCKET}")
                 between_download_bytes = df[df["_field"] == "dl_bytes"].iloc[0].to_dict()["_value"]
                 between_upload_bytes = df[df["_field"] == "up_bytes"].iloc[0].to_dict()["_value"]
 
-                subscriptionperiod.flow_download_bytes -= between_download_bytes
-                subscriptionperiod.flow_upload_bytes -= between_upload_bytes
+                new_flow_download_bytes = subscriptionperiod.flow_download_bytes - between_download_bytes
+                if new_flow_download_bytes < 0:
+                    sentry_sdk.capture_message(
+                        f"negative for {subscriptionperiod=} flow_download_bytes is {new_flow_download_bytes / 1000} MB"
+                    )
+                    subscriptionperiod.current_download_bytes += abs(new_flow_download_bytes)
+                    new_flow_download_bytes = 0
+                subscriptionperiod.flow_download_bytes = new_flow_download_bytes
+
+                new_flow_upload_bytes = subscriptionperiod.flow_upload_bytes - between_upload_bytes
+                if new_flow_upload_bytes < 0:
+                    subscriptionperiod.current_upload_bytes += abs(new_flow_upload_bytes)
+                    new_flow_upload_bytes = 0
+                subscriptionperiod.flow_upload_bytes = new_flow_upload_bytes
 
             subscriptionperiod.flow_point_at = new_flow_point
             subscriptionperiod.save()
