@@ -1,10 +1,22 @@
+import ipaddress
 from typing import Protocol
 
 import pydantic
 
 
+
+class ChooseRuleItemsSchema(pydantic.BaseModel):
+    key_name: str
+    prefix: str = ""
+    count: int
+
+class InboundChooseRuleSchema(pydantic.BaseModel):
+    name: str
+    inbounds: list[ChooseRuleItemsSchema]
+
+
 class ComboStat(pydantic.BaseModel):
-    address: str | None
+    address: str | ipaddress.IPv6Address | ipaddress.IPv4Address | None
     port: int | None
     sni: str | None
     domainhostheader: str | None

@@ -173,10 +173,16 @@ class ConnectionRuleOutboundInline(admin.StackedInline):
     autocomplete_fields = ("rule", "node_outbound")
 
 
+class ConnectionRuleInboundSpecInline(admin.StackedInline):
+    extra = 0
+    model = models.ConnectionRuleInboundSpec
+    autocomplete_fields = ("spec",)
+
+
 @admin.register(models.ConnectionRule)
 class ConnectionRuleModelAdmin(admin.ModelAdmin):
     list_display = ("__str__",)
-    inlines = (ConnectionRuleOutboundInline,)
+    inlines = (ConnectionRuleOutboundInline, ConnectionRuleInboundSpecInline)
     search_fields = ("name", "xray_rules_template")
 
 
@@ -261,6 +267,22 @@ class InboundComboModelAdmin(admin.ModelAdmin):
         InboundComboDomainSniInline,
         InboundComboDomainHostHeaderInline,
     )
+
+    @admin.display(ordering="inbound_type")
+    def inbound_type_display(self, obj):
+        return format_html(
+            "<a href='{}'>{}</a>",
+            reverse("admin:proxy_manager_inboundtype_change", args=[obj.inbound_type.id]),
+            str(obj.inbound_type),
+        )
+
+@admin.register(models.InboundSpec)
+class InboundSpecModelAdmin(admin.ModelAdmin):
+    list_display = ("id", "name", "inbound_type", "port", "domain_address", "ip_address", "domain_sni", "domainhost_header")
+    list_select_related = ("inbound_type",)
+    list_filter = ("inbound_type",)
+    search_fields = ("name", "inbound_type__name", "domain_address__domain__name", "ip_address__ip", "domain_sni__name")
+    autocomplete_fields = ("domain_address", "ip_address", "domain_sni", "domainhost_header")
 
     @admin.display(ordering="inbound_type")
     def inbound_type_display(self, obj):
