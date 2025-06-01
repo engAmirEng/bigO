@@ -74,7 +74,7 @@ async def sublink_view(request, subscription_uuid: uuid.UUID):
                     + in_rule.prefix
                     + f"({selected_spec.id}-{counter})"
                 )
-                link_res = django.template.Template(link_template).render(
+                link_res = await sync_to_async(django.template.Template(link_template).render)(
                     context=django.template.Context(
                         {
                             "subscriptionperiod_obj": subscriptionperiod_obj,
