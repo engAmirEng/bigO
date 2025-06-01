@@ -162,15 +162,16 @@ class SubscriptionPeriodModelAdmin(admin.ModelAdmin):
 
 @admin.register(models.NodeOutbound)
 class NodeOutboundModelAdmin(admin.ModelAdmin):
-    list_display = ("__str__", "name", "node", "to_inbound_type")
+    list_display = ("id", "name", "rule", "node", "to_inbound_type", "inbound_spec")
     search_fields = ("name", "xray_outbound_template")
-    list_filter = ("to_inbound_type", "nodeoutbound_connectionruleoutbounds__rule")
+    list_filter = ("to_inbound_type", "rule")
 
 
-class ConnectionRuleOutboundInline(admin.StackedInline):
+class RuleNodeOutboundInline(admin.StackedInline):
     extra = 0
-    model = models.ConnectionRuleOutbound
-    autocomplete_fields = ("rule", "node_outbound")
+    model = models.NodeOutbound
+    autocomplete_fields = ("rule", "node", "inbound_spec")
+    ordering = ("node", "-created_at")
 
 
 class ConnectionRuleInboundSpecInline(admin.StackedInline):
@@ -182,14 +183,8 @@ class ConnectionRuleInboundSpecInline(admin.StackedInline):
 @admin.register(models.ConnectionRule)
 class ConnectionRuleModelAdmin(admin.ModelAdmin):
     list_display = ("__str__",)
-    inlines = (ConnectionRuleOutboundInline, ConnectionRuleInboundSpecInline)
+    inlines = (RuleNodeOutboundInline, ConnectionRuleInboundSpecInline)
     search_fields = ("name", "xray_rules_template")
-
-
-@admin.register(models.ConnectionRuleOutbound)
-class ConnectionRuleOutboundModelAdmin(admin.ModelAdmin):
-    list_display = ("__str__", "name", "rule", "node_outbound")
-    list_filter = ("rule", "node_outbound")
 
 
 @admin.register(models.InternalUser)
@@ -209,6 +204,8 @@ class InboundComboInline(admin.StackedInline):
 class NodeOutboundInline(admin.StackedInline):
     extra = 0
     model = models.NodeOutbound
+    autocomplete_fields = ("rule", "node", "inbound_spec")
+    ordering = ("rule", "-created_at")
 
 
 @admin.register(models.InboundType)
@@ -285,7 +282,8 @@ class ConnectionRuleInboundSpec(admin.StackedInline):
 class InboundSpecNodeOutboundInline(admin.StackedInline):
     model = models.NodeOutbound
     extra = 0
-    autocomplete_fields = ("node",)
+    autocomplete_fields = ("rule", "node", "inbound_spec")
+    ordering = ("rule", "-created_at")
     show_change_link = True
 
 

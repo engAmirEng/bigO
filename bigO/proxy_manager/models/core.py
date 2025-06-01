@@ -46,7 +46,11 @@ class ISP(TimeStampedModel, models.Model):
 
 class NodeOutbound(TimeStampedModel, models.Model):
     name = models.SlugField()
+    balancer_allocation_str = models.CharField(
+        max_length=255, validators=[], help_text="balancertag1:weght,balancertag1:weght"
+    )
     node = models.ForeignKey("node_manager.Node", on_delete=models.CASCADE, related_name="node_nodeoutbounds")
+    rule = models.ForeignKey("ConnectionRule", on_delete=models.CASCADE, related_name="rule_nodeoutbounds")
     to_inbound_type = models.ForeignKey(
         "InboundType", on_delete=models.CASCADE, related_name="toinboundtype_nodeoutbounds", null=True, blank=True
     )
@@ -54,15 +58,29 @@ class NodeOutbound(TimeStampedModel, models.Model):
         help_text="{{ node, tag, nodeinternaluser, combo_stat: {'address', 'port', 'sni', 'domainhostheader'} }}"
     )
     inbound_spec = models.ForeignKey(
-        "InboundSpec", on_delete=models.CASCADE, related_name="inboundspec_nodeoutbounds", null=True, blank=True
+        "InboundSpec",
+        on_delete=models.CASCADE,
+        related_name="inboundspec_nodeoutbounds",
+        null=True,
+        blank=True,
     )
 
     class Meta:
         ordering = ["-created_at"]
-        constraints = [UniqueConstraint(fields=("name", "node"), name="unique_name_node")]
+        constraints = [UniqueConstraint(fields=("name", "node", "rule"), name="unique_name_node_rule_nodeoutbound")]
 
     def __str__(self):
-        return f"{self.id}-{self.name}|{self.node}"
+        if self.to_inbound_type:
+            return f"{self.id}-{self.to_inbound_type.name}|{self.node}"
+        return f"{self.id}|{self.node}"
+
+    def get_balancer_allocations(self) -> list[tuple[str, int]]:
+        res = []
+        parts = self.balancer_allocation_str.split(",")
+        for part in parts:
+            balancer_name, weight = part.split(":")
+            res.append((balancer_name, int(weight)))
+        return res
 
 
 class ConnectionRule(TimeStampedModel, models.Model):
@@ -95,20 +113,6 @@ class ConnectionRuleInboundSpec(TimeStampedModel, models.Model):
     rule = models.ForeignKey(ConnectionRule, on_delete=models.CASCADE, related_name="rule_connectionruleinboundspecs")
     spec = models.ForeignKey("InboundSpec", on_delete=models.CASCADE, related_name="+")
     weight = models.PositiveSmallIntegerField(default=0)
-
-
-class ConnectionRuleOutbound(TimeStampedModel, models.Model):
-    name = models.CharField()
-    rule = models.ForeignKey(ConnectionRule, on_delete=models.CASCADE, related_name="rule_connectionruleoutbounds")
-    node_outbound = models.ForeignKey(
-        NodeOutbound, on_delete=models.PROTECT, related_name="nodeoutbound_connectionruleoutbounds"
-    )
-
-    class Meta:
-        ordering = ["-created_at"]
-
-    def __str__(self):
-        return f"{self.id}-{self.name}|{self.rule}"
 
 
 class InternalUser(TimeStampedModel, models.Model):
