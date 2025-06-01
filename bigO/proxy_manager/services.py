@@ -169,13 +169,29 @@ def get_xray_conf_v2(
         inbound_parts += xray_inbound
 
         if inbound.haproxy_backend:
-            haproxy_backends_parts.append(inbound.haproxy_backend)
+            haproxy_backends_parts.append(
+                django.template.Template(inbound.haproxy_backend).render(
+                    context=django.template.Context({"node_obj": node_obj})
+                )
+            )
         if inbound.haproxy_matcher_80:
-            haproxy_80_matchers_parts.append(inbound.haproxy_matcher_80)
+            haproxy_80_matchers_parts.append(
+                django.template.Template(inbound.haproxy_matcher_80).render(
+                    context=django.template.Context({"node_obj": node_obj})
+                )
+            )
         if inbound.haproxy_matcher_443:
-            haproxy_443_matchers_parts.append(inbound.haproxy_matcher_443)
+            haproxy_443_matchers_parts.append(
+                django.template.Template(inbound.haproxy_matcher_443).render(
+                    context=django.template.Context({"node_obj": node_obj})
+                )
+            )
         if inbound.nginx_path_config:
-            nginx_path_matchers_parts.append(inbound.nginx_path_config)
+            nginx_path_matchers_parts.append(
+                django.template.Template(inbound.nginx_path_config).render(
+                    context=django.template.Context({"node_obj": node_obj})
+                )
+            )
 
     all_xray_outbounds = {}
     all_xray_balancers = {}

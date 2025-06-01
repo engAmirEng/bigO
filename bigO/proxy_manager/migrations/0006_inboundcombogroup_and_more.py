@@ -41,17 +41,17 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name="inboundtype",
             name="haproxy_backend",
-            field=models.TextField(blank=True, null=True),
+            field=models.TextField(blank=True, null=True, help_text="{{ node_obj }}"),
         ),
         migrations.AlterField(
             model_name="inboundtype",
             name="haproxy_matcher_443",
-            field=models.TextField(blank=True, null=True),
+            field=models.TextField(blank=True, null=True, help_text="{{ node_obj }}"),
         ),
         migrations.AlterField(
             model_name="inboundtype",
             name="haproxy_matcher_80",
-            field=models.TextField(blank=True, null=True),
+            field=models.TextField(blank=True, null=True, help_text="{{ node_obj }}"),
         ),
         migrations.AlterField(
             model_name="inboundtype",
@@ -63,14 +63,14 @@ class Migration(migrations.Migration):
             name="link_template",
             field=models.TextField(
                 blank=True,
-                help_text="{{ subscriptionperiod_obj, connection_rule, combo_stat: {'address', 'port', 'sni', 'domainhostheader'}, remark_prefix }}",
+                help_text="{{ subscriptionperiod_obj, connection_rule, combo_stat: {'address', 'port', 'sni', 'domainhostheader', 'touch_node'}, remark_prefix }}",
                 null=True,
             ),
         ),
         migrations.AlterField(
             model_name="inboundtype",
             name="nginx_path_config",
-            field=models.TextField(blank=True, null=True),
+            field=models.TextField(blank=True, null=True, help_text="{{ node_obj }}"),
         ),
         migrations.CreateModel(
             name="InboundCombo",

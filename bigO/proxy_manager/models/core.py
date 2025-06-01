@@ -55,7 +55,7 @@ class NodeOutbound(TimeStampedModel, models.Model):
         "InboundType", on_delete=models.CASCADE, related_name="toinboundtype_nodeoutbounds", null=True, blank=True
     )
     xray_outbound_template = models.TextField(
-        help_text="{{ node, tag, nodeinternaluser, combo_stat: {'address', 'port', 'sni', 'domainhostheader'} }}"
+        help_text="{{ node, tag, nodeinternaluser, combo_stat: {'address', 'port', 'sni', 'domainhostheader', 'touch_node'} }}"
     )
     inbound_spec = models.ForeignKey(
         "InboundSpec",
@@ -152,12 +152,12 @@ class InboundType(TimeStampedModel, models.Model):
     link_template = models.TextField(
         blank=True,
         null=True,
-        help_text="{{ subscriptionperiod_obj, connection_rule, combo_stat: {'address', 'port', 'sni', 'domainhostheader'}, remark_prefix }}",
+        help_text="{{ subscriptionperiod_obj, connection_rule, combo_stat: {'address', 'port', 'sni', 'domainhostheader', 'touch_node'}, remark_prefix }}",
     )
-    nginx_path_config = models.TextField(blank=True, null=True)
-    haproxy_backend = models.TextField(blank=True, null=True)
-    haproxy_matcher_80 = models.TextField(blank=True, null=True)
-    haproxy_matcher_443 = models.TextField(blank=True, null=True)
+    nginx_path_config = models.TextField(blank=True, null=True, help_text="{{ node_obj }}")
+    haproxy_backend = models.TextField(blank=True, null=True, help_text="{{ node_obj }}")
+    haproxy_matcher_80 = models.TextField(blank=True, null=True, help_text="{{ node_obj }}")
+    haproxy_matcher_443 = models.TextField(blank=True, null=True, help_text="{{ node_obj }}")
 
     def __str__(self):
         return f"{self.pk}-{self.name}"

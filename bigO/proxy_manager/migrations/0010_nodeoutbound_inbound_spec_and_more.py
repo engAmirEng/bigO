@@ -26,7 +26,7 @@ class Migration(migrations.Migration):
             model_name="nodeoutbound",
             name="xray_outbound_template",
             field=models.TextField(
-                help_text="{{ node, tag, nodeinternaluser, combo_stat: {'address', 'port', 'sni', 'domainhostheader'} }}"
+                help_text="{{ node, tag, nodeinternaluser, combo_stat: {'address', 'port', 'sni', 'domainhostheader', 'touch_node'} }}"
             ),
         ),
     ]

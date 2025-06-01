@@ -1,7 +1,9 @@
 import ipaddress
-from typing import Protocol
+from typing import TYPE_CHECKING, Optional, Protocol
 
 import pydantic
+
+from bigO.node_manager import models as node_manager_models
 
 
 class ChooseRuleItemsSchema(pydantic.BaseModel):
@@ -20,6 +22,10 @@ class ComboStat(pydantic.BaseModel):
     port: int | None
     sni: str | None
     domainhostheader: str | None
+    touch_node: node_manager_models.Node | None
+
+    class Config:
+        arbitrary_types_allowed = True
 
 
 class ProxyUserProtocol(Protocol):

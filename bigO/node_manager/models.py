@@ -109,6 +109,12 @@ class Node(TimeStampedModel, models.Model):
         self.save()
         return self.default_cert
 
+    def get_asn_domain(self) -> core_models.Domain:
+        """used in templates"""
+        the_ip = PublicIP.objects.filter(ip_nodepublicips__node=self, same_asn_domain__isnull=False).first()
+        if the_ip:
+            return the_ip.same_asn_domain
+
 
 class AnsibleTask(TimeStampedModel, models.Model):
     class AnsibleTaskQuerySet(models.QuerySet):
@@ -205,6 +211,10 @@ class PublicIP(TimeStampedModel):
     )
     region = models.ForeignKey(
         "proxy_manager.Region", on_delete=models.PROTECT, related_name="region_publicips", null=True, blank=True
+    )
+    asn = models.PositiveIntegerField(null=True, blank=True)
+    same_asn_domain = models.ForeignKey(
+        "core.Domain", on_delete=models.SET_NULL, related_name="+", null=True, blank=True
     )
 
     def __str__(self):

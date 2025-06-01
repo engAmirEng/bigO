@@ -222,6 +222,7 @@ class DNSRecordIPValueInline(admin.StackedInline):
 class PublicIPModelAdmin(admin.ModelAdmin):
     search_fields = ("name", "ip")
     inlines = (DNSRecordIPValueInline,)
+    autocomplete_fields = ("same_asn_domain",)
 
 
 class ProgramVersionInline(admin.StackedInline):
