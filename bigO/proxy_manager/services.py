@@ -151,7 +151,7 @@ def get_xray_conf_v2(
 
         template_context = node_manager_services.NodeTemplateContext(
             {
-                "node": node_obj,
+                "node_obj": node_obj,
                 "inbound_tag": inbound_tag,
                 "consumers_part": consumers_part,
             },
