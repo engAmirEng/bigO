@@ -164,9 +164,10 @@ def get_xray_conf_v2(
         new_files = node_manager_services.get_configdependentcontents_from_context(template_context)
         files.extend(new_files)
         inbound_tags.append(inbound_tag)
-        if inbound_parts:
-            inbound_parts += ",\n"
-        inbound_parts += xray_inbound
+        if xray_inbound:
+            if inbound_parts:
+                inbound_parts += ",\n"
+            inbound_parts += xray_inbound
 
         if inbound.haproxy_backend:
             haproxy_backends_parts.append(
