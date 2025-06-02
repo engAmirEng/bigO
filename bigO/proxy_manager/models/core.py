@@ -59,7 +59,7 @@ class NodeOutbound(TimeStampedModel, models.Model):
     )
     inbound_spec = models.ForeignKey(
         "InboundSpec",
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name="inboundspec_nodeoutbounds",
         null=True,
         blank=True,
