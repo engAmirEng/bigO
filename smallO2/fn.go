@@ -20,6 +20,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -130,6 +131,36 @@ func loadConfig(path string) (Config, error) {
 	err = toml.Unmarshal(data, &config)
 	if err != nil {
 		return config, fmt.Errorf("failed to parse config file: %w", err)
+	}
+
+	if config.SyncURL == "" {
+		config.SyncURL = os.Getenv("sync_url")
+	}
+	if config.APIKey == "" {
+		config.APIKey = os.Getenv("api_key")
+	}
+	if config.IntervalSec == 0 {
+		intervalSecStr := os.Getenv("interval_sec")
+		intervalSec, err := strconv.Atoi(intervalSecStr)
+		if err == nil {
+			config.IntervalSec = intervalSec
+		}
+	}
+	if config.WorkingDir == "" {
+		config.WorkingDir = os.Getenv("working_dir")
+	}
+	if config.SentryDsn == nil {
+		sentryDsn := os.Getenv("sentry_dsn")
+		if sentryDsn != "" {
+			config.SentryDsn = &sentryDsn
+		}
+	}
+	if config.FullControlSupervisord == false {
+		fullControlSupervisordStr := os.Getenv("full_control_supervisord")
+		fullControlSupervisord, err := strconv.ParseBool(fullControlSupervisordStr)
+		if err == nil {
+			config.FullControlSupervisord = fullControlSupervisord
+		}
 	}
 
 	return config, nil
