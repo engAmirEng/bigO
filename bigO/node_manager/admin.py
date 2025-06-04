@@ -29,6 +29,7 @@ class NodeLatestSyncStatInline(admin.StackedInline):
 class NodePublicIPInline(admin.StackedInline):
     extra = 1
     model = models.NodePublicIP
+    autocomplete_fields = ("ip",)
 
 
 class NodeInnerProgramInline(admin.StackedInline):
