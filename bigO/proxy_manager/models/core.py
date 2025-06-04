@@ -1,4 +1,5 @@
 import uuid
+from types import SimpleNamespace
 
 import django_jsonform.models.fields
 from solo.models import SingletonModel
@@ -16,7 +17,9 @@ class Config(TimeStampedModel, SingletonModel):
     )
     nginx_config_stream_template = models.TextField(null=True, blank=False, help_text="{{ node_obj }}")
     xray_config_template = models.TextField(
-        null=True, blank=False, help_text="{{ node, inbound_parts, rule_parts, balancer_parts, outbound_parts }}"
+        null=True,
+        blank=False,
+        help_text="{{ node, inbound_parts, rule_parts, balancer_parts, outbound_parts, portal_parts, bridge_parts }}",
     )
     geosite = models.ForeignKey(
         "node_manager.ProgramVersion",
@@ -113,6 +116,57 @@ class ConnectionRuleInboundSpec(TimeStampedModel, models.Model):
     rule = models.ForeignKey(ConnectionRule, on_delete=models.CASCADE, related_name="rule_connectionruleinboundspecs")
     spec = models.ForeignKey("InboundSpec", on_delete=models.CASCADE, related_name="+")
     weight = models.PositiveSmallIntegerField(default=0)
+
+
+class Reverse(TimeStampedModel, models.Model):
+    rule = models.ForeignKey(ConnectionRule, on_delete=models.CASCADE, related_name="rule_reverses")
+    name = models.SlugField()
+    balancer_allocation_str = models.CharField(
+        max_length=255, validators=[], help_text="balancertag1:weght,balancertag1:weght"
+    )
+    bridge_node = models.ForeignKey("node_manager.Node", on_delete=models.CASCADE, related_name="fromnode_reverses")
+    portal_node = models.ForeignKey("node_manager.Node", on_delete=models.CASCADE, related_name="tonode_reverses")
+    to_inbound_type = models.ForeignKey(
+        "InboundType", on_delete=models.CASCADE, related_name="toinboundtype_reverses", null=True, blank=True
+    )
+    xray_outbound_template = models.TextField(
+        help_text="{{ node, tag, nodeinternaluser, combo_stat: {'address', 'port', 'sni', 'domainhostheader', 'touch_node'} }}"
+    )
+    inbound_spec = models.ForeignKey(
+        "InboundSpec",
+        on_delete=models.PROTECT,
+        related_name="inboundspec_reverses",
+        null=True,
+        blank=True,
+    )
+    base_conn_uuid = models.UUIDField()
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            UniqueConstraint(fields=("name", "bridge_node", "rule"), name="unique_name_bridgenode_rule_reverse"),
+            UniqueConstraint(fields=("name", "portal_node", "rule"), name="unique_name_portalnode_rule_reverse"),
+        ]
+
+    def __str__(self):
+        if self.to_inbound_type:
+            return f"{self.id}-{self.to_inbound_type.name}|{self.bridge_node}->{self.portal_node}"
+        return f"{self.id}|{self.bridge_node}->{self.portal_node}"
+
+    def get_balancer_allocations(self) -> list[tuple[str, int]]:
+        res = []
+        parts = self.balancer_allocation_str.split(",")
+        for part in parts:
+            balancer_name, weight = part.split(":")
+            res.append((balancer_name, int(weight)))
+        return res
+
+    def get_domain_for_balancer_tag(self, balancer_tag: str) -> str:
+        return f"rule{self.rule_id}.bnode{self.bridge_node_id}.pnode{self.portal_node_id}.reverse{self.id}.{balancer_tag}.like.com"
+
+    def get_proxyuser_balancer_tag(self, balancer_tag: str) -> typing.ProxyUserProtocol:
+        email = f"rule{self.rule_id}.bnode{self.bridge_node_id}.pnode{self.portal_node_id}.reverse{self.id}.{balancer_tag}@love.com"
+        return SimpleNamespace(xray_uuid=uuid.uuid5(self.base_conn_uuid, balancer_tag), xray_email=lambda: email)
 
 
 class InternalUser(TimeStampedModel, models.Model):

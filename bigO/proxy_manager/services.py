@@ -1,4 +1,5 @@
 import datetime
+import json
 import logging
 import pathlib
 from collections import defaultdict
@@ -109,7 +110,17 @@ def get_xray_conf_v2(
                 "rule_nodeoutbounds",
                 to_attr="node_connection_outbounds",
                 queryset=models.NodeOutbound.objects.filter(node=node_obj).select_related("inbound_spec"),
-            )
+            ),
+            Prefetch(
+                "rule_reverses",
+                to_attr="bridge_reverses",
+                queryset=models.Reverse.objects.filter(bridge_node=node_obj).select_related("inbound_spec"),
+            ),
+            Prefetch(
+                "rule_reverses",
+                to_attr="portal_reverses",
+                queryset=models.Reverse.objects.filter(portal_node=node_obj).select_related("inbound_spec"),
+            ),
         )
         .distinct()
     )
@@ -125,18 +136,168 @@ def get_xray_conf_v2(
     all_nodeinternaluser_ob_list = models.InternalUser.objects.filter(
         is_active=True, connection_rule_id__in=[i.id for i in connectionrule_qs]
     ).exclude(node=node_obj)
-    all_proxyusers_list: list[tuple[typing.ProxyUserProtocol, int]] = [
+    connection_rule_id_proxyusers: dict[int, set[typing.ProxyUserProtocol]] = defaultdict(set)
+    for proxyuser, connection_rule_id in [
         *[(i, i.plan.connection_rule_id) for i in all_subscriptionperiods_obj_list],
         *[(i, i.connection_rule_id) for i in all_nodeinternaluser_ob_list],
-    ]
-    connection_rule_id_proxyusers: dict[int, set[typing.ProxyUserProtocol]] = defaultdict(set)
+    ]:
+        connection_rule_id_proxyusers[connection_rule_id].add(proxyuser)
+
+    all_xray_outbounds = {}
+    all_xray_balancers = {}
+    reverse_proxyusers: list[typing.ProxyUserProtocol] = []
+    portal_rules_parts: list[dict] = []
+    xray_portals: list[dict] = []
+    bridge_first_rules_parts: list[dict] = []
+    bridge_second_rules_parts: list[dict] = []
+    xray_bridges: list[dict] = []
+    for connection_rule in connectionrule_qs:
+        proxyusers_obj_list = connection_rule_id_proxyusers[connection_rule.id]
+        if not proxyusers_obj_list:
+            # because the routing will be messed up
+            continue
+
+        nodeinternaluser = models.InternalUser.objects.filter(connection_rule=connection_rule, node=node_obj).first()
+        if nodeinternaluser is None:
+            nodeinternaluser = models.InternalUser.init_for_node(node=node_obj, connection_rule=connection_rule)
+        if nodeinternaluser and not nodeinternaluser.is_active:
+            nodeinternaluser = None
+        xray_outbounds = {}
+        xray_balancers = defaultdict(list)
+        for nodeoutbound in connection_rule.node_connection_outbounds:
+            is_outbound_used = False
+            nodeoutbound: models.NodeOutbound
+            outbound_tag = f"{connection_rule.id}_{nodeoutbound.to_inbound_type.name if nodeoutbound.to_inbound_type else ''}_{nodeoutbound.name}"
+            balancer_allocations = nodeoutbound.get_balancer_allocations()
+            for balancer_allocation in balancer_allocations:
+                balancer_tag = f"{connection_rule.id}_{balancer_allocation[0]}"
+                for i in range(balancer_allocation[1]):
+                    is_outbound_used = True
+                    xray_balancers[balancer_tag].append(outbound_tag)
+            if not is_outbound_used:
+                continue
+            if nodeoutbound.inbound_spec:
+                combo_stat = nodeoutbound.inbound_spec.get_combo_stat()
+            else:
+                combo_stat = None
+            xray_outbounds[outbound_tag] = django.template.Template(nodeoutbound.xray_outbound_template).render(
+                django.template.Context(
+                    {
+                        "tag": outbound_tag,
+                        "node": node_obj,
+                        "nodeinternaluser": nodeinternaluser,
+                        "combo_stat": combo_stat,
+                    }
+                )
+            )
+
+        for portal_reverse in connection_rule.portal_reverses:
+            portal_reverse: models.Reverse
+            balancer_allocations = portal_reverse.get_balancer_allocations()
+            for balancer_allocation in balancer_allocations:
+                is_reverse_used = False
+                portal_tag = f"{connection_rule.id}_{portal_reverse.to_inbound_type.name if portal_reverse.to_inbound_type else ''}_{portal_reverse.name}_{portal_reverse.bridge_node.id}_{balancer_allocation[0]}"
+                balancer_tag = f"{connection_rule.id}_{balancer_allocation[0]}"
+                for i in range(balancer_allocation[1]):
+                    is_reverse_used = True
+                    xray_balancers[balancer_tag].append(portal_tag)
+                if not is_reverse_used:
+                    continue
+                xray_portals.append(
+                    {
+                        "tag": portal_tag,
+                        "domain": portal_reverse.get_domain_for_balancer_tag(balancer_tag=balancer_tag),
+                    }
+                )
+                reverse_proxyuser = portal_reverse.get_proxyuser_balancer_tag(balancer_tag=balancer_tag)
+                reverse_proxyusers.append(reverse_proxyuser)
+                portal_rules_parts.append(
+                    {"type": "field", "user": [reverse_proxyuser.xray_email()], "outboundTag": portal_tag}
+                )
+
+        for bridge_reverse in connection_rule.bridge_reverses:
+            bridge_reverse: models.Reverse
+            balancer_allocations = bridge_reverse.get_balancer_allocations()
+            for balancer_allocation in balancer_allocations:
+                is_reverse_used = False
+                bridge_tag = f"{connection_rule.id}_{bridge_reverse.to_inbound_type.name if bridge_reverse.to_inbound_type else ''}_{bridge_reverse.name}_{bridge_reverse.bridge_node.id}_{balancer_allocation[0]}"
+                balancer_tag = f"{connection_rule.id}_{balancer_allocation[0]}"
+                for i in range(balancer_allocation[1]):
+                    is_reverse_used = True
+                if not is_reverse_used:
+                    continue
+                reverse_domain = bridge_reverse.get_domain_for_balancer_tag(balancer_tag=balancer_tag)
+                xray_bridges.append({"tag": bridge_tag, "domain": reverse_domain})
+                reverse_proxyuser = bridge_reverse.get_proxyuser_balancer_tag(balancer_tag=balancer_tag)
+                interconn_outbound_tag = f"interconn-{bridge_tag}"
+                if bridge_reverse.inbound_spec:
+                    combo_stat = bridge_reverse.inbound_spec.get_combo_stat()
+                else:
+                    combo_stat = None
+                xray_outbounds[interconn_outbound_tag] = django.template.Template(
+                    bridge_reverse.xray_outbound_template
+                ).render(
+                    django.template.Context(
+                        {
+                            "tag": interconn_outbound_tag,
+                            "node": node_obj,
+                            "nodeinternaluser": reverse_proxyuser,
+                            "combo_stat": combo_stat,
+                        }
+                    )
+                )
+                bridge_first_rules_parts.append(
+                    {
+                        "type": "field",
+                        "inboundTag": [bridge_tag],
+                        "domain": [f"full:{reverse_domain}"],
+                        "outboundTag": interconn_outbound_tag,
+                    }
+                )
+                bridge_second_rules_parts.append(
+                    {"type": "field", "inboundTag": [bridge_tag], "balancerTag": balancer_tag}
+                )
+
+        all_xray_outbounds = {**all_xray_outbounds, **xray_outbounds}
+        all_xray_balancers = {**all_xray_balancers, **xray_balancers}
+
+        template_context = node_manager_services.NodeTemplateContext(
+            {
+                "node": node_obj,
+                "connection_rule": connection_rule,
+                "subscriptionperiods": proxyusers_obj_list,
+                "outbound_tags": list(xray_outbounds.keys()),
+                "xray_balancers": xray_balancers,
+            },
+            node_work_dir=node_work_dir,
+            base_url=base_url,
+        )
+        xray_rules = django.template.Template(
+            "{% load node_manager proxy_manager %}" + connection_rule.xray_rules_template
+        ).render(context=template_context)
+        new_files = node_manager_services.get_configdependentcontents_from_context(template_context)
+        files.extend(new_files)
+        if rule_parts:
+            rule_parts += ", \n"
+        rule_parts += xray_rules
+
+    reverse_rule_parts = ",".join(
+        [
+            *[json.dumps(i, indent=4) for i in portal_rules_parts],
+            *[json.dumps(i, indent=4) for i in bridge_first_rules_parts],
+            *[json.dumps(i, indent=4) for i in bridge_second_rules_parts],
+        ]
+    )
+    if rule_parts:
+        rule_parts = reverse_rule_parts + "," + rule_parts
+    else:
+        rule_parts = reverse_rule_parts
 
     inbound_tags = []
     for inbound in models.InboundType.objects.filter(is_active=True):
         inbound_tag = inbound.name
         consumers_part = ""
-        for proxyuser, connection_rule_id in all_proxyusers_list:
-            connection_rule_id_proxyusers[connection_rule_id].add(proxyuser)
+        for proxyuser in [*all_subscriptionperiods_obj_list, *all_nodeinternaluser_ob_list, *reverse_proxyusers]:
             template_context = node_manager_services.NodeTemplateContext(
                 {"subscriptionperiod_obj": proxyuser}, node_work_dir=node_work_dir, base_url=base_url
             )
@@ -194,71 +355,6 @@ def get_xray_conf_v2(
                 )
             )
 
-    all_xray_outbounds = {}
-    all_xray_balancers = {}
-    for connection_rule in connectionrule_qs:
-        proxyusers_obj_list = connection_rule_id_proxyusers[connection_rule.id]
-        if not proxyusers_obj_list:
-            # because the routing will be messed up
-            continue
-
-        nodeinternaluser = models.InternalUser.objects.filter(connection_rule=connection_rule, node=node_obj).first()
-        if nodeinternaluser is None:
-            nodeinternaluser = models.InternalUser.init_for_node(node=node_obj, connection_rule=connection_rule)
-        if nodeinternaluser and not nodeinternaluser.is_active:
-            nodeinternaluser = None
-        xray_outbounds = {}
-        xray_balancers = defaultdict(list)
-        for nodeoutbound in connection_rule.node_connection_outbounds:
-            is_outbound_used = False
-            nodeoutbound: models.NodeOutbound
-            outbound_tag = f"{connection_rule.id}_{nodeoutbound.to_inbound_type.name if nodeoutbound.to_inbound_type else ''}_{nodeoutbound.name}"
-            balancer_allocations = nodeoutbound.get_balancer_allocations()
-            for balancer_allocation in balancer_allocations:
-                balancer_tag = f"{connection_rule.id}_{balancer_allocation[0]}"
-                for i in range(balancer_allocation[1]):
-                    is_outbound_used = True
-                    xray_balancers[balancer_tag].append(outbound_tag)
-            if not is_outbound_used:
-                continue
-            if nodeoutbound.inbound_spec:
-                combo_stat = nodeoutbound.inbound_spec.get_combo_stat()
-            else:
-                combo_stat = None
-            xray_outbounds[outbound_tag] = django.template.Template(nodeoutbound.xray_outbound_template).render(
-                django.template.Context(
-                    {
-                        "tag": outbound_tag,
-                        "node": node_obj,
-                        "nodeinternaluser": nodeinternaluser,
-                        "combo_stat": combo_stat,
-                    }
-                )
-            )
-        all_xray_outbounds = {**all_xray_outbounds, **xray_outbounds}
-        all_xray_balancers = {**all_xray_balancers, **xray_balancers}
-
-        template_context = node_manager_services.NodeTemplateContext(
-            {
-                "node": node_obj,
-                "connection_rule": connection_rule,
-                "subscriptionperiods": proxyusers_obj_list,
-                "inbound_tags": inbound_tags,
-                "outbound_tags": list(xray_outbounds.keys()),
-                "xray_balancers": xray_balancers,
-            },
-            node_work_dir=node_work_dir,
-            base_url=base_url,
-        )
-        xray_rules = django.template.Template(
-            "{% load node_manager proxy_manager %}" + connection_rule.xray_rules_template
-        ).render(context=template_context)
-        new_files = node_manager_services.get_configdependentcontents_from_context(template_context)
-        files.extend(new_files)
-        if rule_parts:
-            rule_parts += ", \n"
-        rule_parts += xray_rules
-
     all_balancer_parts = ",\n".join(
         [
             '{{"tag": "{0}", "selector": [{1}]}}'.format(tag, ",".join([f'"{i}"' for i in selectors]))
@@ -273,6 +369,8 @@ def get_xray_conf_v2(
             "rule_parts": rule_parts,
             "outbound_parts": list(all_xray_outbounds.values()),
             "balancer_parts": all_balancer_parts,
+            "bridge_parts": ",\n".join([json.dumps(i, indent=4) for i in xray_bridges]),
+            "portal_parts": ",\n".join([json.dumps(i, indent=4) for i in xray_portals]),
         },
         node_work_dir=node_work_dir,
         base_url=base_url,

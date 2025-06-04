@@ -174,6 +174,13 @@ class RuleNodeOutboundInline(admin.StackedInline):
     ordering = ("node", "-created_at")
 
 
+class ReverseInline(admin.StackedInline):
+    extra = 0
+    model = models.Reverse
+    form = forms.ReverseModelForm
+    autocomplete_fields = ("bridge_node", "portal_node", "inbound_spec")
+
+
 class ConnectionRuleInboundSpecInline(admin.StackedInline):
     extra = 0
     model = models.ConnectionRuleInboundSpec
@@ -183,7 +190,7 @@ class ConnectionRuleInboundSpecInline(admin.StackedInline):
 @admin.register(models.ConnectionRule)
 class ConnectionRuleModelAdmin(admin.ModelAdmin):
     list_display = ("__str__",)
-    inlines = (RuleNodeOutboundInline, ConnectionRuleInboundSpecInline)
+    inlines = (ConnectionRuleInboundSpecInline, RuleNodeOutboundInline, ReverseInline)
     search_fields = ("name", "xray_rules_template")
 
 
