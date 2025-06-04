@@ -8,7 +8,7 @@ from asgiref.sync import async_to_sync
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from ... import dns, models, services
+from ... import dns as dns_prs, models, services
 
 
 class Command(BaseCommand):
@@ -64,7 +64,7 @@ class Command(BaseCommand):
             base_domain_name=base_domain_name,
             name=txt_name,
             content=certbot_validation,
-            type=dns.RecordType.TXT,
+            type=dns_prs.RecordType.TXT,
             comment=f"certbot issue at {timezone.now()}",
         )
 

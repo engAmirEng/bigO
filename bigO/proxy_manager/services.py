@@ -288,10 +288,8 @@ def get_xray_conf_v2(
             *[json.dumps(i, indent=4) for i in bridge_second_rules_parts],
         ]
     )
-    if rule_parts:
+    if reverse_rule_parts:
         rule_parts = reverse_rule_parts + "," + rule_parts
-    else:
-        rule_parts = reverse_rule_parts
 
     inbound_tags = []
     for inbound in models.InboundType.objects.filter(is_active=True):
