@@ -35,6 +35,7 @@ class SubscriptionPlan(TimeStampedModel, models.Model):
         on_delete=models.PROTECT,
         related_name="connectionrule_subscriptionplans",
     )
+    capacity = models.PositiveIntegerField()
 
     @property
     def plan_provider_cls(self) -> type[BaseSubscriptionPlanProvider]:
@@ -42,6 +43,15 @@ class SubscriptionPlan(TimeStampedModel, models.Model):
 
     def __str__(self):
         return f"{self.pk}-{self.name}"
+
+
+class AgencyPlanSpec(TimeStampedModel, models.Model):
+    agency = models.ForeignKey(Agency, on_delete=models.CASCADE, related_name="agency_agencyplanspecs")
+    plan = models.ForeignKey(SubscriptionPlan, on_delete=models.CASCADE, related_name="plan_agencyplanspecs")
+    capacity = models.PositiveIntegerField()
+
+    class Meta:
+        constraints = [UniqueConstraint(fields=("agency", "plan"), name="unique_agency_plan")]
 
 
 class SubscriptionPeriod(TimeStampedModel, models.Model):

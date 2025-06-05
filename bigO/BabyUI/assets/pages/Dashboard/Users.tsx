@@ -21,12 +21,19 @@ import {
   ListPage,
   UserRecord,
   UserRecordColumns,
-  UrlReverse,
+  UrlReverse, PlanRecord,
 } from '../../services/types.ts';
 import Typography from '@mui/material/Typography';
 import Grid from '@mui/material/Grid2';
 import Copyright from '../../internals/components/Copyright.tsx';
 import UsersDataGrid from '../../components/UsersDataGrid.tsx';
+import UserDialogForm from '../../components/UserForm.tsx';
+import {
+  Fab,
+} from '@mui/material';
+import AddIcon from '@mui/icons-material/Add';
+import * as React from 'react';
+
 
 const xThemeComponents = {
   ...chartsCustomizations,
@@ -46,6 +53,7 @@ interface Props {
   logout_url: string;
   users_list_page: ListPage<UserRecord, UserRecordColumns>;
   urls: UrlReverse[];
+  creatable_plans: PlanRecord[]
 }
 export default function Users({
   disableCustomTheme,
@@ -54,7 +62,9 @@ export default function Users({
   logout_url,
   users_list_page,
   urls,
+    creatable_plans
 }: Props) {
+  const [createFormOpen, setCreateFormOpen] = React.useState(false)
   return (
     <AppTheme
       disableCustomTheme={disableCustomTheme}
@@ -97,9 +107,24 @@ export default function Users({
             <Header breadCrumb={['Dashboard', 'Users']} />
             <Box sx={{ width: '100%', maxWidth: { sm: '100%', md: '1700px' } }}>
               {/* cards */}
-              <Typography component="h2" variant="h6" sx={{ mb: 2 }}>
-                Users
-              </Typography>
+              <Stack
+                direction="row"
+                sx={{
+                  width: '100%',
+                  alignItems: 'center',
+                  justifyContent: 'flex-start',
+                }}
+                spacing={2}
+                mb={1}
+              >
+                <Typography component="h2" variant="h6" sx={{ mb: 2 }}>
+                  Users
+                </Typography>
+                <Fab size={"medium"} color="secondary" aria-label="add" onClick={() => setCreateFormOpen(true)}>
+                  <AddIcon />
+                </Fab>
+              </Stack>
+              <UserDialogForm isOpen={createFormOpen} setOpen={setCreateFormOpen} plans={creatable_plans} />
               <Grid container spacing={2} columns={12}>
                 <UsersDataGrid users_list_page={users_list_page} />
               </Grid>

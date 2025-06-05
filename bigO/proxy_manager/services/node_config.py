@@ -14,7 +14,7 @@ from django.db.models import Prefetch, Q
 from django.urls import reverse
 from django.utils import timezone
 
-from . import models, typing
+from .. import models, typing
 
 logger = logging.getLogger(__name__)
 
@@ -50,18 +50,6 @@ def get_proxy_manager_nginx_conf_v2(
     )
     new_files = node_manager_services.get_configdependentcontents_from_context(template_context)
     return nginx_config_http_result, nginx_config_stream_result, new_files
-
-
-def get_connectable_subscriptionperiod_qs():
-    return (
-        models.SubscriptionPeriod.objects.ann_expires_at()
-        .ann_dl_bytes_remained()
-        .ann_up_bytes_remained()
-        .filter(
-            Q(selected_as_current=True, profile__is_active=True, expires_at__gt=timezone.now())
-            & Q(Q(up_bytes_remained__gt=0) | Q(dl_bytes_remained__gt=0))
-        )
-    )
 
 
 def get_xray_conf_v2(

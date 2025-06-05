@@ -34,25 +34,35 @@ export default function UsersDataGrid({ users_list_page }: Props) {
       minWidth: 200,
     },
     {
-      field: 'lastUsageAt',
-      headerName: 'Last Usage',
-      sortable: false,
+      field: 'expiresInSeconds',
+      headerName: 'Expires At',
+      sortable: users_list_page.columns?.expires_at !== undefined,
       flex: 1,
       minWidth: 200,
       renderCell: (params) => {
-        let color: ChipOwnProps['color'];
-        let label;
-        if (params.row.onlineStatus == 'never') {
-          color = 'error';
-          label = 'never';
-        } else if (params.row.onlineStatus == 'online') {
-          color = 'success';
-          label = 'online';
-        } else {
-          color = 'secondary';
-          label = params.value;
+        let seconds: number = params.value;
+        let isPast = false;
+        if (seconds < 0) {
+          seconds *= -1;
+          isPast = true;
         }
-        return <Chip label={label} color={color} size="small" />;
+        let duration = Duration.fromObject({ seconds: seconds });
+        if (duration.shiftTo('hours').hours > 25) {
+          duration = duration.shiftTo('days', 'hours');
+        } else if (duration.shiftTo('hours').hours > 10) {
+          duration = duration.shiftTo('hours');
+        } else {
+          duration = duration.shiftTo('hours', 'minutes');
+        }
+        return (
+          <Chip
+            label={
+              duration.toHuman({ listStyle: 'long' }) + (isPast ? ' ago' : '')
+            }
+            color={isPast ? 'error' : 'primary'}
+            size="small"
+          />
+        );
       },
     },
     {
@@ -105,43 +115,47 @@ export default function UsersDataGrid({ users_list_page }: Props) {
       },
     },
     {
-      field: 'expiresInSeconds',
-      headerName: 'Expires At',
-      sortable: false,
+      field: 'lastSublinkAt',
+      headerName: 'Last Sublink',
+      sortable: users_list_page.columns?.last_sublink_at !== undefined,
       flex: 1,
       minWidth: 200,
       renderCell: (params) => {
-        let seconds: number = params.value;
-        let isPast = false;
-        if (seconds < 0) {
-          seconds *= -1;
-          isPast = true;
-        }
-        let duration = Duration.fromObject({ seconds: seconds });
-        if (duration.shiftTo('hours').hours > 25) {
-          duration = duration.shiftTo('days', 'hours');
-        } else if (duration.shiftTo('hours').hours > 10) {
-          duration = duration.shiftTo('hours');
-        } else {
-          duration = duration.shiftTo('hours', 'minutes');
-        }
-        return (
-          <Chip
-            label={
-              duration.toHuman({ listStyle: 'long' }) + (isPast ? ' ago' : '')
-            }
-            color={isPast ? 'error' : 'primary'}
-            size="small"
-          />
-        );
+        let color: ChipOwnProps['color'] = 'secondary';
+        let label = params.value;
+        return <Chip label={label} color={color} size="small" />;
       },
     },
+    {
+      field: 'lastUsageAt',
+      headerName: 'Last Usage',
+      sortable: users_list_page.columns?.last_usage_at !== undefined,
+      flex: 1,
+      minWidth: 200,
+      renderCell: (params) => {
+        let color: ChipOwnProps['color'];
+        let label;
+        if (params.row.onlineStatus == 'never') {
+          color = 'error';
+          label = 'never';
+        } else if (params.row.onlineStatus == 'online') {
+          color = 'success';
+          label = 'online';
+        } else {
+          color = 'secondary';
+          label = params.value;
+        }
+        return <Chip label={label} color={color} size="small" />;
+      },
+    },
+
   ];
   let rows: GridRowsProp = users_list_page.records.map((user) => ({
     id: user.id,
     title: user.title,
     onlineStatus: user.online_status,
     lastUsageAt: user.last_usage_at_repr,
+    lastSublinkAt: user.last_sublink_at_repr,
     usedBytes: user.used_bytes,
     totalLimitBytes: user.total_limit_bytes,
     expiresInSeconds: user.expires_in_seconds,
@@ -182,6 +196,12 @@ export default function UsersDataGrid({ users_list_page }: Props) {
       let sortFieldName: keyof typeof users_list_page.columns;
       if (gridSortItem.field == 'usage') {
         sortFieldName = 'used_bytes';
+      } else if (gridSortItem.field == 'lastSublinkAt') {
+        sortFieldName = 'last_sublink_at';
+      } else if (gridSortItem.field == 'lastUsageAt') {
+        sortFieldName = 'last_usage_at';
+      } else if (gridSortItem.field == 'expiresInSeconds') {
+        sortFieldName = 'expires_at';
       } else {
         throw new Error('cannot sort for ' + gridSortItem.field);
       }

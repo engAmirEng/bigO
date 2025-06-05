@@ -70,9 +70,9 @@ export default function SignIn({ disableCustomTheme, messages }: Props) {
     props: { errors },
   } = usePage();
   let usernameErrorMessage = errors.username;
-  let usernameError = usernameErrorMessage ? true : false;
+  let usernameError = !!usernameErrorMessage;
   let passwordErrorMessage = errors.password;
-  let passwordError = passwordErrorMessage ? true : false;
+  let passwordError = !!passwordErrorMessage;
   const [open, setOpen] = React.useState(false);
 
   // const handleClickOpen = () => {
@@ -86,10 +86,6 @@ export default function SignIn({ disableCustomTheme, messages }: Props) {
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
-    console.log({
-      username: data.get('username'),
-      password: data.get('password'),
-    });
     router.post(url, data);
   };
 

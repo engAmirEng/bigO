@@ -67,10 +67,17 @@ class SubscriptionProfileModelAdmin(admin.ModelAdmin):
         return naturaltime(obj.last_sublink_at)
 
 
+class AgencyPlanSpecInline(admin.StackedInline):
+    model = models.AgencyPlanSpec
+    extra = 0
+    autocomplete_fields = ("agency",)
+
+
 @admin.register(models.SubscriptionPlan)
 class SubscriptionPlanModelAdmin(admin.ModelAdmin):
     list_display = ("__str__",)
     form = forms.SubscriptionPlanModelForm
+    inlines = (AgencyPlanSpecInline,)
 
 
 @admin.register(models.SubscriptionPeriod)

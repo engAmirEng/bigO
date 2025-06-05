@@ -41,6 +41,7 @@ class ListPage(pydantic.BaseModel, Generic[OutputRecordT]):
 class User(pydantic.BaseModel):
     id: str
     title: str
+    last_sublink_at_repr: str | None
     last_usage_at_repr: str | None
     online_status: Literal["online", "offline", "never"]
     used_bytes: int
