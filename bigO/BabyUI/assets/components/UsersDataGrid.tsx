@@ -1,7 +1,7 @@
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import LinearProgress from '@mui/material/LinearProgress';
-import { router, usePage } from '@inertiajs/react';
+import { router, usePage, Link } from '@inertiajs/react';
 import { ListPage, UserRecord, UserRecordColumns } from '../services/types.ts';
 import * as React from 'react';
 import {
@@ -25,6 +25,7 @@ interface Props {
   users_list_page: ListPage<UserRecord, UserRecordColumns>;
 }
 export default function UsersDataGrid({ users_list_page }: Props) {
+  const { url } = usePage();
   let columns: GridColDef[] = [
     {
       field: 'title',
@@ -32,6 +33,15 @@ export default function UsersDataGrid({ users_list_page }: Props) {
       sortable: false,
       flex: 1,
       minWidth: 200,
+      renderCell: (params) => {
+        let title: number = params.value;
+        var parsedUrl = new URL(url, window.location.origin);
+        parsedUrl.searchParams.set("period_id", params.row.id)
+        // let link = parse/dUrl
+        return (
+          <Link href={parsedUrl.href}>{title}</Link>
+        );
+      },
     },
     {
       field: 'expiresInSeconds',
@@ -160,7 +170,7 @@ export default function UsersDataGrid({ users_list_page }: Props) {
     totalLimitBytes: user.total_limit_bytes,
     expiresInSeconds: user.expires_in_seconds,
   }));
-  const { url } = usePage();
+
   const [loading, setLoading] = React.useState(false);
 
   const setPaginationModel = (model: GridPaginationModel) => {

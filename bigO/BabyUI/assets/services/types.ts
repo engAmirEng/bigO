@@ -66,3 +66,15 @@ export interface PlanRecord {
   plan_provider_args: any;
   remained_cap: number;
 }
+
+export interface Sublink {
+  normal: string
+  b64: string
+}
+
+export interface UserDetail {
+  id: string;
+  title: string;
+  created_at_str: string;
+  sublink: Sublink
+}

@@ -14,6 +14,7 @@
     "@fontsource/roboto": "^5.2.5",
     "@inertiajs/react": "^2.0.5",
     "@mui/icons-material": "^6.4.8",
+    "@mui/lab": "^7.0.0-beta.13",
     "@mui/material": "^6.4.8",
     "@mui/x-charts": "^7.28.0",
     "@mui/x-data-grid": "^7.28.0",
@@ -26,6 +27,7 @@
     "dayjs": "^1.11.13",
     "filesize": "^10.1.6",
     "luxon": "^3.6.0",
+    "qrcode": "^1.5.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

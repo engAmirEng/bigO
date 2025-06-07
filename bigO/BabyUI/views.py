@@ -2,6 +2,8 @@ import asyncio
 import logging
 from datetime import timedelta
 from functools import wraps
+from typing import Literal
+from zoneinfo import ZoneInfo
 
 from asgiref.sync import sync_to_async
 
@@ -26,6 +28,7 @@ from django.utils.translation import gettext
 from django.views.decorators.http import require_POST
 
 from . import forms, services, utils
+from ..utils.templatetags.jformat import jformat
 
 logger = logging.getLogger(__name__)
 
@@ -244,7 +247,7 @@ async def dashboard_users(request):
 
     async def users_render_record_callback(i: proxy_manager_models.SubscriptionPeriod) -> utils.User:
         return utils.User(
-            id=str(i.profile_id),
+            id=str(i.id),
             title=i.profile.title,
             last_usage_at_repr=naturaltime(i.last_usage_at),
             last_sublink_at_repr=naturaltime(i.last_sublink_at) if i.last_usage_at else "never",
@@ -290,6 +293,13 @@ async def dashboard_users(request):
     users_res = await user_listpagehandler.to_response()
     # end
 
+    # user detail
+    selected_user = None
+    if period_id := request.GET.get("period_id"):
+        selected_user: proxy_manager_models.SubscriptionPeriod = await users_qs.filter(id=period_id).afirst()
+        normal_sublink = selected_user.profile.get_sublink()
+        b64_sublink = normal_sublink + "base64=true"
+
     return {
         "current_agency_id": current_agency_id,
         "agencies": [{"id": i.agency.id, "name": i.agency.name} for i in agent_accounts],
@@ -304,5 +314,13 @@ async def dashboard_users(request):
         ],
         "logout_url": reverse("BabyUI:logout"),
         "users_list_page": users_res.model_dump(),
+        "selected_user": {
+            "title": selected_user.profile.title,
+            "created_at_str": jformat(selected_user.profile.created_at.astimezone(ZoneInfo("Asia/Tehran")), "%Y/%m/%d %H:%M"),
+            "sublink": {
+                "normal": normal_sublink,
+                "b64": b64_sublink
+            }
+        } if selected_user else None,
         "errors": form.errors,
     }

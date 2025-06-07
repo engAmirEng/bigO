@@ -199,3 +199,7 @@ class SubscriptionProfile(TimeStampedModel, models.Model):
     @last_usage_at.setter
     def last_usage_at(self, value):
         self._last_usage_at = value
+
+    def get_sublink(self):
+        # todo
+        return f"http://127.0.0.1:8001/change-me/todo/{self.uuid}"

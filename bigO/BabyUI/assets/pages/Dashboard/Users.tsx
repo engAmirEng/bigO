@@ -21,7 +21,7 @@ import {
   ListPage,
   UserRecord,
   UserRecordColumns,
-  UrlReverse, PlanRecord,
+  UrlReverse, PlanRecord, UserDetail,
 } from '../../services/types.ts';
 import Typography from '@mui/material/Typography';
 import Grid from '@mui/material/Grid2';
@@ -33,6 +33,8 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import * as React from 'react';
+import UserDetailDialog from "../../components/UserDetailDialog.tsx";
+import {router, usePage} from "@inertiajs/react";
 
 
 const xThemeComponents = {
@@ -52,6 +54,7 @@ interface Props {
   agencies: Agency[];
   logout_url: string;
   users_list_page: ListPage<UserRecord, UserRecordColumns>;
+  selected_user: UserDetail | null;
   urls: UrlReverse[];
   creatable_plans: PlanRecord[]
 }
@@ -61,10 +64,15 @@ export default function Users({
   agencies,
   logout_url,
   users_list_page,
+    selected_user,
   urls,
     creatable_plans
 }: Props) {
+  const { url } = usePage();
+  var parsedUrl = new URL(url, window.location.origin);
+  let period_id = parsedUrl.searchParams.get("period_id")
   const [createFormOpen, setCreateFormOpen] = React.useState(false)
+  const [userDetailOpen, setUserDetailOpen] = React.useState(!!period_id)
   return (
     <AppTheme
       disableCustomTheme={disableCustomTheme}
@@ -125,6 +133,11 @@ export default function Users({
                 </Fab>
               </Stack>
               <UserDialogForm isOpen={createFormOpen} setOpen={setCreateFormOpen} plans={creatable_plans} />
+              <UserDetailDialog isOpen={userDetailOpen} onClose={() => {
+                setUserDetailOpen(false)
+                parsedUrl.searchParams.delete("period_id")
+                router.get(parsedUrl.href)
+              }} user={selected_user}/>
               <Grid container spacing={2} columns={12}>
                 <UsersDataGrid users_list_page={users_list_page} />
               </Grid>
