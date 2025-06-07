@@ -89,6 +89,28 @@ export default function UsersDataGrid({ users_list_page }: Props) {
       },
     },
     {
+      field: 'lastUsageAt',
+      headerName: 'Last Usage',
+      sortable: users_list_page.columns?.last_usage_at !== undefined,
+      flex: 1,
+      minWidth: 200,
+      renderCell: (params) => {
+        let color: ChipOwnProps['color'];
+        let label;
+        if (params.row.onlineStatus == 'never') {
+          color = 'error';
+          label = 'never';
+        } else if (params.row.onlineStatus == 'online') {
+          color = 'success';
+          label = 'online';
+        } else {
+          color = 'secondary';
+          label = params.value;
+        }
+        return <Chip label={label} color={color} size="small" />;
+      },
+    },
+    {
       field: 'usage',
       headerName: 'Usage',
       sortable: users_list_page.columns?.used_bytes !== undefined,
@@ -146,28 +168,6 @@ export default function UsersDataGrid({ users_list_page }: Props) {
       renderCell: (params) => {
         let color: ChipOwnProps['color'] = 'secondary';
         let label = params.value;
-        return <Chip label={label} color={color} size="small" />;
-      },
-    },
-    {
-      field: 'lastUsageAt',
-      headerName: 'Last Usage',
-      sortable: users_list_page.columns?.last_usage_at !== undefined,
-      flex: 1,
-      minWidth: 200,
-      renderCell: (params) => {
-        let color: ChipOwnProps['color'];
-        let label;
-        if (params.row.onlineStatus == 'never') {
-          color = 'error';
-          label = 'never';
-        } else if (params.row.onlineStatus == 'online') {
-          color = 'success';
-          label = 'online';
-        } else {
-          color = 'secondary';
-          label = params.value;
-        }
         return <Chip label={label} color={color} size="small" />;
       },
     },

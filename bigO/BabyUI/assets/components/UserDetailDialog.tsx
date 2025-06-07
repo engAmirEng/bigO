@@ -24,7 +24,7 @@ import ClearIcon from '@mui/icons-material/Clear';
 import ReplayIcon from '@mui/icons-material/Replay';
 import ContentCopyTwoToneIcon from '@mui/icons-material/ContentCopyTwoTone';
 import Stack from '@mui/material/Stack';
-import UserRenewDialogForm from "./UserRenewForm.tsx";
+import UserRenewDialogForm from './UserRenewForm.tsx';
 interface Props {
   isOpen: boolean;
   onClose: () => void;
@@ -32,7 +32,12 @@ interface Props {
   creatable_plans: PlanRecord[];
 }
 
-export default function UserDetailDialog({ isOpen, onClose, user, creatable_plans }: Props) {
+export default function UserDetailDialog({
+  isOpen,
+  onClose,
+  user,
+  creatable_plans,
+}: Props) {
   let {
     url,
     props: { errors },
@@ -158,10 +163,10 @@ export default function UserDetailDialog({ isOpen, onClose, user, creatable_plan
             </DialogActions>
           </Dialog>
           <UserRenewDialogForm
-              isOpen={renewFormOpen}
-              setOpen={setrenewFormOpen}
-              plans={creatable_plans}
-              current_plan={user.plan}
+            isOpen={renewFormOpen}
+            setOpen={setrenewFormOpen}
+            plans={creatable_plans}
+            current_plan={user.plan}
           />
           <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
             <TabList onChange={handleChange} aria-label="lab API tabs example">
@@ -252,7 +257,11 @@ export default function UserDetailDialog({ isOpen, onClose, user, creatable_plan
             </Card>
           </TabPanel>
           <TabPanel value="3">
-            {user.events.map((event) => <p>{event.title} at {event.created_at_str}</p>)}
+            {user.events.map((event) => (
+              <p>
+                {event.title} at {event.created_at_str}
+              </p>
+            ))}
           </TabPanel>
         </TabContext>
       </DialogContent>

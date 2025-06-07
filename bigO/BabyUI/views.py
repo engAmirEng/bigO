@@ -256,7 +256,7 @@ async def dashboard_users(request):
             id=str(i.id),
             title=i.profile.title,
             last_usage_at_repr=naturaltime(i.last_usage_at),
-            last_sublink_at_repr=naturaltime(i.last_sublink_at) if i.last_usage_at else "never",
+            last_sublink_at_repr=naturaltime(i.last_sublink_at) if i.last_sublink_at else "never",
             online_status="online"
             if i.last_usage_at and (timezone.now() - i.last_usage_at < timedelta(minutes=2))
             else "offline"
