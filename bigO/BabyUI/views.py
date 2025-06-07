@@ -17,7 +17,7 @@ from django.contrib.auth import alogout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.humanize.templatetags.humanize import naturaltime
-from django.db.models import Exists, OuterRef, QuerySet
+from django.db.models import QuerySet
 from django.db.models.functions import Coalesce
 from django.http import HttpResponseRedirect
 from django.shortcuts import redirect, render
@@ -107,6 +107,7 @@ async def logout(request):
 @login_required(login_url=reverse_lazy("BabyUI:signin"))
 @inertia("Home/Index", layout="BabyUI/page.html")
 async def index(request):
+    return redirect("BabyUI:dashboard_users")
     user = await request.auser()
     return {"title": f"hello {user.username}"}
 
@@ -118,6 +119,8 @@ CURRENT_AGENCY_KEY = "current_agency"
 @inertia("Home/Dashboard", layout="BabyUI/page.html")
 @prop_urls()
 async def dashboard(request):
+    return redirect("BabyUI:dashboard_users")
+
     user = await request.auser()
     agent_accounts_qs = proxy_manager_models.Agent.objects.filter(user=user, is_active=True).select_related("agency")
     agent_accounts = [i async for i in agent_accounts_qs[:9]]
@@ -222,25 +225,28 @@ async def dashboard_users(request):
         await request.session.aset(CURRENT_AGENCY_KEY, current_agency_id)
     # end
 
+    errors = {}
     # form
     if request.POST and request.POST.get("action") == "new_user":
-        form = forms.NewUserForm(request.POST, prefix="newuser1")
-        if await sync_to_async(form.is_valid)():
+        newuser_form = forms.NewUserForm(request.POST, prefix="newuser1")
+        if await sync_to_async(newuser_form.is_valid)():
             await sync_to_async(services.create_new_user)(
                 agency=agent_obj.agency,
-                plan=form.cleaned_data["plan"],
-                title=form.cleaned_data["title"],
-                description=form.cleaned_data["description"],
-                plan_args=form.get_plan_args(),
+                agentuser=request.user,
+                plan=newuser_form.cleaned_data["plan"],
+                title=newuser_form.cleaned_data["title"],
+                description=newuser_form.cleaned_data["description"],
+                plan_args=newuser_form.get_plan_args(),
             )
             return redirect(request.path)
+        errors.update(**newuser_form.errors)
     else:
-        form = forms.NewUserForm(prefix="newuser1")
+        newuser_form = forms.NewUserForm(prefix="newuser1")
     # end
 
     # users
     users_qs = proxy_manager_services.get_agent_current_subscriptionperiods_qs(agent=agent_obj)
-    users_qs = users_qs.select_related("profile").ann_expires_at().ann_total_limit_bytes().order_by("-created_at")
+    users_qs = users_qs.select_related("profile", "plan").ann_expires_at().ann_total_limit_bytes().order_by("-created_at")
 
     async def users_search_callback(queryset: QuerySet[proxy_manager_models.SubscriptionPeriod], q: str):
         return queryset.filter(profile__title__icontains=q)
@@ -283,7 +289,7 @@ async def dashboard_users(request):
 
     user_listpagehandler = utils.ListPageHandler[proxy_manager_models.SubscriptionPeriod, utils.User](
         request,
-        queryset=users_qs,
+        queryset=users_qs.filter(selected_as_current=True),
         search_callback=users_search_callback,
         render_record_callback=users_render_record_callback,
         sort_callback=users_sort_callback,
@@ -293,17 +299,38 @@ async def dashboard_users(request):
     users_res = await user_listpagehandler.to_response()
     # end
 
+    creatable_plans_qs = newuser_form.fields["plan"].queryset
     # user detail
     selected_user = None
     if period_id := request.GET.get("period_id"):
         selected_user: proxy_manager_models.SubscriptionPeriod = await users_qs.filter(id=period_id).afirst()
-        normal_sublink = selected_user.profile.get_sublink()
+        user_events = selected_user.profile.profile_subscriptionevents.all()
+
+        # form
+        if request.POST and request.POST.get("action") == "renew_user":
+            renewuser_form = forms.RenewUserForm(request.POST, profile=selected_user.profile, prefix="renewuser1")
+            if await sync_to_async(renewuser_form.is_valid)():
+                await sync_to_async(services.renew_user)(
+                    agency=agent_obj.agency,
+                    agentuser=request.user,
+                    plan=renewuser_form.cleaned_data["plan"],
+                    plan_args=renewuser_form.get_plan_args(),
+                    profile=selected_user.profile
+                )
+                return redirect(request.get_full_path())
+            errors.update(**renewuser_form.errors)
+        else:
+            renewuser_form = forms.RenewUserForm(profile=selected_user.profile, prefix="newuser1")
+        # end
+
+        creatable_plans_qs = renewuser_form.fields["plan"].queryset
+        normal_sublink = await sync_to_async(selected_user.profile.get_sublink)()
         b64_sublink = normal_sublink + "base64=true"
         if request.GET and request.POST.get("action") == "suspend":
-            await sync_to_async(services.suspend_user)(selected_user.profile)
+            await sync_to_async(services.suspend_user)(selected_user.profile, agentuser=request.user)
             return redirect(request.get_full_path())
         elif request.GET and request.POST.get("action") == "unsuspend":
-            await sync_to_async(services.unsuspend_user)(selected_user.profile)
+            await sync_to_async(services.unsuspend_user)(selected_user.profile, agentuser=request.user)
             return redirect(request.get_full_path())
 
     return {
@@ -316,7 +343,7 @@ async def dashboard_users(request):
                 "plan_provider_key": i.plan_provider_key,
                 "plan_provider_args": i.plan_provider_args,
             }
-            async for i in form.fields["plan"].queryset
+            async for i in creatable_plans_qs
         ],
         "logout_url": reverse("BabyUI:logout"),
         "users_list_page": users_res.model_dump(),
@@ -324,10 +351,23 @@ async def dashboard_users(request):
             "title": selected_user.profile.title,
             "created_at_str": jformat(selected_user.profile.created_at.astimezone(ZoneInfo("Asia/Tehran")), "%Y/%m/%d %H:%M"),
             "is_suspended": not selected_user.profile.is_active,
+            "plan": {
+                "id": str(selected_user.plan.id),
+                "name": selected_user.plan.name,
+                "plan_provider_key": selected_user.plan.plan_provider_key,
+                "plan_provider_args": selected_user.plan.plan_provider_args,
+            },
             "sublink": {
                 "normal": normal_sublink,
                 "b64": b64_sublink
-            }
+            },
+            "events": [
+                {
+                    "id": str(i.id),
+                    "title": i.title,
+                    "created_at_str": jformat(i.created_at.astimezone(ZoneInfo("Asia/Tehran")), "%Y/%m/%d %H:%M"),
+                } async for i in user_events
+            ]
         } if selected_user else None,
-        "errors": form.errors,
+        "errors": errors,
     }

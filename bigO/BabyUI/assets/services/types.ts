@@ -72,10 +72,20 @@ export interface Sublink {
   b64: string
 }
 
+
+export interface Event {
+  id: string;
+  title: string;
+  created_at_str: string;
+}
+
+
 export interface UserDetail {
   id: string;
   title: string;
   created_at_str: string;
   is_suspended: boolean;
   sublink: Sublink
+  plan: PlanRecord
+  events: Event[]
 }

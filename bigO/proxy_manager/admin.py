@@ -35,6 +35,7 @@ class AgencyModelAdmin(admin.ModelAdmin):
     list_display = ("__str__",)
     search_fields = ("name",)
     inlines = (AgentInline,)
+    autocomplete_fields = ("sublink_host",)
 
 
 @admin.register(models.Agent)

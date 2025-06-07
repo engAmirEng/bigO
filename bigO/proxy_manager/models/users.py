@@ -9,8 +9,9 @@ from django.db.models import Case, F, OuterRef, Q, Subquery, UniqueConstraint, W
 
 class Agency(TimeStampedModel, models.Model):
     name = models.SlugField()
-    sublink_header_template = models.TextField(null=True, blank=False, help_text="{{ subscription_obj, expires_at }}")
     is_active = models.BooleanField()
+    sublink_header_template = models.TextField(null=True, blank=False, help_text="{{ subscription_obj, expires_at }}")
+    sublink_host = models.ForeignKey("core.Domain", on_delete=models.PROTECT, related_name="+", null=True, blank=False)
 
     def __str__(self):
         return f"{self.pk}-{self.name}"
@@ -201,5 +202,16 @@ class SubscriptionProfile(TimeStampedModel, models.Model):
         self._last_usage_at = value
 
     def get_sublink(self):
-        # todo
-        return f"http://127.0.0.1:8001/change-me/todo/{self.uuid}"
+        if self.initial_agency.sublink_host:
+            domain = self.initial_agency.sublink_host.name
+        else:
+            raise ValueError("sublink_host not set")
+        return f"https://{domain}/sub/{self.uuid}"
+
+
+class SubscriptionEvent(TimeStampedModel, models.Model):
+    related_agency = models.ForeignKey(Agency, on_delete=models.CASCADE, related_name="+")
+    agentuser = models.ForeignKey("users.User", on_delete=models.CASCADE, related_name="+")
+    profile = models.ForeignKey(SubscriptionProfile, on_delete=models.CASCADE, related_name="profile_subscriptionevents")
+    period = models.ForeignKey(SubscriptionPeriod, on_delete=models.CASCADE, null=True, blank=True)
+    title = models.CharField(max_length=255)

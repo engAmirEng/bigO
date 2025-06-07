@@ -171,5 +171,8 @@ async def dynamic_sublink_view(request, sublink_path: str):
     pattern = django.urls.resolvers.RoutePattern(route="change-me/todo/<uuid:subscription_uuid>")
     match = pattern.match(path=sublink_path.rstrip("/"))
     if match is None:
-        raise django.urls.Resolver404()
+        pattern = django.urls.resolvers.RoutePattern(route="sub/<uuid:subscription_uuid>")
+        match = pattern.match(path=sublink_path.rstrip("/"))
+        if match is None:
+            raise django.urls.Resolver404()
     return await sublink_view(request, **match[2])

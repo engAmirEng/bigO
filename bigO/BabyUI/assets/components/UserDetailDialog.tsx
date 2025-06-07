@@ -1,28 +1,16 @@
 import { router, usePage } from '@inertiajs/react';
 import QRCode from 'qrcode';
 import Card from '@mui/material/Card';
-import CardActions from '@mui/material/CardActions';
-import CardContent from '@mui/material/CardContent';
 import CardMedia from '@mui/material/CardMedia';
 import {
-  Typography,
   Box,
-  FormControl,
-  TextField,
-  FormHelperText,
   Button,
   DialogTitle,
   DialogContent,
-  InputAdornment,
   DialogActions,
   DialogContentText,
   Dialog,
   Tab,
-  InputLabel,
-  MenuItem,
-  Select,
-  SelectChangeEvent,
-  OutlinedInput,
   CircularProgress,
   CardHeader,
   Fab,
@@ -30,22 +18,21 @@ import {
 import { TabContext, TabList, TabPanel } from '@mui/lab';
 
 import * as React from 'react';
-import { PlanProvider, PlanRecord, UserDetail } from '../services/types.ts';
+import { PlanRecord, UserDetail } from '../services/types.ts';
 import CheckIcon from '@mui/icons-material/Check';
-import AddIcon from '@mui/icons-material/Add';
 import ClearIcon from '@mui/icons-material/Clear';
-import ToggleOffIcon from '@mui/icons-material/ToggleOff';
-import EditIcon from '@mui/icons-material/Edit';
 import ReplayIcon from '@mui/icons-material/Replay';
 import ContentCopyTwoToneIcon from '@mui/icons-material/ContentCopyTwoTone';
 import Stack from '@mui/material/Stack';
+import UserRenewDialogForm from "./UserRenewForm.tsx";
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   user: UserDetail | null;
+  creatable_plans: PlanRecord[];
 }
 
-export default function UserDetailDialog({ isOpen, onClose, user }: Props) {
+export default function UserDetailDialog({ isOpen, onClose, user, creatable_plans }: Props) {
   let {
     url,
     props: { errors },
@@ -69,13 +56,13 @@ export default function UserDetailDialog({ isOpen, onClose, user }: Props) {
   }
   const [currentTab, setCurrentTab] = React.useState('1');
   const [suspending, setSuspending] = React.useState(false);
+  const [renewFormOpen, setrenewFormOpen] = React.useState(false);
   const handleChange = (event: React.SyntheticEvent, newValue: string) => {
     setCurrentTab(newValue);
   };
 
   const [qr, setQr] = React.useState('');
   const [b64qr, setB64Qr] = React.useState('');
-  console.log(user);
 
   React.useEffect(() => {
     QRCode.toDataURL(user.sublink.normal)
@@ -170,11 +157,17 @@ export default function UserDetailDialog({ isOpen, onClose, user }: Props) {
               </Button>
             </DialogActions>
           </Dialog>
-
+          <UserRenewDialogForm
+              isOpen={renewFormOpen}
+              setOpen={setrenewFormOpen}
+              plans={creatable_plans}
+              current_plan={user.plan}
+          />
           <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
             <TabList onChange={handleChange} aria-label="lab API tabs example">
               <Tab label="Overview" value="1" />
               <Tab label="Links" value="2" />
+              <Tab label="History" value="3" />
             </TabList>
           </Box>
 
@@ -184,15 +177,9 @@ export default function UserDetailDialog({ isOpen, onClose, user }: Props) {
               variant="contained"
               color="success"
               startIcon={<ReplayIcon />}
+              onClick={() => setrenewFormOpen(true)}
             >
               Renew
-            </Button>
-            <Button
-              variant="contained"
-              color="secondary"
-              startIcon={<EditIcon />}
-            >
-              Edit
             </Button>
             {suspendUnSuspend}
           </TabPanel>
@@ -263,6 +250,9 @@ export default function UserDetailDialog({ isOpen, onClose, user }: Props) {
                 image={qr}
               />
             </Card>
+          </TabPanel>
+          <TabPanel value="3">
+            {user.events.map((event) => <p>{event.title} at {event.created_at_str}</p>)}
           </TabPanel>
         </TabContext>
       </DialogContent>

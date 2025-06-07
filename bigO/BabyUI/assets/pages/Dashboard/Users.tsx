@@ -149,6 +149,7 @@ export default function Users({
                   router.get(parsedUrl.href);
                 }}
                 user={selected_user}
+                creatable_plans={creatable_plans}
               />
               <Grid container spacing={2} columns={12}>
                 <UsersDataGrid users_list_page={users_list_page} />
