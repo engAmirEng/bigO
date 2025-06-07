@@ -36,11 +36,9 @@ export default function UsersDataGrid({ users_list_page }: Props) {
       renderCell: (params) => {
         let title: number = params.value;
         var parsedUrl = new URL(url, window.location.origin);
-        parsedUrl.searchParams.set("period_id", params.row.id)
+        parsedUrl.searchParams.set('period_id', params.row.id);
         // let link = parse/dUrl
-        return (
-          <Link href={parsedUrl.href}>{title}</Link>
-        );
+        return <Link href={parsedUrl.href}>{title}</Link>;
       },
     },
     {
@@ -158,7 +156,6 @@ export default function UsersDataGrid({ users_list_page }: Props) {
         return <Chip label={label} color={color} size="small" />;
       },
     },
-
   ];
   let rows: GridRowsProp = users_list_page.records.map((user) => ({
     id: user.id,

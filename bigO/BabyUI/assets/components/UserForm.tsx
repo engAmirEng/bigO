@@ -15,7 +15,8 @@ import {
   MenuItem,
   Select,
   SelectChangeEvent,
-  OutlinedInput, CircularProgress,
+  OutlinedInput,
+  CircularProgress,
 } from '@mui/material';
 import * as React from 'react';
 import { PlanProvider, PlanRecord } from '../services/types.ts';
@@ -30,7 +31,7 @@ export default function UserDialogForm({ isOpen, setOpen, plans }: Props) {
     url,
     props: { errors },
   } = usePage();
-  let [isSubmitting, setIsSubmitting] = React.useState(false)
+  let [isSubmitting, setIsSubmitting] = React.useState(false);
   errors = errors || {};
   let titleErrorMessage = errors.title;
   let descriptionErrorMessage = errors.description;
@@ -40,12 +41,15 @@ export default function UserDialogForm({ isOpen, setOpen, plans }: Props) {
   // let ErrorMessage = errors.plan;
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setIsSubmitting(true)
+    setIsSubmitting(true);
     const data = new FormData(event.currentTarget);
     console.log(data);
     const dataf = Object.fromEntries(data.entries());
-    console.log(dataf)
-    router.post(url, data, {onSuccess: () => setOpen(false), onFinish: () => setIsSubmitting(false)});
+    console.log(dataf);
+    router.post(url, data, {
+      onSuccess: () => setOpen(false),
+      onFinish: () => setIsSubmitting(false),
+    });
   };
 
   const [currentPlanID, setCurrentPlanID] = React.useState<string>('');
@@ -109,7 +113,6 @@ export default function UserDialogForm({ isOpen, setOpen, plans }: Props) {
               color={VolumeGBErrorMessage ? 'error' : 'primary'}
             />
           </FormControl>
-
         </>
       );
     }
@@ -205,7 +208,11 @@ export default function UserDialogForm({ isOpen, setOpen, plans }: Props) {
                 </MenuItem>
               ))}
             </Select>
-            {planErrorMessage && <FormHelperText error={true}>Here's my helper text</FormHelperText>}
+            {planErrorMessage && (
+              <FormHelperText error={true}>
+                Here's my helper text
+              </FormHelperText>
+            )}
           </FormControl>
           {planSpecificInputParts}
           {/*<FormControlLabel*/}
@@ -226,12 +233,15 @@ export default function UserDialogForm({ isOpen, setOpen, plans }: Props) {
       <DialogActions>
         <Button onClick={() => setOpen(false)}>Cancel</Button>
 
-        <Button onClick={() => {
-          if (formRef.current) {
-            formRef.current.requestSubmit()
-          }
-        }} variant="contained">
-          {isSubmitting ? <CircularProgress /> : "Create"}
+        <Button
+          onClick={() => {
+            if (formRef.current) {
+              formRef.current.requestSubmit();
+            }
+          }}
+          variant="contained"
+        >
+          {isSubmitting ? <CircularProgress /> : 'Create'}
         </Button>
       </DialogActions>
     </Dialog>
