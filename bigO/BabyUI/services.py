@@ -30,3 +30,12 @@ def create_new_user(
         subscriptionprofile.save()
         subscriptionperiod.save()
         return subscriptionperiod
+
+def suspend_user(profile: proxy_manager_models.SubscriptionProfile):
+    profile.is_active = False
+    profile.save()
+
+
+def unsuspend_user(profile: proxy_manager_models.SubscriptionProfile):
+    profile.is_active = True
+    profile.save()

@@ -223,7 +223,7 @@ async def dashboard_users(request):
     # end
 
     # form
-    if request.POST:
+    if request.POST and request.POST.get("action") == "new_user":
         form = forms.NewUserForm(request.POST, prefix="newuser1")
         if await sync_to_async(form.is_valid)():
             await sync_to_async(services.create_new_user)(
@@ -299,6 +299,12 @@ async def dashboard_users(request):
         selected_user: proxy_manager_models.SubscriptionPeriod = await users_qs.filter(id=period_id).afirst()
         normal_sublink = selected_user.profile.get_sublink()
         b64_sublink = normal_sublink + "base64=true"
+        if request.GET and request.POST.get("action") == "suspend":
+            await sync_to_async(services.suspend_user)(selected_user.profile)
+            return redirect(request.get_full_path())
+        elif request.GET and request.POST.get("action") == "unsuspend":
+            await sync_to_async(services.unsuspend_user)(selected_user.profile)
+            return redirect(request.get_full_path())
 
     return {
         "current_agency_id": current_agency_id,
@@ -317,6 +323,7 @@ async def dashboard_users(request):
         "selected_user": {
             "title": selected_user.profile.title,
             "created_at_str": jformat(selected_user.profile.created_at.astimezone(ZoneInfo("Asia/Tehran")), "%Y/%m/%d %H:%M"),
+            "is_suspended": not selected_user.profile.is_active,
             "sublink": {
                 "normal": normal_sublink,
                 "b64": b64_sublink

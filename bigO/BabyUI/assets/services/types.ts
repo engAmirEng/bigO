@@ -76,5 +76,6 @@ export interface UserDetail {
   id: string;
   title: string;
   created_at_str: string;
+  is_suspended: boolean;
   sublink: Sublink
 }

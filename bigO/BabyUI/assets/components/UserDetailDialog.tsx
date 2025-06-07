@@ -15,6 +15,7 @@ import {
   DialogContent,
   InputAdornment,
   DialogActions,
+    DialogContentText,
   Dialog,
   Tab,
   InputLabel,
@@ -27,6 +28,7 @@ import {TabContext, TabList, TabPanel} from '@mui/lab';
 
 import * as React from 'react';
 import {PlanProvider, PlanRecord, UserDetail} from '../services/types.ts';
+import CheckIcon from '@mui/icons-material/Check';
 import AddIcon from '@mui/icons-material/Add';
 import ClearIcon from '@mui/icons-material/Clear';
 import ToggleOffIcon from '@mui/icons-material/ToggleOff';
@@ -62,9 +64,10 @@ export default function UserDetailDialog({ isOpen, onClose, user }: Props) {
       </DialogActions>
     </Dialog>
   }
-  const [value, setValue] = React.useState('1');
+  const [currentTab, setCurrentTab] = React.useState('1');
+  const [suspending, setSuspending] = React.useState(false);
   const handleChange = (event: React.SyntheticEvent, newValue: string) => {
-    setValue(newValue);
+    setCurrentTab(newValue);
   };
 
   const [qr, setQr] = React.useState('');
@@ -91,12 +94,57 @@ export default function UserDetailDialog({ isOpen, onClose, user }: Props) {
     }
   };
 
+
+  const [suspendDialogOpen, setSuspendDialogOpen] = React.useState(false);
+
+  let suspendUnSuspend = null;
+  if (suspending) {
+    suspendUnSuspend = <Button variant="outlined" color="error"><CircularProgress /></Button>
+  } else {
+    suspendUnSuspend = user.is_suspended ?
+      <Button variant="outlined" color="error" startIcon={<CheckIcon />} onClick={() => setSuspendDialogOpen(true)}>UnSuspend</Button> :
+      <Button variant="outlined" color="error" startIcon={<ClearIcon />} onClick={() => setSuspendDialogOpen(true)}>Suspend</Button>
+  }
+
   return (
     <Dialog fullWidth open={isOpen} onClose={() => onClose()}>
       <DialogTitle>{user.title}</DialogTitle>
 
       <DialogContent sx={{px: 1}}>
-        <TabContext value={value}>
+        <TabContext value={currentTab}>
+
+          <Dialog
+            open={suspendDialogOpen}
+            onClose={() => setSuspendDialogOpen(false)}
+            aria-labelledby="alert-dialog-title"
+            aria-describedby="alert-dialog-description"
+          >
+            <DialogTitle id="alert-dialog-title">
+              {user.is_suspended ? "Unsuspend User?" : "Suspend User?"}
+            </DialogTitle>
+            <DialogContent>
+              <DialogContentText id="alert-dialog-description">
+              </DialogContentText>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setSuspendDialogOpen(false)}>Disagree</Button>
+              <Button onClick={() => {
+                let data = new FormData();
+                if (user.is_suspended) {
+                  data.append('action', "unsuspend");
+                } else {
+                  data.append('action', "suspend");
+                }
+                setSuspending(true)
+                router.post(url, data, {onFinish: () => setSuspending(false)})
+                setSuspendDialogOpen(false)
+              }} autoFocus>
+                Agree
+              </Button>
+            </DialogActions>
+          </Dialog>
+
+
         <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
           <TabList onChange={handleChange} aria-label="lab API tabs example">
             <Tab label="Overview" value="1" />
@@ -112,9 +160,7 @@ export default function UserDetailDialog({ isOpen, onClose, user }: Props) {
           <Button variant="contained" color="secondary" startIcon={<EditIcon />}>
             Edit
           </Button>
-          <Button variant="outlined" color="error" startIcon={<ClearIcon />}>
-            Suspend
-          </Button>
+          {suspendUnSuspend}
         </TabPanel>
           <TabPanel sx={{px: 0}} value="2">
           <Card>
