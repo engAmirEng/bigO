@@ -43,6 +43,7 @@ export default function UserDialogForm({ isOpen, setOpen, plans }: Props) {
     event.preventDefault();
     setIsSubmitting(true);
     const data = new FormData(event.currentTarget);
+    data.append('action', 'new_user');
     console.log(data);
     const dataf = Object.fromEntries(data.entries());
     console.log(dataf);

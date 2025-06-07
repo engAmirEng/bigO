@@ -28,6 +28,24 @@ export default function UsersDataGrid({ users_list_page }: Props) {
   const { url } = usePage();
   let columns: GridColDef[] = [
     {
+      field: 'Num',
+      headerName: 'Num',
+      sortable: false,
+      flex: 0.2,
+      minWidth: 50,
+      renderCell: (params) => {
+        console.log(params);
+        // let res: number = (users_list_page.pagination.num_per_page * users_list_page.pagination.current_page_num);
+        let res: number =
+          users_list_page.pagination.num_per_page *
+            (users_list_page.pagination.current_page_num - 1) +
+          params.api.getRowIndexRelativeToVisibleRows(params.id) +
+          1;
+        // let link = parse/dUrl
+        return res;
+      },
+    },
+    {
       field: 'title',
       headerName: 'Title',
       sortable: false,
