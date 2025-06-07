@@ -14,7 +14,7 @@ from django.db.models import Prefetch, Q
 from django.urls import reverse
 from django.utils import timezone
 
-from .. import models, typing
+from .. import models, typing, services
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +117,7 @@ def get_xray_conf_v2(
         return None
 
     all_subscriptionperiods_obj_list = (
-        get_connectable_subscriptionperiod_qs()
+        services.get_connectable_subscriptionperiod_qs()
         .filter(plan__connection_rule_id__in=[i.id for i in connectionrule_qs])
         .select_related("plan")
     )
