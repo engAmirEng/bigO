@@ -112,6 +112,7 @@ LOCAL_APPS = [
     "bigO.net_manager",
     "bigO.node_manager",
     "bigO.proxy_manager",
+    "bigO.tmp_rz",
     "bigO.users",
     "bigO.utils",
     "bigO.BabyUI",
