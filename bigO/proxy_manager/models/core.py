@@ -6,7 +6,7 @@ from solo.models import SingletonModel
 
 from bigO.utils.models import TimeStampedModel
 from django.db import models
-from django.db.models import UniqueConstraint, OuterRef, Subquery, Count
+from django.db.models import UniqueConstraint, OuterRef, Subquery, Count, Sum
 from django.db.models.functions import Coalesce
 
 from .. import typing
@@ -90,13 +90,13 @@ class NodeOutbound(TimeStampedModel, models.Model):
 class ConnectionRule(TimeStampedModel, models.Model):
     class ConnectionRuleQuerySet(models.QuerySet):
         def ann_periods_count(self):
-            from ..models import SubscriptionPeriod
-            qs = SubscriptionPeriod.objects.filter(plan__connection_rule=OuterRef("id"), selected_as_current=True)
+            from ..models import SubscriptionPlan
+            qs = SubscriptionPlan.objects.filter(connection_rule=OuterRef("id")).ann_periods_count()
             return self.annotate(
                 periods_count=Coalesce(
-                    Subquery(qs.order_by().values("plan__connection_rule").annotate(count=Count("id")).values("count")),
+                    Subquery(qs.order_by().values("connection_rule").annotate(periods_count=Sum("periods_count")).values("periods_count")),
                     0
-                )
+                ),
             )
     name = models.SlugField()
     origin_region = models.ForeignKey(Region, on_delete=models.CASCADE, related_name="originregion_connectionrules")

@@ -1,10 +1,12 @@
 import datetime
 
+from django.db.models.functions import Coalesce
+
 from bigO.proxy_manager.subscription import AVAILABLE_SUBSCRIPTION_PLAN_PROVIDERS
 from bigO.proxy_manager.subscription.base import BaseSubscriptionPlanProvider
 from bigO.utils.models import TimeStampedModel
 from django.db import models
-from django.db.models import Case, F, OuterRef, Q, Subquery, UniqueConstraint, When
+from django.db.models import Case, F, OuterRef, Q, Subquery, UniqueConstraint, When, Count
 
 
 class Agency(TimeStampedModel, models.Model):
@@ -28,6 +30,18 @@ class Agent(TimeStampedModel, models.Model):
 
 
 class SubscriptionPlan(TimeStampedModel, models.Model):
+    class SubscriptionPlanQuerySet(models.QuerySet):
+        def ann_periods_count(self):
+            from ..models import SubscriptionPeriod
+            qs = SubscriptionPeriod.objects.filter(plan=OuterRef("id"), selected_as_current=True)
+            return self.annotate(
+                periods_count=Coalesce(
+                    Subquery(qs.order_by().values("plan").annotate(count=Count("id")).values("count")),
+                    0
+                )
+            )
+    objects = SubscriptionPlanQuerySet.as_manager()
+
     name = models.SlugField()
     plan_provider_key = models.SlugField(max_length=127, db_index=True)
     plan_provider_args = models.JSONField(null=True, blank=True)
