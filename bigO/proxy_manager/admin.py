@@ -97,8 +97,6 @@ class SubscriptionPeriodModelAdmin(admin.ModelAdmin):
         "up_bytes_remained",
         "dl_bytes_remained",
     )
-    form = forms.SubscriptionPeriodModelForm
-    autocomplete_fields = ("profile",)
     search_fields = (
         "profile__title",
         "profile__user__name",
@@ -106,6 +104,9 @@ class SubscriptionPeriodModelAdmin(admin.ModelAdmin):
         "profile__uuid",
         "profile__xray_uuid",
     )
+    list_filter = ("selected_as_current", "plan", "plan__connection_rule")
+    form = forms.SubscriptionPeriodModelForm
+    autocomplete_fields = ("profile",)
 
     def get_queryset(self, request):
         return (
@@ -197,9 +198,16 @@ class ConnectionRuleInboundSpecInline(admin.StackedInline):
 
 @admin.register(models.ConnectionRule)
 class ConnectionRuleModelAdmin(admin.ModelAdmin):
-    list_display = ("__str__",)
+    list_display = ("id", "name", "periods_count_display")
     inlines = (ConnectionRuleInboundSpecInline, RuleNodeOutboundInline, ReverseInline)
     search_fields = ("name", "xray_rules_template")
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).ann_periods_count()
+
+    @admin.display(ordering="periods_count")
+    def periods_count_display(self, obj):
+        return obj.periods_count
 
 
 @admin.register(models.InternalUser)
