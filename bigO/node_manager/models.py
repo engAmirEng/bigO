@@ -559,8 +559,12 @@ class EasyTierNode(TimeStampedModel):
         for i in new_nodepeers:
             i.save()
         for nodepeer in node_peers:
+            if nodepeer.peer_public_ip.ip.ip.ip.version == 6:
+                ip_part = f"[{nodepeer.peer_public_ip.ip.ip.ip}]"
+            else:
+                ip_part = str(nodepeer.peer_public_ip.ip.ip.ip)
             peer = (
-                f"{nodepeer.peer_listener.protocol}://{nodepeer.peer_public_ip.ip.ip.ip}:{nodepeer.peer_listener.port}"
+                f"{nodepeer.peer_listener.protocol}://{ip_part}:{nodepeer.peer_listener.port}"
             )
             peers.append(peer)
 
