@@ -6,7 +6,8 @@ from solo.models import SingletonModel
 
 from bigO.utils.models import TimeStampedModel
 from django.db import models
-from django.db.models import UniqueConstraint
+from django.db.models import UniqueConstraint, OuterRef, Subquery, Count
+from django.db.models.functions import Coalesce
 
 from .. import typing
 
@@ -87,6 +88,16 @@ class NodeOutbound(TimeStampedModel, models.Model):
 
 
 class ConnectionRule(TimeStampedModel, models.Model):
+    class ConnectionRuleQuerySet(models.QuerySet):
+        def ann_periods_count(self):
+            from ..models import SubscriptionPeriod
+            qs = SubscriptionPeriod.objects.filter(plan__connection_rule=OuterRef("id"), selected_as_current=True)
+            return self.annotate(
+                periods_count=Coalesce(
+                    Subquery(qs.order_by().values("plan__connection_rule").annotate(count=Count("id")).values("count")),
+                    0
+                )
+            )
     name = models.SlugField()
     origin_region = models.ForeignKey(Region, on_delete=models.CASCADE, related_name="originregion_connectionrules")
     destination_region = models.ForeignKey(
@@ -106,6 +117,8 @@ class ConnectionRule(TimeStampedModel, models.Model):
     inbound_choose_rule = django_jsonform.models.fields.JSONField(
         schema=INBOUND_CHOOSE_RULE_SCHEMA, null=True, blank=True
     )
+
+    objects = ConnectionRuleQuerySet.as_manager()
 
     def __str__(self):
         return f"{self.pk}-{self.name}"
