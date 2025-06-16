@@ -285,7 +285,9 @@ async def dashboard_users(request):
             elif key == "expires_at":
                 order_bys.append(("" if is_asc else "-") + "expires_at")
             res_orderings.append((key, is_asc))
-        return queryset.order_by(*order_bys), res_orderings
+        if order_bys:
+            return queryset.order_by(*order_bys), res_orderings
+        return queryset, []
 
     user_listpagehandler = utils.ListPageHandler[proxy_manager_models.SubscriptionPeriod, utils.User](
         request,
