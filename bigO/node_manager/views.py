@@ -284,6 +284,7 @@ class ConfigSchema(pydantic.BaseModel):
     is_dev: bool
     sentry_dsn: pydantic.HttpUrl | None
     full_control_supervisord: bool
+    supervisor_base_config_path: str
 
 
 class RuntimeSchema(pydantic.BaseModel):

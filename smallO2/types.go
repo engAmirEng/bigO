@@ -3,13 +3,14 @@ package main
 import "time"
 
 type Config struct {
-	SyncURL                string  `toml:"sync_url" json:"sync_url"`
-	APIKey                 string  `toml:"api_key" json:"api_key"`
-	IntervalSec            int     `toml:"interval_sec" json:"interval_sec"`
-	WorkingDir             string  `toml:"working_dir" json:"working_dir"`
-	IsDev                  bool    `toml:"is_dev" json:"is_dev"`
-	SentryDsn              *string `toml:"sentry_dsn" json:"sentry_dsn"`
-	FullControlSupervisord bool    `toml:"full_control_supervisord" json:"full_control_supervisord"`
+	SyncURL                  string  `toml:"sync_url" json:"sync_url"`
+	APIKey                   string  `toml:"api_key" json:"api_key"`
+	IntervalSec              int     `toml:"interval_sec" json:"interval_sec"`
+	WorkingDir               string  `toml:"working_dir" json:"working_dir"`
+	IsDev                    bool    `toml:"is_dev" json:"is_dev"`
+	SentryDsn                *string `toml:"sentry_dsn" json:"sentry_dsn"`
+	FullControlSupervisord   bool    `toml:"full_control_supervisord" json:"full_control_supervisord"`
+	SupervisorBaseConfigPath string  `toml:"supervisor_base_config_path" json:"supervisor_base_config_path"`
 }
 
 type FileSchema struct {

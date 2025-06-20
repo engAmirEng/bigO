@@ -46,6 +46,7 @@ RUN touch config.toml
 RUN mkdir /app/workdir
 ENV working_dir=/app/workdir
 ENV full_control_supervisord=True
+ENV supervisor_base_config_path=/etc/supervisor/supervisord.conf
 
 # Start the app
 CMD ["./myapp", "--config", "./config.toml"]

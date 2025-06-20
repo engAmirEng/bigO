@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	Release   = "1.0.2"
+	Release   = "1.1.0"
 	BuildTime = "unknown"
 )
 
@@ -77,24 +77,11 @@ MainLoop:
 				sentry.CaptureException(err)
 				panic(fmt.Sprintf("supervisor is not running, start it !!!, err is %s", err))
 			} else {
-				supervisorDir, err := getSupervisorDir(config)
 				if err != nil {
 					panic(fmt.Sprintf("Error in getSupervisorDir: %v", err))
 				}
-				supervisorBaseConfigPath := filepath.Join(supervisorDir, "base_supervisor.conf")
-				_, err = os.Stat(supervisorBaseConfigPath)
-				if os.IsNotExist(err) {
-					logger.Info(fmt.Sprintf("Creating supervisor base config at %v", supervisorBaseConfigPath))
-					supervisorBaseConfigContent := getSupervisorBaseConfigContent(filepath.Join(supervisorDir, "supervisor.conf"))
-					err = os.WriteFile(supervisorBaseConfigPath, []byte(supervisorBaseConfigContent), 0755)
-					if err != nil {
-						panic(fmt.Sprintf("panic in writing %s with %v", supervisorBaseConfigPath, err))
-					}
-				} else if err != nil {
-					panic(fmt.Sprintf("panic in writing %s with %v", supervisorBaseConfigPath, err))
-				}
 				logger.Info("Starting Supervisor")
-				supervisordCmd := exec.Command("supervisord", "-c", supervisorBaseConfigPath)
+				supervisordCmd := exec.Command("supervisord", "-c", config.SupervisorBaseConfigPath)
 				_, err = supervisordCmd.Output()
 				if err != nil {
 					logger.Error(fmt.Sprintf("Error starting supervisor: %v", err))
