@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	Release   = "1.1.0"
+	Release   = "1.1.1"
 	BuildTime = "unknown"
 )
 
@@ -77,9 +77,6 @@ MainLoop:
 				sentry.CaptureException(err)
 				panic(fmt.Sprintf("supervisor is not running, start it !!!, err is %s", err))
 			} else {
-				if err != nil {
-					panic(fmt.Sprintf("Error in getSupervisorDir: %v", err))
-				}
 				logger.Info("Starting Supervisor")
 				supervisordCmd := exec.Command("supervisord", "-c", config.SupervisorBaseConfigPath)
 				_, err = supervisordCmd.Output()

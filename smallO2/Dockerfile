@@ -1,3 +1,6 @@
+FROM golang:1.24-alpine3.22 as builder
+
+WORKDIR /app
 # Copy go.mod and go.sum first for dependency caching
 COPY go.mod go.sum ./
 RUN go mod download
