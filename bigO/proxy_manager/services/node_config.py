@@ -92,7 +92,7 @@ def get_xray_conf_v2(
     rule_parts = ""
 
     connectionrule_qs = (
-        models.ConnectionRule.objects.filter(rule_nodeoutbounds__node=node_obj)
+        models.ConnectionRule.objects.filter(Q(rule_nodeoutbounds__node=node_obj) | Q(rule_reverses__bridge_node=node_obj) | Q(rule_reverses__portal_node=node_obj))
         .prefetch_related(
             Prefetch(
                 "rule_nodeoutbounds",
