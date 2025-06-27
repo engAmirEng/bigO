@@ -327,7 +327,7 @@ async def node_base_sync_v2(request: HttpRequest):
     )
 
     try:
-        body = bigO.utils.http.get_body_from_request(request, 20 * 1024 * 1024)
+        body = bigO.utils.http.get_body_from_request(request, 100 * 1024 * 1024)
         input_json = json.loads(body)
         input_data = NodeBaseSyncV2InputSchema(**input_json)
     except pydantic.ValidationError as e:

@@ -188,6 +188,7 @@ class ReverseInline(admin.StackedInline):
     model = models.Reverse
     form = forms.ReverseModelForm
     autocomplete_fields = ("bridge_node", "portal_node", "inbound_spec")
+    ordering = ("bridge_node", "portal_node", "-created_at")
 
 
 class ConnectionRuleInboundSpecInline(admin.StackedInline):
