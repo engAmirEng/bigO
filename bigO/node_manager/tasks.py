@@ -13,6 +13,7 @@ import ansible_runner
 import influxdb_client.domain.write_precision
 import requests.adapters
 import requests.auth
+import sentry_sdk
 from asgiref.sync import async_to_sync
 from celery import current_task
 
@@ -86,7 +87,9 @@ def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str,
         try:
             res = json.loads(line)
         except json.JSONDecodeError as e:
-            raise Exception(f"error in decoding goingto stdout line: err is {e} and line is {line}")
+            # most likely due to offset log tailing
+            sentry_sdk.capture_exception(Exception(f"error in decoding goingto stdout line: err is {e} and line is {line}"))
+            continue
         else:
             if res["result_type"] == "xray_raw_traffic_v1":
                 collect_time = datetime.datetime.fromisoformat(res["timestamp"])
