@@ -16,6 +16,7 @@ import (
 	"io"
 	"io/fs"
 	"log"
+	"math"
 	"net"
 	"net/http"
 	"os"
@@ -240,7 +241,7 @@ func getConfigsStates(configsStates *[]ConfigStateSchema, config Config, supervi
 	}
 	safeStatsSize := 10_000_000
 	//safeStatsGage := 5_000_000
-	eachCollectionSize := 5_000_000
+	eachCollectionSize := 4_000_000
 	hasClearedAnyLogs := false
 	now := time.Now()
 	currentFilepath, saveStatsBackUp, getOnCommit := getStatsBackUpProcedure(config, now)
@@ -255,8 +256,14 @@ func getConfigsStates(configsStates *[]ConfigStateSchema, config Config, supervi
 	currentByteSize := 0
 ProcessInfoLoop:
 	for _, supervisorProcessInfo := range supervisorProcessInfos {
+		collectionSize := eachCollectionSize
+		if supervisorProcessInfo.StateName != "RUNNING" {
+			// since it cannot be cleared so we end up sending it over and over
+			// https://github.com/Supervisor/supervisor/issues/804
+			collectionSize = int(math.Round(float64(eachCollectionSize) * 0.1))
+		}
 		var tailProcessStdoutLogResult []interface{}
-		err = supervisorXmlRpcClient.Call("supervisor.tailProcessStdoutLog", []interface{}{supervisorProcessInfo.Name, 0, eachCollectionSize}, &tailProcessStdoutLogResult)
+		err = supervisorXmlRpcClient.Call("supervisor.tailProcessStdoutLog", []interface{}{supervisorProcessInfo.Name, 0, collectionSize}, &tailProcessStdoutLogResult)
 		if err != nil {
 			return fmt.Errorf("failed to tail process stdout: %w", err), getOnCommit(includedBackfilePaths)
 		}
@@ -265,7 +272,7 @@ ProcessInfoLoop:
 		}
 
 		var tailProcessStderrLogResult []interface{}
-		err = supervisorXmlRpcClient.Call("supervisor.tailProcessStderrLog", []interface{}{supervisorProcessInfo.Name, 0, eachCollectionSize}, &tailProcessStderrLogResult)
+		err = supervisorXmlRpcClient.Call("supervisor.tailProcessStderrLog", []interface{}{supervisorProcessInfo.Name, 0, collectionSize}, &tailProcessStderrLogResult)
 		if err != nil {
 			return fmt.Errorf("failed to tail process stdout: %w", err), getOnCommit(includedBackfilePaths)
 		}
@@ -282,9 +289,9 @@ ProcessInfoLoop:
 			//safeSizePassed = true
 			break ProcessInfoLoop
 		}
-
-		err = supervisorXmlRpcClient.Call("supervisor.clearProcessLogs", []interface{}{supervisorProcessInfo.Name}, nil)
-		if err != nil {
+		var clearSuccess bool
+		err = supervisorXmlRpcClient.Call("supervisor.clearProcessLogs", []interface{}{supervisorProcessInfo.Name}, &clearSuccess)
+		if err != nil || clearSuccess == false {
 			return fmt.Errorf("failed to clear process logs: %w", err), getOnCommit(includedBackfilePaths)
 		}
 		hasClearedAnyLogs = true
@@ -390,6 +397,7 @@ func loadBackedConfigStats(configStates *[]ConfigStateSchema, config Config, max
 			panic(err)
 		}
 		*configStates = append(*configStates, currentConfigStates...)
+		occupiedSize += backfile.size
 		includedBackfilePaths = append(includedBackfilePaths, backfile.path)
 	}
 	return includedBackfilePaths
