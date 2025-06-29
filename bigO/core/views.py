@@ -80,6 +80,13 @@ async def tmp_rz1(request):
             "4020",
             "4021",
             "4022",
+            "5015",
+            "5016",
+            "5017",
+            "5018",
+            "5019",
+            "5020",
+            "5021",
         ]
         for i in contracts:
             contract_info = latest_df[latest_df["contrace_number"] == i]
