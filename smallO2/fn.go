@@ -14,12 +14,15 @@ import (
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
 	"io"
+	"io/fs"
 	"log"
 	"net"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -202,13 +205,13 @@ func IsSupervisorRunning(supervisorXmlRpcClient *xmlrpc.Client) (bool, error) {
 	}
 	return true, nil
 }
-func getAPIRequest(config Config, supervisorXmlRpcClient *xmlrpc.Client) (*APIRequest, []error) {
+func getAPIRequest(config Config, supervisorXmlRpcClient *xmlrpc.Client) (*APIRequest, func() error, []error) {
 	var apiRequest = APIRequest{}
 	var errors []error
 	apiRequest.Config = config
 
 	var configsStates []ConfigStateSchema
-	err := getConfigsStates(&configsStates, config, supervisorXmlRpcClient)
+	err, StatsCommitted := getConfigsStates(&configsStates, config, supervisorXmlRpcClient)
 	if err != nil {
 		errors = append(errors, fmt.Errorf("Error getting API request data: %v", err))
 	}
@@ -224,47 +227,65 @@ func getAPIRequest(config Config, supervisorXmlRpcClient *xmlrpc.Client) (*APIRe
 	}
 	apiRequest.Metrics = MetricSchema{IPA: string(ipaRes)}
 
-	return &apiRequest, nil
+	return &apiRequest, StatsCommitted, nil
 }
 
-func getConfigsStates(configsStates *[]ConfigStateSchema, config Config, supervisorXmlRpcClient *xmlrpc.Client) error {
+func getConfigsStates(configsStates *[]ConfigStateSchema, config Config, supervisorXmlRpcClient *xmlrpc.Client) (error, func() error) {
 	var supervisorProcessInfos []SupervisorProcessInfoSchema
+	var currentConfigsStates []ConfigStateSchema
+	var includedBackfilePaths []string
 	err := supervisorXmlRpcClient.Call("supervisor.getAllProcessInfo", nil, &supervisorProcessInfos)
 	if err != nil {
-		return fmt.Errorf("failed to get process info: %w", err)
+		return fmt.Errorf("failed to get process info: %w", err), nil
 	}
-
-	loadBackedConfigStats(configsStates, config)
+	safeStatsSize := 10_000_000
+	//safeStatsGage := 5_000_000
+	eachCollectionSize := 5_000_000
 	hasClearedAnyLogs := false
-	defer func(stats *[]ConfigStateSchema, hasClearedAnyLogs *bool) {
+	now := time.Now()
+	currentFilepath, saveStatsBackUp, getOnCommit := getStatsBackUpProcedure(config, now)
+	defer func(stats *[]ConfigStateSchema, hasClearedAnyLogs *bool, collectTime time.Time) {
 		if *hasClearedAnyLogs == false {
 			return
 		}
-		saveStatsBackUp(configsStates, config)
-	}(configsStates, &hasClearedAnyLogs)
-	now := time.Now()
+		saveStatsBackUp(stats)
+	}(&currentConfigsStates, &hasClearedAnyLogs, time.Now().UTC())
+
+	//safeSizePassed := false
+	currentByteSize := 0
+ProcessInfoLoop:
 	for _, supervisorProcessInfo := range supervisorProcessInfos {
 		var tailProcessStdoutLogResult []interface{}
-		err = supervisorXmlRpcClient.Call("supervisor.tailProcessStdoutLog", []interface{}{supervisorProcessInfo.Name, 0, 20_000_000}, &tailProcessStdoutLogResult)
+		err = supervisorXmlRpcClient.Call("supervisor.tailProcessStdoutLog", []interface{}{supervisorProcessInfo.Name, 0, eachCollectionSize}, &tailProcessStdoutLogResult)
 		if err != nil {
-			return fmt.Errorf("failed to tail process stdout: %w", err)
+			return fmt.Errorf("failed to tail process stdout: %w", err), getOnCommit(includedBackfilePaths)
 		}
 		if tailProcessStdoutLogResult[0] == nil {
 			tailProcessStdoutLogResult[0] = ""
 		}
 
 		var tailProcessStderrLogResult []interface{}
-		err = supervisorXmlRpcClient.Call("supervisor.tailProcessStderrLog", []interface{}{supervisorProcessInfo.Name, 0, 20_000_000}, &tailProcessStderrLogResult)
+		err = supervisorXmlRpcClient.Call("supervisor.tailProcessStderrLog", []interface{}{supervisorProcessInfo.Name, 0, eachCollectionSize}, &tailProcessStderrLogResult)
 		if err != nil {
-			return fmt.Errorf("failed to tail process stdout: %w", err)
+			return fmt.Errorf("failed to tail process stdout: %w", err), getOnCommit(includedBackfilePaths)
 		}
 		if tailProcessStderrLogResult[0] == nil {
 			tailProcessStderrLogResult[0] = ""
 		}
 
+		stdoutContent := tailProcessStdoutLogResult[0].(string)
+		stdoutOByteSize := len(stdoutContent)
+		stderrContent := tailProcessStderrLogResult[0].(string)
+		stderrByteSize := len(stderrContent)
+
+		if currentByteSize+stdoutOByteSize+stderrByteSize > safeStatsSize {
+			//safeSizePassed = true
+			break ProcessInfoLoop
+		}
+
 		err = supervisorXmlRpcClient.Call("supervisor.clearProcessLogs", []interface{}{supervisorProcessInfo.Name}, nil)
 		if err != nil {
-			return fmt.Errorf("failed to clear process logs: %w", err)
+			return fmt.Errorf("failed to clear process logs: %w", err), getOnCommit(includedBackfilePaths)
 		}
 		hasClearedAnyLogs = true
 
@@ -272,58 +293,143 @@ func getConfigsStates(configsStates *[]ConfigStateSchema, config Config, supervi
 			Time:                  now,
 			SupervisorProcessInfo: supervisorProcessInfo,
 			Stdout: SupervisorProcessTailLogSerializerSchema{
-				Bytes:    tailProcessStdoutLogResult[0].(string),
+				Bytes:    stdoutContent,
 				Offset:   tailProcessStdoutLogResult[1].(int64),
 				Overflow: tailProcessStdoutLogResult[2].(bool),
 			},
 			Stderr: SupervisorProcessTailLogSerializerSchema{
-				Bytes:    tailProcessStderrLogResult[0].(string),
+				Bytes:    stderrContent,
 				Offset:   tailProcessStderrLogResult[1].(int64),
 				Overflow: tailProcessStderrLogResult[2].(bool),
 			},
 		}
-		*configsStates = append(*configsStates, configStateSchema)
+		currentConfigsStates = append(currentConfigsStates, configStateSchema)
+		currentByteSize += stdoutOByteSize + stderrByteSize
 	}
-	return nil
+	var pervConfigStats []ConfigStateSchema
+	remainedSize := safeStatsSize - currentByteSize
+	if remainedSize > 0 {
+		includedBackfilePaths = loadBackedConfigStats(&pervConfigStats, config, remainedSize, []string{currentFilepath})
+	}
+
+	*configsStates = append(*configsStates, currentConfigsStates...)
+	*configsStates = append(*configsStates, pervConfigStats...)
+	return nil, getOnCommit(includedBackfilePaths)
 }
 
-func loadBackedConfigStats(configStates *[]ConfigStateSchema, config Config) {
-	data, err := os.ReadFile(filepath.Join(getLogsDir(config), "configs_states.json.bak"))
-	if err != nil {
-		if os.IsNotExist(err) {
-			return
+func loadBackedConfigStats(configStates *[]ConfigStateSchema, config Config, maxSize int, excludeFileoaths []string) []string {
+	dir := getLogsDir(config)
+	pattern := regexp.MustCompile(`^configs_states_bak_(\d{4})_(\d{2})_(\d{2})_(\d{2})(\d{2})(\d{2})\.json$`)
+
+	var backfiles []backFileInfo
+
+	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			panic(err)
 		}
-		panic(fmt.Sprintf("failed to read config stats backup file: %s", err))
+
+		if d.IsDir() {
+			return nil
+		}
+
+		fileName := d.Name()
+		matches := pattern.FindStringSubmatch(fileName)
+		if matches != nil {
+			// Parse timestamp from filename
+			timestampStr := fmt.Sprintf("%s-%s-%sT%s:%s:%sZ",
+				matches[1], matches[2], matches[3],
+				matches[4], matches[5], matches[6])
+			timestamp, err := time.Parse(time.RFC3339, timestampStr)
+			if err != nil {
+				return err
+			}
+
+			// Get file size
+			info, err := d.Info()
+			if err != nil {
+				panic(err)
+			}
+
+			backfiles = append(backfiles, backFileInfo{
+				path: path,
+				size: int(info.Size()),
+				time: timestamp,
+			})
+		}
+		return nil
+	})
+
+	if err != nil {
+		panic(err)
 	}
 
-	if len(data) == 0 {
-		return
+	sort.Slice(backfiles, func(i, j int) bool {
+		return backfiles[i].time.After(backfiles[j].time)
+	})
+
+	occupiedSize := 0
+	var includedBackfilePaths []string
+	for _, backfile := range backfiles {
+		var currentConfigStates []ConfigStateSchema
+		remaizedSize := maxSize - occupiedSize
+		if Contains(excludeFileoaths, backfile.path) {
+			continue
+		}
+		if backfile.size == 0 {
+			continue
+		}
+		if backfile.size > remaizedSize {
+			continue
+		}
+		data, err := os.ReadFile(backfile.path)
+		if err != nil {
+			panic(err)
+		}
+		err = json.Unmarshal(data, &currentConfigStates)
+		if err != nil {
+			panic(err)
+		}
+		*configStates = append(*configStates, currentConfigStates...)
+		includedBackfilePaths = append(includedBackfilePaths, backfile.path)
 	}
-	err = json.Unmarshal(data, configStates)
-	if err != nil {
-		panic(fmt.Sprintf("failed to parse config stats backup file: %s", err))
-	}
+	return includedBackfilePaths
 }
 
-func saveStatsBackUp(stats *[]ConfigStateSchema, config Config) {
-	// saving response.ConfigsStates as json for the next request
-	data, err := json.Marshal(stats)
-	if err != nil {
-		panic(fmt.Sprintf("failed to marshal config: %s", err))
+func getStatsBackUpProcedure(config Config, time time.Time) (string, func(stats *[]ConfigStateSchema), func([]string) func() error) {
+	filename := fmt.Sprintf("configs_states_bak_%04d_%02d_%02d_%02d%02d%02d.json",
+		time.Year(), time.Month(), time.Day(),
+		time.Hour(), time.Minute(), time.Second(),
+	)
+	filePath := filepath.Join(getLogsDir(config), filename)
+	save := func(stats *[]ConfigStateSchema) {
+		data, err := json.Marshal(stats)
+		if err != nil {
+			panic(fmt.Sprintf("failed to marshal config: %s", err))
+		}
+		err = os.WriteFile(filePath, data, 0644)
+		if err != nil {
+			panic(fmt.Errorf("failed to write config file: %w", err))
+		}
+	}
+	getOnCommit := func(includedBackfilePaths []string) func() error {
+		commit := func() error {
+			err := os.Remove(filePath)
+			if err != nil {
+				return fmt.Errorf("failed to delete latest config stats backup file: %w", err)
+			}
+			for _, path := range includedBackfilePaths {
+				err := os.Remove(path)
+				if err != nil {
+					return fmt.Errorf("failed to delete %s config stats backup file: %w", path, err)
+				}
+			}
+			return nil
+
+		}
+		return commit
 	}
 
-	err = os.WriteFile(filepath.Join(getLogsDir(config), "configs_states.json.bak"), data, 0644)
-	if err != nil {
-		panic(fmt.Errorf("failed to write config file: %w", err))
-	}
-}
-
-func StatsCommitted(config Config) error {
-	err := os.Truncate(filepath.Join(getLogsDir(config), "configs_states.json.bak"), 0)
-	if err != nil {
-		return fmt.Errorf("failed to enpty config stats backup file: %w", err)
-	}
-	return nil
+	return filePath, save, getOnCommit
 }
 
 func makeSyncAPIRequest(config Config, payload *APIRequest) (*APIResponse, *[]byte, error) {
@@ -482,4 +588,13 @@ func downloadAndVerifyFile(fileInfo FileSchema, config Config) error {
 	//	return fmt.Errorf("failed to move file to final destination: %w", err)
 	//}
 	return nil
+}
+
+func Contains(slice []string, str string) bool {
+	for _, s := range slice {
+		if s == str {
+			return true
+		}
+	}
+	return false
 }

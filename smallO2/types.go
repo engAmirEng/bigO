@@ -72,3 +72,9 @@ type APIRequest struct {
 	SelfLogs      SupervisorProcessTailLogSerializerSchema `json:"self_logs"`
 	Config        Config                                   `json:"config"`
 }
+
+type backFileInfo struct {
+	path string
+	size int
+	time time.Time
+}
