@@ -7,6 +7,7 @@ from typing import Self, TypedDict
 
 import netfields
 from rest_framework_api_key.models import AbstractAPIKey
+from simple_history.models import HistoricalRecords
 from taggit.managers import TaggableManager
 
 import django.template.loader
@@ -237,6 +238,8 @@ class Snippet(TimeStampedModel, models.Model):
     name = models.SlugField()
     template = models.TextField()
 
+    history = HistoricalRecords()
+
     def __str__(self):
         return f"{self.pk}-{self.name}"
 
@@ -316,6 +319,8 @@ class CustomConfig(TimeStampedModel, models.Model):
     run_opts_template = models.TextField(help_text="{node_obj}, *#path:key#*")
     tags = TaggableManager(related_name="tag_customconfigs", blank=True)
 
+    history = HistoricalRecords()
+
     def __str__(self):
         return f"{self.pk}-{self.name}"
 
@@ -328,6 +333,8 @@ class CustomConfigDependantFile(TimeStampedModel, models.Model):
         ProgramVersion, on_delete=models.PROTECT, related_name="customconfigdependants", null=True, blank=True
     )
     name_extension = models.CharField(max_length=15, null=True, blank=True)
+
+    history = HistoricalRecords()
 
     class Meta:
         ordering = ["-created_at"]

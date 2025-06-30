@@ -1,4 +1,5 @@
 import humanize.filesize
+from simple_history.admin import SimpleHistoryAdmin
 from solo.admin import SingletonModelAdmin
 
 from django.contrib import admin
@@ -10,7 +11,7 @@ from . import forms, models
 
 
 @admin.register(models.Config)
-class ConfigModelAdmin(SingletonModelAdmin):
+class ConfigModelAdmin(SimpleHistoryAdmin, SingletonModelAdmin, ):
     list_display = ("__str__",)
 
 
@@ -188,8 +189,15 @@ class SubscriptionPeriodModelAdmin(admin.ModelAdmin):
 
 
 @admin.register(models.NodeOutbound)
-class NodeOutboundModelAdmin(admin.ModelAdmin):
+class NodeOutboundModelAdmin(SimpleHistoryAdmin):
     list_display = ("id", "name", "rule", "node", "to_inbound_type", "inbound_spec")
+    search_fields = ("name", "xray_outbound_template")
+    list_filter = ("to_inbound_type", "rule")
+
+
+@admin.register(models.Reverse)
+class ReverseModelAdmin(SimpleHistoryAdmin):
+    list_display = ("id", "name", "rule", "bridge_node", "portal_node", "to_inbound_type", "inbound_spec")
     search_fields = ("name", "xray_outbound_template")
     list_filter = ("to_inbound_type", "rule")
 
@@ -199,6 +207,7 @@ class RuleNodeOutboundInline(admin.StackedInline):
     model = models.NodeOutbound
     autocomplete_fields = ("rule", "node", "inbound_spec")
     ordering = ("node", "-created_at")
+    show_change_link = True
 
 
 class ReverseInline(admin.StackedInline):
@@ -206,6 +215,7 @@ class ReverseInline(admin.StackedInline):
     model = models.Reverse
     form = forms.ReverseModelForm
     autocomplete_fields = ("bridge_node", "portal_node", "inbound_spec")
+    show_change_link = True
     ordering = ("bridge_node", "portal_node", "-created_at")
 
 
@@ -216,7 +226,7 @@ class ConnectionRuleInboundSpecInline(admin.StackedInline):
 
 
 @admin.register(models.ConnectionRule)
-class ConnectionRuleModelAdmin(admin.ModelAdmin):
+class ConnectionRuleModelAdmin(SimpleHistoryAdmin):
     list_display = ("__str__", "periods_count_display")
     inlines = (ConnectionRuleInboundSpecInline, RuleNodeOutboundInline, ReverseInline)
     search_fields = ("name", "xray_rules_template")
@@ -251,7 +261,7 @@ class NodeOutboundInline(admin.StackedInline):
 
 
 @admin.register(models.InboundType)
-class InboundTypeModelAdmin(admin.ModelAdmin):
+class InboundTypeModelAdmin(SimpleHistoryAdmin, admin.ModelAdmin):
     list_display = ("__str__", "is_active", "is_template")
     search_fields = ("name", "inbound_template")
     inlines = (InboundComboInline, NodeOutboundInline)

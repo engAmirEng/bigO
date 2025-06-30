@@ -2,6 +2,7 @@ import uuid
 from types import SimpleNamespace
 
 import django_jsonform.models.fields
+from simple_history.models import HistoricalRecords
 from solo.models import SingletonModel
 
 from bigO.utils.models import TimeStampedModel
@@ -32,6 +33,7 @@ class Config(TimeStampedModel, SingletonModel):
     geoip = models.ForeignKey(
         "node_manager.ProgramVersion", related_name="geoip_xrayconfig", on_delete=models.PROTECT, null=True, blank=True
     )
+    history = HistoricalRecords()
 
 
 class Region(TimeStampedModel, models.Model):
@@ -68,6 +70,7 @@ class NodeOutbound(TimeStampedModel, models.Model):
         null=True,
         blank=True,
     )
+    history = HistoricalRecords()
 
     class Meta:
         ordering = ["-created_at"]
@@ -118,6 +121,8 @@ class ConnectionRule(TimeStampedModel, models.Model):
         schema=INBOUND_CHOOSE_RULE_SCHEMA, null=True, blank=True
     )
 
+    history = HistoricalRecords()
+
     objects = ConnectionRuleQuerySet.as_manager()
 
     def __str__(self):
@@ -153,6 +158,8 @@ class Reverse(TimeStampedModel, models.Model):
         blank=True,
     )
     base_conn_uuid = models.UUIDField()
+
+    history = HistoricalRecords()
 
     class Meta:
         ordering = ["-created_at"]
@@ -225,6 +232,8 @@ class InboundType(TimeStampedModel, models.Model):
     haproxy_backend = models.TextField(blank=True, null=True, help_text="{{ node_obj }}")
     haproxy_matcher_80 = models.TextField(blank=True, null=True, help_text="{{ node_obj }}")
     haproxy_matcher_443 = models.TextField(blank=True, null=True, help_text="{{ node_obj }}")
+
+    history = HistoricalRecords()
 
     def __str__(self):
         return f"{self.pk}-{self.name}"

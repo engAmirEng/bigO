@@ -139,6 +139,7 @@ THIRD_PARTY_APPS = clean_ellipsis(
         "rest_framework",
         "rest_framework_api_key",
         "rest_framework_simplejwt",
+        "simple_history",
         "taggit",
         "whitenoise.runserver_nostatic",
         # make sure any runserver command is after whitenoise's
@@ -209,6 +210,7 @@ MIDDLEWARE = clean_ellipsis(
         "django.middleware.clickjacking.XFrameOptionsMiddleware",
         "django_htmx.middleware.HtmxMiddleware",
         "inertia.middleware.InertiaMiddleware",
+        "simple_history.middleware.HistoryRequestMiddleware",
         # It only formats user lockout messages and renders Axes lockout responses
         # on failed user authentication attempts from login views.
         # If you do not want Axes to override the authentication response

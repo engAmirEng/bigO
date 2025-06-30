@@ -6,6 +6,7 @@ import humanize.filesize
 from django_json_widget.widgets import JSONEditorWidget
 from render_block import render_block_to_string
 from rest_framework_api_key.admin import APIKeyModelAdmin
+from simple_history.admin import SimpleHistoryAdmin
 
 from bigO.net_manager import models as net_manager_models
 from django.conf import settings
@@ -232,7 +233,7 @@ class ProgramVersionInline(admin.StackedInline):
 
 
 @admin.register(models.Snippet)
-class SnippetModelAdmin(admin.ModelAdmin):
+class SnippetModelAdmin(SimpleHistoryAdmin, admin.ModelAdmin):
     search_fields = ("name", "template")
 
 
@@ -260,15 +261,17 @@ class SupervisorProcessInfoModelAdmin(admin.ModelAdmin):
 class NodeCustomConfigInline(admin.StackedInline):
     extra = 1
     model = models.NodeCustomConfig
+    autocomplete_fields = ("node",)
 
 
 class CustomConfigDependantFileInline(admin.StackedInline):
     extra = 1
     model = models.CustomConfigDependantFile
+    show_change_link = True
 
 
 @admin.register(models.CustomConfig)
-class CustomConfigModelAdmin(admin.ModelAdmin):
+class CustomConfigModelAdmin(SimpleHistoryAdmin, admin.ModelAdmin):
     list_display = ("__str__", "used_by_count")
     list_filter = ("nodecustomconfigs__node",)
     inlines = [CustomConfigDependantFileInline, NodeCustomConfigInline]
@@ -280,6 +283,11 @@ class CustomConfigModelAdmin(admin.ModelAdmin):
     @admin.display(ordering="used_by_count")
     def used_by_count(self, obj):
         return obj.used_by_count
+
+
+@admin.register(models.CustomConfigDependantFile)
+class CustomConfigDependantFileModelAdmin(SimpleHistoryAdmin, admin.ModelAdmin):
+    pass
 
 
 @admin.register(models.EasyTierNetwork)
