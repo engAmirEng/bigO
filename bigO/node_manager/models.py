@@ -570,9 +570,7 @@ class EasyTierNode(TimeStampedModel):
                 ip_part = f"[{nodepeer.peer_public_ip.ip.ip.ip}]"
             else:
                 ip_part = str(nodepeer.peer_public_ip.ip.ip.ip)
-            peer = (
-                f"{nodepeer.peer_listener.protocol}://{ip_part}:{nodepeer.peer_listener.port}"
-            )
+            peer = f"{nodepeer.peer_listener.protocol}://{ip_part}:{nodepeer.peer_listener.port}"
             peers.append(peer)
 
         proxy_networks = []

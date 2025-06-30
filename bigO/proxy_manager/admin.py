@@ -11,7 +11,10 @@ from . import forms, models
 
 
 @admin.register(models.Config)
-class ConfigModelAdmin(SimpleHistoryAdmin, SingletonModelAdmin, ):
+class ConfigModelAdmin(
+    SimpleHistoryAdmin,
+    SingletonModelAdmin,
+):
     list_display = ("__str__",)
 
 
@@ -89,7 +92,6 @@ class SubscriptionPlanModelAdmin(admin.ModelAdmin):
     @admin.display(ordering="periods_count")
     def periods_count_display(self, obj):
         return obj.periods_count
-
 
     @admin.display(ordering="connection_rule")
     def connection_rule_display(self, obj):

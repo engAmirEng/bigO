@@ -17,10 +17,10 @@ class UserAdminChangeForm(admin_forms.UserChangeForm):
         if val:
             if val not in zoneinfo.available_timezones():
                 raise forms.ValidationError(
-                            _("Invalid timezone: %(value)s"),
-                            code="invalid",
-                            params={"value": val},
-                        )
+                    _("Invalid timezone: %(value)s"),
+                    code="invalid",
+                    params={"value": val},
+                )
         return val
 
 

@@ -88,7 +88,9 @@ def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str,
             res = json.loads(line)
         except json.JSONDecodeError as e:
             # most likely due to offset log tailing
-            sentry_sdk.capture_exception(Exception(f"error in decoding goingto stdout line: err is {e} and line is {line}"))
+            sentry_sdk.capture_exception(
+                Exception(f"error in decoding goingto stdout line: err is {e} and line is {line}")
+            )
             continue
         else:
             if res["result_type"] == "xray_raw_traffic_v1":

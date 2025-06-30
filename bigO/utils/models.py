@@ -1,9 +1,10 @@
 import re
 
+from simple_history.models import HistoricalRecords
+
 from django.core.exceptions import SynchronousOnlyOperation, ValidationError
 from django.core.validators import RegexValidator
 from django.db import models
-from simple_history.models import HistoricalRecords
 
 
 class MakeInterval(models.Func):

@@ -2,7 +2,6 @@ import asyncio
 import logging
 from datetime import timedelta
 from functools import wraps
-from typing import Literal
 from zoneinfo import ZoneInfo
 
 from asgiref.sync import sync_to_async
@@ -27,8 +26,8 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.translation import gettext
 from django.views.decorators.http import require_POST
 
-from . import forms, services, utils
 from ..utils.templatetags.jformat import jformat
+from . import forms, services, utils
 
 logger = logging.getLogger(__name__)
 
@@ -246,7 +245,9 @@ async def dashboard_users(request):
 
     # users
     users_qs = proxy_manager_services.get_agent_current_subscriptionperiods_qs(agent=agent_obj)
-    users_qs = users_qs.select_related("profile", "plan").ann_expires_at().ann_total_limit_bytes().order_by("-created_at")
+    users_qs = (
+        users_qs.select_related("profile", "plan").ann_expires_at().ann_total_limit_bytes().order_by("-created_at")
+    )
 
     async def users_search_callback(queryset: QuerySet[proxy_manager_models.SubscriptionPeriod], q: str):
         return queryset.filter(profile__title__icontains=q)
@@ -317,7 +318,7 @@ async def dashboard_users(request):
                     agentuser=request.user,
                     plan=renewuser_form.cleaned_data["plan"],
                     plan_args=renewuser_form.get_plan_args(),
-                    profile=selected_user.profile
+                    profile=selected_user.profile,
                 )
                 return redirect(request.get_full_path())
             errors.update(**renewuser_form.errors)
@@ -351,7 +352,9 @@ async def dashboard_users(request):
         "users_list_page": users_res.model_dump(),
         "selected_user": {
             "title": selected_user.profile.title,
-            "created_at_str": jformat(selected_user.profile.created_at.astimezone(ZoneInfo("Asia/Tehran")), "%Y/%m/%d %H:%M"),
+            "created_at_str": jformat(
+                selected_user.profile.created_at.astimezone(ZoneInfo("Asia/Tehran")), "%Y/%m/%d %H:%M"
+            ),
             "is_suspended": not selected_user.profile.is_active,
             "plan": {
                 "id": str(selected_user.plan.id),
@@ -359,17 +362,17 @@ async def dashboard_users(request):
                 "plan_provider_key": selected_user.plan.plan_provider_key,
                 "plan_provider_args": selected_user.plan.plan_provider_args,
             },
-            "sublink": {
-                "normal": normal_sublink,
-                "b64": b64_sublink
-            },
+            "sublink": {"normal": normal_sublink, "b64": b64_sublink},
             "events": [
                 {
                     "id": str(i.id),
                     "title": i.title,
                     "created_at_str": jformat(i.created_at.astimezone(ZoneInfo("Asia/Tehran")), "%Y/%m/%d %H:%M"),
-                } async for i in user_events
-            ]
-        } if selected_user else None,
+                }
+                async for i in user_events
+            ],
+        }
+        if selected_user
+        else None,
         "errors": errors,
     }
