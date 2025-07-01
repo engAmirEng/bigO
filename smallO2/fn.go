@@ -146,6 +146,26 @@ func loadConfig(path string) (Config, error) {
 	if config.SupervisorBaseConfigPath == "" {
 		config.SupervisorBaseConfigPath = os.Getenv("supervisor_base_config_path")
 	}
+	if config.SafeStatsSize == 0 {
+		SafeStatsSizeStr := os.Getenv("safe_stats_size")
+		SafeStatsSize, err := strconv.Atoi(SafeStatsSizeStr)
+		if err == nil {
+			config.SafeStatsSize = SafeStatsSize
+		}
+		if config.SafeStatsSize == 0 {
+			config.SafeStatsSize = 10_000_000
+		}
+	}
+	if config.EachCollectionSize == 0 {
+		EachCollectionSizeStr := os.Getenv("each_collection_size")
+		EachCollectionSize, err := strconv.Atoi(EachCollectionSizeStr)
+		if err == nil {
+			config.EachCollectionSize = EachCollectionSize
+		}
+		if config.EachCollectionSize == 0 {
+			config.EachCollectionSize = 4_000_000
+		}
+	}
 
 	return config, nil
 }
@@ -257,9 +277,9 @@ func getConfigsStates(configsStates *[]ConfigStateSchema, config Config, supervi
 	if err != nil {
 		return fmt.Errorf("failed to get process info: %w", err), nil
 	}
-	safeStatsSize := 10_000_000
+	safeStatsSize := config.SafeStatsSize
 	//safeStatsGage := 5_000_000
-	eachCollectionSize := 4_000_000
+	eachCollectionSize := config.EachCollectionSize
 	hasClearedAnyLogs := false
 	now := time.Now()
 	currentFilepath, saveStatsBackUp, getOnCommit := getStatsBackUpProcedure(config, now)

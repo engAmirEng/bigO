@@ -18,6 +18,8 @@ type Config struct {
 	SentryDsn                *string `toml:"sentry_dsn" json:"sentry_dsn"`
 	FullControlSupervisord   bool    `toml:"full_control_supervisord" json:"full_control_supervisord"`
 	SupervisorBaseConfigPath string  `toml:"supervisor_base_config_path" json:"supervisor_base_config_path"`
+	SafeStatsSize            int     `toml:"safe_stats_size" json:"safe_stats_size"`
+	EachCollectionSize       int     `toml:"each_collection_size" json:"each_collection_size"`
 }
 
 type FileSchema struct {

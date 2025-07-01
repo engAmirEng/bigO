@@ -293,6 +293,8 @@ class ConfigSchema(pydantic.BaseModel):
     sentry_dsn: pydantic.HttpUrl | None
     full_control_supervisord: bool
     supervisor_base_config_path: str = ""
+    safe_stats_size: int | None = None
+    each_collection_size: int | None = None
 
 
 class RuntimeSchema(pydantic.BaseModel):
