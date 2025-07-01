@@ -191,7 +191,7 @@ class AnsibleTaskNodeInline(admin.StackedInline):
     model = models.AnsibleTaskNode
     extra = 0
     formfield_overrides = {
-        JSONField: {"widget": JSONEditorWidget("view")},
+        JSONField: {"widget": JSONEditorWidget(mode="view")},
     }
 
 
