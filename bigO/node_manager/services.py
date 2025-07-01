@@ -426,7 +426,8 @@ frontend http-https-in
     {{ xray_80_matchers_part }}
 
     use_backend nginx_dispatcher_h2 if h2
-    default_backend nginx_dispatcher
+    default_backend nginx_dispatcher_h2
+    #default_backend nginx_dispatcher
 
 # this server handles xray http2 proxies
 backend nginx_dispatcher_h2
