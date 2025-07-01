@@ -87,14 +87,14 @@ MainLoop:
 		}
 
 		supervisorXmlRpcClient, err = getSupervisorXmlRpcClient()
-		payload, errors := getAPIRequest(config, supervisorXmlRpcClient)
+		payload, StatsCommitted, errors := getAPIRequest(config, supervisorXmlRpcClient)
 		if len(errors) > 1 {
 			for i, err := range errors {
 				logger.Error(fmt.Sprintf("%ith Error in getting API request data: %v", i, err))
 			}
 		}
 
-		response, bodyBytes, err := makeSyncAPIRequest(config, payload)
+		response, bodyBytes, err := makeSyncAPIRequest(config, payload, logger)
 		if err != nil {
 			logger.Error(fmt.Sprintf("Error making Sync API request: %v", err))
 			if bodyBytes != nil {
@@ -106,7 +106,7 @@ MainLoop:
 			time.Sleep(time.Second * time.Duration(config.IntervalSec))
 			continue MainLoop
 		}
-		err = StatsCommitted(config)
+		err = StatsCommitted()
 		if err != nil {
 			logger.Error(fmt.Sprintf("Error in StatsCommitted: %v", err))
 		}
