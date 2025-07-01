@@ -364,17 +364,19 @@ def ansible_deploy_node(node_id: int):
     # Create inventory file
     inventory_path = tasks_assets_dir.joinpath(f"inventory_{an_task_obj.id}_{time_str}")
     with open(inventory_path, "w") as f:
-        ip = node_obj.node_nodepublicips.first().ip.ip.ip
+        ips = [i.ip.ip.ip for i in node_obj.node_nodepublicips.all()]
+        ips.sort(key=lambda x: x.version, reverse=False)
+        ip = ips[0]
         username = node_obj.ssh_user
         passwd = node_obj.ssh_pass
-        line = f"{ip} ansible_user={username} ansible_password={passwd} ansible_become_pass={passwd} ansible_port={node_obj.ssh_port} ansible_ssh_common_args='-o StrictHostKeyChecking=no'\n"
+        line = f"{node_obj.name} ansible_host={ip} ansible_user={username} ansible_password='{passwd}' ansible_become_pass={passwd} ansible_port={node_obj.ssh_port} ansible_ssh_common_args='-o StrictHostKeyChecking=no'\n"
         f.write(line)
     # Create playbook file
     playbook_path = tasks_assets_dir.joinpath(f"playbook_{an_task_obj.id}_{time_str}.yml")
     with open(playbook_path, "w") as f:
         f.write(deploy_content)
 
-    ansibletasknode_mapping = {str(ip): ansibletasknode_obj}
+    ansibletasknode_mapping = {node_obj.name: ansibletasknode_obj}
 
     current_python_path = sys.executable
     # ansible is installed in this python env so
