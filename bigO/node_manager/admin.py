@@ -190,7 +190,7 @@ class AnsibleTaskNodeInline(admin.StackedInline):
     model = models.AnsibleTaskNode
     extra = 0
     formfield_overrides = {
-        JSONField: {"widget": JSONEditorWidget},
+        JSONField: {"widget": JSONEditorWidget("view")},
     }
 
 
@@ -200,7 +200,7 @@ class AnsibleTaskModelAdmin(admin.ModelAdmin):
     list_display = ("__str__", "name", "status", "ok", "dark", "changed", "failures", "created_at", "finished_at")
 
     formfield_overrides = {
-        JSONField: {"widget": JSONEditorWidget},
+        JSONField: {"widget": JSONEditorWidget(mode="view")},
     }
 
     def get_queryset(self, request):
