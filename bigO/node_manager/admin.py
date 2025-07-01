@@ -191,7 +191,7 @@ class AnsibleTaskNodeInline(admin.StackedInline):
     model = models.AnsibleTaskNode
     extra = 0
     formfield_overrides = {
-        JSONField: {"widget": JSONEditorWidget},
+        JSONField: {"widget": JSONEditorWidget("view")},
     }
 
 
@@ -201,7 +201,7 @@ class AnsibleTaskModelAdmin(admin.ModelAdmin):
     actions = ["revoke_with_terminate"]
     inlines = [AnsibleTaskNodeInline]
     formfield_overrides = {
-        JSONField: {"widget": JSONEditorWidget(mode="form")},
+        JSONField: {"widget": JSONEditorWidget(mode="view")},
     }
 
     def get_queryset(self, request):
