@@ -5,6 +5,7 @@ import socket
 import ssl
 import tomllib
 from hashlib import sha256
+from typing import Literal
 from urllib.parse import urlparse
 
 import aiohttp.client_exceptions
@@ -276,8 +277,15 @@ class NodeBaseSyncAPIView(APIView):
         return Response(response_payload, status=status.HTTP_200_OK)
 
 
+class UrlSpec(pydantic.BaseModel):
+    url: pydantic.HttpUrl
+    proxy_url: pydantic.AnyUrl | Literal[""] | None = None
+    weight: int
+
+
 class ConfigSchema(pydantic.BaseModel):
-    sync_url: pydantic.HttpUrl
+    sync_url: pydantic.HttpUrl | Literal[""] | None = None
+    sync_urls: list[UrlSpec] | None = None
     api_key: str
     interval_sec: int
     working_dir: pathlib.Path

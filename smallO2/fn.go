@@ -17,8 +17,10 @@ import (
 	"io/fs"
 	"log"
 	"math"
+	"math/rand"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -103,9 +105,18 @@ func loadConfig(path string) (Config, error) {
 		return config, fmt.Errorf("failed to parse config file: %w", err)
 	}
 
-	if config.SyncURL == "" {
-		config.SyncURL = os.Getenv("sync_url")
+	if len(config.SyncURLSpecs) == 0 {
+		if config.SyncURL == "" {
+			config.SyncURL = os.Getenv("sync_url")
+		}
+		if config.SyncURL != "" {
+			config.SyncURLSpecs = append(config.SyncURLSpecs, UrlSpec{URL: config.SyncURL, ProxyUrl: os.Getenv("proxy_url"), Weight: 1})
+		}
 	}
+	if len(config.SyncURLSpecs) == 1 {
+		config.SyncURLSpecs[0].Weight = 1
+	}
+
 	if config.APIKey == "" {
 		config.APIKey = os.Getenv("api_key")
 	}
@@ -140,9 +151,15 @@ func loadConfig(path string) (Config, error) {
 }
 
 func (c Config) Validate() error {
-	if c.SyncURL == "" {
+	for i, syncURLSpec := range c.SyncURLSpecs {
+		if syncURLSpec.URL == "" {
+			return fmt.Errorf("sync url at index %d not set", i)
+		}
+	}
+	if len(c.SyncURLSpecs) == 0 {
 		return fmt.Errorf("sync url not set")
 	}
+
 	if c.APIKey == "" {
 		return fmt.Errorf("API key not set")
 	}
@@ -160,6 +177,7 @@ func (c Config) Validate() error {
 			return fmt.Errorf("supervisor base config path stats error: %w", err)
 		}
 	}
+
 	return nil
 }
 
@@ -440,43 +458,97 @@ func getStatsBackUpProcedure(config Config, time time.Time) (string, func(stats 
 	return filePath, save, getOnCommit
 }
 
-func makeSyncAPIRequest(config Config, payload *APIRequest) (*APIResponse, *[]byte, error) {
+func makeSyncAPIRequest(config Config, payload *APIRequest, logger *zap.Logger) (*APIResponse, *[]byte, error) {
 	var response APIResponse
+	var loggingDebounce float64 = 3
+
+	var urlChoices []struct {
+		url      string
+		proxyUrl string
+	}
+	for _, spec := range config.SyncURLSpecs {
+		for i := 0; i < spec.Weight; i++ {
+			urlChoices = append(urlChoices, struct{ url, proxyUrl string }{url: spec.URL, proxyUrl: spec.ProxyUrl})
+		}
+	}
 
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		return &response, nil, fmt.Errorf("failed to marshal request payload: %w", err)
 	}
+	payloadBuffer := bytes.NewBuffer(payloadBytes)
 
-	// Make the POST request
-	req, err := http.NewRequest("POST", config.SyncURL, bytes.NewBuffer(payloadBytes))
-	if err != nil {
-		return &response, nil, fmt.Errorf("failed to create request: %w", err)
-	}
+	var proxyURL *url.URL
+	var Url string
+	tries := 0
+	logTries := 0
+	var lastLog time.Time
+	rand.Seed(time.Now().UnixNano())
+	for {
+		urlChoice := urlChoices[rand.Intn(len(urlChoices))]
+		if urlChoice.proxyUrl != "" {
+			proxyURL, err = url.Parse(urlChoice.proxyUrl)
+			if err != nil {
+				logger.Warn("failed to parse proxy url", zap.String("url", urlChoice.url), zap.Error(err))
+				continue
+			}
+		}
+		Url = urlChoice.url
 
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Api-Key "+config.APIKey)
-	req.Header.Set("User-Agent", fmt.Sprintf("smallO2:%v", Release))
+		req, err := http.NewRequest("POST", Url, payloadBuffer)
+		if err != nil {
+			return &response, nil, fmt.Errorf("failed to create request: %w", err)
+		}
 
-	transport := &http.Transport{
-		DialContext: (&net.Dialer{
-			Timeout: 2 * time.Second,
-		}).DialContext,
-		TLSHandshakeTimeout:   5 * time.Second,
-		ResponseHeaderTimeout: 15 * time.Second,
-	}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Api-Key "+config.APIKey)
+		req.Header.Set("User-Agent", fmt.Sprintf("smallO2:%v", Release))
 
-	client := &http.Client{Transport: transport}
-	if config.IsDev {
-		client.Timeout = 600 * time.Second
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return &response, nil, fmt.Errorf("failed to send request: %w", err)
-	}
-	defer resp.Body.Close()
+		transport := &http.Transport{
+			Proxy: http.ProxyURL(proxyURL),
+			DialContext: (&net.Dialer{
+				Timeout: 2 * time.Second,
+			}).DialContext,
+			TLSHandshakeTimeout:   5 * time.Second,
+			ResponseHeaderTimeout: 15 * time.Second,
+		}
+		client := &http.Client{Transport: transport}
+		if config.IsDev {
+			client.Timeout = 600 * time.Second
+		}
+		resp, err := client.Do(req)
+		if err != nil {
+			proxyPartMsg := ""
+			if proxyURL != nil {
+				proxyPartMsg = ": " + proxyURL.String()
+			}
+			lastLogDiff := time.Now().Sub(lastLog)
+			if lastLogDiff.Seconds() > loggingDebounce {
+				logger.Warn(fmt.Sprintf("Failed to send request to %s%s for %d times", Url, proxyPartMsg, logTries), zap.Error(err))
+				lastLog = time.Now()
+				logTries = 0
+			}
 
-	if resp.StatusCode != http.StatusOK {
+			//if netErr, ok := err.(net.Error); ok {
+			//if opErr, ok := err.(*net.OpError); ok {
+			if true {
+				tries++
+				logTries++
+				time.Sleep(500 * time.Millisecond)
+				continue
+			}
+			return &response, nil, fmt.Errorf("failed to send request with %s tries: %w", tries, err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode == http.StatusOK {
+			// Parse the response
+			err = json.NewDecoder(resp.Body).Decode(&response)
+			if err != nil {
+				return &response, nil, fmt.Errorf("failed to decode response: %w", err)
+			}
+			return &response, nil, nil
+		}
 		bodyBytes, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return &response, nil, fmt.Errorf("server returned non-OK status: %s; additionally, failed to read response body: %v", resp.Status, err)
@@ -485,14 +557,6 @@ func makeSyncAPIRequest(config Config, payload *APIRequest) (*APIResponse, *[]by
 		bodyString := string(bodyRunes[:min(len(bodyRunes), 50)])
 		return &response, &bodyBytes, fmt.Errorf("server returned non-OK status: %s; response body: %s", resp.Status, bodyString)
 	}
-
-	// Parse the response
-	err = json.NewDecoder(resp.Body).Decode(&response)
-	if err != nil {
-		return &response, nil, fmt.Errorf("failed to decode response: %w", err)
-	}
-
-	return &response, nil, nil
 }
 
 func downloadAndVerifyFile(fileInfo FileSchema, config Config) error {

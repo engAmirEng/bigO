@@ -94,7 +94,7 @@ MainLoop:
 			}
 		}
 
-		response, bodyBytes, err := makeSyncAPIRequest(config, payload)
+		response, bodyBytes, err := makeSyncAPIRequest(config, payload, logger)
 		if err != nil {
 			logger.Error(fmt.Sprintf("Error making Sync API request: %v", err))
 			if bodyBytes != nil {

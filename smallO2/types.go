@@ -2,8 +2,15 @@ package main
 
 import "time"
 
+type UrlSpec struct {
+	URL      string `toml:"url" json:"url"`
+	ProxyUrl string `toml:"proxy_url" json:"proxy_url"`
+	Weight   int    `toml:"weight" json:"weight"`
+}
 type Config struct {
-	SyncURL                  string  `toml:"sync_url" json:"sync_url"`
+	SyncURL      string    `toml:"sync_url" json:"sync_url"` // Deprecated
+	SyncURLSpecs []UrlSpec `toml:"sync_urls" json:"sync_urls"`
+	//ProxyUrl                 string    `toml:"proxy_url" json:"proxy_url"`
 	APIKey                   string  `toml:"api_key" json:"api_key"`
 	IntervalSec              int     `toml:"interval_sec" json:"interval_sec"`
 	WorkingDir               string  `toml:"working_dir" json:"working_dir"`
