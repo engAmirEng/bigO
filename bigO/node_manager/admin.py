@@ -21,7 +21,7 @@ from django.utils.html import format_html
 from django.utils.translation import gettext
 
 from . import forms, models, tasks
-
+from config.celery_app import app as celery_app
 
 class NodeLatestSyncStatInline(admin.StackedInline):
     model = models.NodeLatestSyncStat
@@ -197,15 +197,24 @@ class AnsibleTaskNodeInline(admin.StackedInline):
 
 @admin.register(models.AnsibleTask)
 class AnsibleTaskModelAdmin(admin.ModelAdmin):
-    inlines = [AnsibleTaskNodeInline]
     list_display = ("__str__", "name", "status", "ok", "dark", "changed", "failures", "created_at", "finished_at")
-
+    actions = ["revoke_with_terminate"]
+    inlines = [AnsibleTaskNodeInline]
     formfield_overrides = {
-        JSONField: {"widget": JSONEditorWidget},
+        JSONField: {"widget": JSONEditorWidget(mode="form")},
     }
 
     def get_queryset(self, request):
         return super().get_queryset(request).ann_stats()
+
+    @admin.action()
+    def revoke_with_terminate(self, request, queryset: QuerySet[models.AnsibleTask]):
+        celery_app.control.revoke([i.celery_task_id for i in queryset], terminate=True)
+        self.message_user(
+            request,
+            gettext("terminated for {0} records").format(queryset.count()),
+            messages.INFO,
+        )
 
 
 @admin.register(models.NodeAPIKey)
