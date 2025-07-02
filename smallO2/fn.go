@@ -512,6 +512,8 @@ func makeSyncAPIRequest(config Config, payload *APIRequest, logger *zap.Logger) 
 				logger.Warn("failed to parse proxy url", zap.String("url", urlChoice.url), zap.Error(err))
 				continue
 			}
+		} else {
+			proxyURL = nil
 		}
 		Url = urlChoice.url
 
