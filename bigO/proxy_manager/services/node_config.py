@@ -2,7 +2,6 @@ import datetime
 import json
 import logging
 import pathlib
-import random
 from collections import defaultdict
 from hashlib import sha256
 
@@ -345,12 +344,12 @@ def get_xray_conf_v2(
                     context=django.template.Context({"node_obj": node_obj})
                 )
             )
-    for _, selectors in all_xray_balancers.items():
-        random.shuffle(selectors)
 
     all_balancer_parts = ",\n".join(
         [
-            '{{"tag": "{0}", "selector": [{1}]}}'.format(tag, ",".join([f'"{i}"' for i in selectors]))
+            '{{"tag": "{0}", "selector": [{1}]}}'.format(tag, ",".join(
+                [f'"{i}"' for i in sorted(selectors, key=lambda x: sha256(x))]
+            ))
             for tag, selectors in all_xray_balancers.items()
         ]
     )
