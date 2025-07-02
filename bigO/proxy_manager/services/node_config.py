@@ -2,6 +2,7 @@ import datetime
 import json
 import logging
 import pathlib
+import random
 from collections import defaultdict
 from hashlib import sha256
 
@@ -344,6 +345,8 @@ def get_xray_conf_v2(
                     context=django.template.Context({"node_obj": node_obj})
                 )
             )
+    for _, selectors in all_xray_balancers.items():
+        random.shuffle(selectors)
 
     all_balancer_parts = ",\n".join(
         [

@@ -9,6 +9,7 @@ from rest_framework_api_key.admin import APIKeyModelAdmin
 from simple_history.admin import SimpleHistoryAdmin
 
 from bigO.net_manager import models as net_manager_models
+from config.celery_app import app as celery_app
 from django.conf import settings
 from django.contrib import admin, messages
 from django.contrib.auth.decorators import login_required
@@ -21,7 +22,7 @@ from django.utils.html import format_html
 from django.utils.translation import gettext
 
 from . import forms, models, tasks
-from config.celery_app import app as celery_app
+
 
 class NodeLatestSyncStatInline(admin.StackedInline):
     model = models.NodeLatestSyncStat
