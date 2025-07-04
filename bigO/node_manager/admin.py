@@ -261,11 +261,31 @@ class ProgramVersionModelAdmin(admin.ModelAdmin):
 
 @admin.register(models.SupervisorProcessInfo)
 class SupervisorProcessInfoModelAdmin(admin.ModelAdmin):
-    ordering = ("node", "name", "-captured_at")
-    list_display = ("id", "node", "name", "description", "statename", "captured_at", "start")
-    list_filter = ("node", "name", "state")
+    ordering = ("node", "name")
+    list_display = ("id", "node", "name", "last_changed_at_display", "description", "statename_display", "last_captured_at_display")
+    list_filter = ("node", "name", "last_state")
     search_fields = ("name",)
     autocomplete_fields = ("node",)
+
+    @admin.display(ordering="last_statename")
+    def statename_display(self, obj: models.SupervisorProcessInfo):
+        perv_fortime = (obj.perv_captured_at - obj.perv_changed_at)
+        last_fortime = (obj.last_captured_at - obj.last_changed_at)
+        perv_fortime_str = ""
+        if perv_fortime:
+            perv_fortime_str = str(perv_fortime)
+        last_fortime_str = ""
+        if last_fortime:
+            last_fortime_str = str(last_fortime)
+        return f"{obj.perv_statename}({perv_fortime_str}) -> {obj.last_statename}({last_fortime_str})"
+
+    @admin.display(ordering="last_changed_at", description="last changed at")
+    def last_changed_at_display(self, obj: models.SupervisorProcessInfo):
+        return naturaltime(obj.last_changed_at)
+
+    @admin.display(ordering="last_captured_at", description="last captured at")
+    def last_captured_at_display(self, obj: models.SupervisorProcessInfo):
+        return naturaltime(obj.last_captured_at)
 
 
 class NodeCustomConfigInline(admin.StackedInline):

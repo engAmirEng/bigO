@@ -53,61 +53,80 @@ def node_spec_create(*, node: models.Node, ip_a: str):
 
 
 def process_process_state(supervisorprocessinfo_list: list[typing.SupervisorProcessInfoSchema], node: models.Node):
-    last_captured_for_node = models.SupervisorProcessInfo.objects.filter(node=node).order_by("-captured_at").first()
-    if last_captured_for_node:
-        latest_supervisorprocessinfo_list = [
-            i for i in supervisorprocessinfo_list if i.now > last_captured_for_node.captured_at.timestamp()
-        ]
-    else:
-        latest_supervisorprocessinfo_list = supervisorprocessinfo_list
-    latest_supervisorprocessinfo_list.sort(key=lambda x: x.now)
-    if last_captured_for_node and latest_supervisorprocessinfo_list:
-        removed_proccesses = models.SupervisorProcessInfo.objects.filter(
-            node=node, captured_at__gt=last_captured_for_node.captured_at
-        ).exclude(name__in=[i.name for i in latest_supervisorprocessinfo_list])
-        if removed_proccesses:
-            removed_proccesses.delete()
+    all_proccessinfo_list: list[models.SupervisorProcessInfo] = list(models.SupervisorProcessInfo.objects.filter(node=node))
 
-    for i in latest_supervisorprocessinfo_list:
-        process_instance_qs = models.SupervisorProcessInfo.objects.filter(node=node, name=i.name).order_by(
-            "captured_at"
-        )
-        if len(process_instance_qs) == 0:
-            obj = models.SupervisorProcessInfo()
-            obj.node = node
-            obj.name = i.name
-        elif len(process_instance_qs) == 1:
-            if process_instance_qs[0].state != i.state:
-                obj = models.SupervisorProcessInfo()
-                obj.node = node
-                obj.name = i.name
+    sorted_supervisorprocessinfo_list = sorted(supervisorprocessinfo_list, key=lambda x: x.now)
+
+    for spi in sorted_supervisorprocessinfo_list:
+        start = datetime.datetime.fromtimestamp(spi.start, tz=zoneinfo.ZoneInfo("UTC"))
+        stop = datetime.datetime.fromtimestamp(spi.stop, tz=zoneinfo.ZoneInfo("UTC")) if spi.stop else None
+        captured_at = datetime.datetime.fromtimestamp(spi.now, tz=zoneinfo.ZoneInfo("UTC"))
+        pid = spi.pid or None
+        exitstatus = spi.exitstatus or None
+        spawnerr = spi.spawnerr or None
+
+        process_instance = [i for i in all_proccessinfo_list if i.name == spi.name]
+        if process_instance:
+            changed_list = set()
+            process_instance = process_instance[0]
+            if process_instance.last_captured_at > captured_at:
+                # the data is old
+                continue
+            if process_instance.last_state != spi.state:
+                changed_list.add("state")
+                process_instance.perv_state = process_instance.last_state
+                process_instance.last_state = spi.state
+                process_instance.perv_statename = process_instance.last_statename
+                process_instance.last_statename = spi.statename
+            if process_instance.last_spawnerr != spawnerr:
+                changed_list.add("spawnerr")
+                process_instance.perv_spawnerr = process_instance.last_spawnerr
+                process_instance.last_spawnerr = spawnerr
+            if process_instance.last_exitstatus != exitstatus:
+                changed_list.add("exitstatus")
+                process_instance.perv_exitstatus = process_instance.last_exitstatus
+                process_instance.last_exitstatus = exitstatus
+            if process_instance.last_start != start:
+                changed_list.add("start")
+                process_instance.perv_start = process_instance.last_start
+                process_instance.last_start = start
+            if process_instance.last_stop != stop:
+                changed_list.add("stop")
+                process_instance.perv_stop = process_instance.last_stop
+                process_instance.last_stop = stop
+            if process_instance.last_pid != pid:
+                changed_list.add("pid")
+                process_instance.perv_pid = process_instance.last_pid
+                process_instance.last_pid = pid
+            if changed_list:
+                # todo notif?!
+                process_instance.perv_changed_at = process_instance.last_changed_at
+                process_instance.last_changed_at = captured_at
+                process_instance.perv_captured_at = process_instance.last_captured_at
+                process_instance.last_captured_at = captured_at
             else:
-                obj = process_instance_qs[0]
-        elif len(process_instance_qs) == 2:
-            if process_instance_qs[1].state != i.state:
-                process_instance_qs[0].delete()
-                obj = models.SupervisorProcessInfo()
-                obj.node = node
-                obj.name = i.name
-            else:
-                obj = process_instance_qs[1]
+                # no change
+                process_instance.last_captured_at = captured_at
+
         else:
-            raise Exception(f"{len(process_instance_qs)=} for process {i.name} for {node=}")
+            process_instance = models.SupervisorProcessInfo()
+            process_instance.node = node
+            process_instance.name = spi.name
+            process_instance.group = spi.group
+            process_instance.description = spi.description
+            process_instance.perv_state = process_instance.last_state = spi.state
+            process_instance.perv_statename = process_instance.last_statename = spi.statename
+            process_instance.perv_start = process_instance.last_start = start
+            process_instance.perv_stop = process_instance.last_stop = stop
+            process_instance.perv_spawnerr = process_instance.last_spawnerr = spawnerr
+            process_instance.perv_exitstatus = process_instance.last_exitstatus = exitstatus
+            process_instance.perv_pid = process_instance.last_pid = pid
 
-        obj.group = i.group
-        obj.description = i.description
-        obj.start = datetime.datetime.fromtimestamp(i.start, tz=zoneinfo.ZoneInfo("UTC"))
-        if i.stop:
-            obj.stop = datetime.datetime.fromtimestamp(i.stop, tz=zoneinfo.ZoneInfo("UTC"))
-        obj.captured_at = datetime.datetime.fromtimestamp(i.now, tz=zoneinfo.ZoneInfo("UTC"))
-        obj.state = i.state
-        obj.statename = i.statename
-        obj.spawnerr = i.spawnerr or None
-        obj.exitstatus = i.exitstatus or None
-        obj.stderr_logfile = i.stderr_logfile
-        obj.stderr_logfile = i.stderr_logfile
-        obj.pid = i.pid or None
-        obj.save()
+            process_instance.perv_captured_at = process_instance.last_captured_at = captured_at
+            process_instance.perv_changed_at = process_instance.last_changed_at = captured_at
+        process_instance.stdout_logfile = spi.stdout_logfile
+        process_instance.stderr_logfile = spi.stderr_logfile
+        process_instance.save()
 
 
 def node_process_stats(
