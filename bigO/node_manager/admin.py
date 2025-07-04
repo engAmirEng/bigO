@@ -26,6 +26,7 @@ from . import forms, models, tasks
 
 class NodeLatestSyncStatInline(admin.StackedInline):
     model = models.NodeLatestSyncStat
+    form = forms.NodeLatestSyncStatModelForm
 
 
 class NodePublicIPInline(admin.StackedInline):
@@ -262,15 +263,23 @@ class ProgramVersionModelAdmin(admin.ModelAdmin):
 @admin.register(models.SupervisorProcessInfo)
 class SupervisorProcessInfoModelAdmin(admin.ModelAdmin):
     ordering = ("node", "name")
-    list_display = ("id", "node", "name", "last_changed_at_display", "description", "statename_display", "last_captured_at_display")
+    list_display = (
+        "id",
+        "node",
+        "name",
+        "last_changed_at_display",
+        "description",
+        "statename_display",
+        "last_captured_at_display",
+    )
     list_filter = ("node", "name", "last_state")
     search_fields = ("name",)
     autocomplete_fields = ("node",)
 
     @admin.display(ordering="last_statename")
     def statename_display(self, obj: models.SupervisorProcessInfo):
-        perv_fortime = (obj.perv_captured_at - obj.perv_changed_at)
-        last_fortime = (obj.last_captured_at - obj.last_changed_at)
+        perv_fortime = obj.perv_captured_at - obj.perv_changed_at
+        last_fortime = obj.last_captured_at - obj.last_changed_at
         perv_fortime_str = ""
         if perv_fortime:
             perv_fortime_str = str(perv_fortime)

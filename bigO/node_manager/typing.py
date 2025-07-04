@@ -1,6 +1,6 @@
 import enum
 import pathlib
-from typing import Annotated, Any, TypedDict
+from typing import Annotated, Any, Literal, TypedDict
 
 import pydantic
 
@@ -83,3 +83,23 @@ class FileSchema(pydantic.BaseModel):
     url: pydantic.HttpUrl | None = None
     permission: int
     hash: str | None = None
+
+
+class UrlSpec(pydantic.BaseModel):
+    url: pydantic.HttpUrl
+    proxy_url: pydantic.AnyUrl | Literal[""] | None = None
+    weight: int
+
+
+class ConfigSchema(pydantic.BaseModel):
+    sync_url: pydantic.HttpUrl | Literal[""] | None = None
+    sync_urls: list[UrlSpec] | None = None
+    api_key: str
+    interval_sec: int
+    working_dir: pathlib.Path
+    is_dev: bool
+    sentry_dsn: pydantic.HttpUrl | None
+    full_control_supervisord: bool
+    supervisor_base_config_path: str = ""
+    safe_stats_size: int | None = None
+    each_collection_size: int | None = None

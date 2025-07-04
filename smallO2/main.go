@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	Release   = "1.2.1"
+	Release   = "1.2.2"
 	BuildTime = "unknown"
 )
 
@@ -175,6 +175,10 @@ MainLoop:
 		newSupervisorConfigContent := response.SupervisorConfig.ConfigContent
 		if removeComments(newSupervisorConfigContent) == removeComments(currentSupervisorConfigContent) {
 			logger.Debug(fmt.Sprintf("already up to date."))
+			err = saveConfig(configPath, config)
+			if err != nil {
+				panic(fmt.Sprintf("Error saving updated config: %v", err))
+			}
 			time.Sleep(time.Second * time.Duration(config.IntervalSec))
 			continue MainLoop
 		}

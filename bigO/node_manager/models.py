@@ -721,6 +721,7 @@ class NodeLatestSyncStat(TimeStampedModel, models.Model):
     node = models.OneToOneField(Node, on_delete=models.CASCADE, related_name="node_nodesyncstat")
     agent_spec = models.CharField(max_length=255, null=True, blank=True)
     initiated_at = models.DateTimeField()
+    config = models.JSONField(null=True)
     respond_at = models.DateTimeField(null=True)
     request_headers = models.JSONField()
     response_payload = models.JSONField(null=True)

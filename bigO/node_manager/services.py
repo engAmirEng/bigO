@@ -11,6 +11,7 @@ from collections import defaultdict
 from datetime import timedelta
 from hashlib import sha256
 
+import pydantic
 import sentry_sdk
 from asgiref.sync import sync_to_async
 
@@ -18,6 +19,7 @@ import django.template
 from bigO.core import models as core_models
 from bigO.proxy_manager import services as services_models
 from config import settings
+from django.core.cache import cache
 from django.db import transaction
 from django.db.models import Subquery
 from django.http import HttpHeaders
@@ -53,7 +55,9 @@ def node_spec_create(*, node: models.Node, ip_a: str):
 
 
 def process_process_state(supervisorprocessinfo_list: list[typing.SupervisorProcessInfoSchema], node: models.Node):
-    all_proccessinfo_list: list[models.SupervisorProcessInfo] = list(models.SupervisorProcessInfo.objects.filter(node=node))
+    all_proccessinfo_list: list[models.SupervisorProcessInfo] = list(
+        models.SupervisorProcessInfo.objects.filter(node=node)
+    )
 
     sorted_supervisorprocessinfo_list = sorted(supervisorprocessinfo_list, key=lambda x: x.now)
 
@@ -261,6 +265,20 @@ def create_node_sync_stat(request_headers: HttpHeaders, node: models.Node) -> mo
 
     obj.save()
     return obj
+
+
+def node_sync_stat_config(obj: models.NodeLatestSyncStat, config: typing.ConfigSchema) -> typing.ConfigSchema:
+    result = config
+    config_to = get_change_node_config_to(obj.node)
+    if config_to:
+        if config_to == config:
+            # config_to is completed
+            delete_node_config_to(obj.node)
+        else:
+            result = config_to
+    obj.config = json.loads(config.model_dump_json())
+    obj.save()
+    return result
 
 
 def complete_node_sync_stat(obj: models.NodeLatestSyncStat, response_payload: dict) -> None:
@@ -1118,3 +1136,23 @@ autorestart=true
 priority=10
 """
     return supervisor_config, files
+
+
+def change_node_config_to(new_config: typing.ConfigSchema, node: models.Node):
+    cache.set(f"change_node_config_to_{node.id}", new_config.model_dump_json(), timeout=2 * 60 * 60)
+
+
+def get_change_node_config_to(node: models.Node) -> typing.ConfigSchema | None:
+    json_str_res = cache.get(f"change_node_config_to_{node.id}")
+    if not json_str_res:
+        return None
+    dict_res: dict = json.loads(json_str_res)
+    try:
+        res = typing.ConfigSchema(**dict_res)
+    except pydantic.ValidationError:
+        return None
+    return res
+
+
+def delete_node_config_to(node: models.Node):
+    cache.delete(f"change_node_config_to_{node.id}")

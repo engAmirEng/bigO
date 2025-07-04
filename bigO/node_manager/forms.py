@@ -1,8 +1,12 @@
+import json
+
+import pydantic
+
 from bigO.core import models as core_models
 from django import forms
 from django.urls import reverse
 
-from . import models
+from . import models, services, typing
 
 
 class SupervisorRPCConnectTypeForm(forms.Form):
@@ -117,3 +121,42 @@ class ProgramBinaryModelForm(forms.ModelForm):
                 cleaned_data["file_hash"] = file_hash
 
         return cleaned_data
+
+
+class NodeLatestSyncStatModelForm(forms.ModelForm):
+    config_to = forms.CharField(widget=forms.Textarea, required=False)
+
+    class Meta:
+        model = models.NodeLatestSyncStat
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        config_to_initial = None
+        if self.instance and self.instance.id:
+            change_node_config_to = services.get_change_node_config_to(self.instance.node)
+            if change_node_config_to:
+                config_to_initial = change_node_config_to.model_dump_json()
+        if config_to_initial:
+            self.fields["config_to"].initial = config_to_initial
+            self.fields["config_to"].help_text = "waiting for node to confirm it..."
+
+    def clean_config_to(self):
+        value = self.cleaned_data.get("config_to")
+        if value:
+            try:
+                dict_value = json.loads(value)
+            except json.JSONDecodeError as e:
+                raise forms.ValidationError(e)
+            try:
+                return typing.ConfigSchema(**dict_value)
+            except pydantic.ValidationError as e:
+                raise forms.ValidationError(e)
+        return value
+
+    def save(self, commit=True):
+        if "config_to" in self.changed_data and (config_to := self.cleaned_data.get("config_to")):
+            services.change_node_config_to(config_to, node=self.instance.node)
+        else:
+            services.delete_node_config_to(self.instance.node)
+        return super().save(commit=commit)
