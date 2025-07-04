@@ -193,7 +193,7 @@ class Reverse(TimeStampedModel, models.Model):
 
     def get_proxyuser_balancer_tag(self, balancer_tag: str) -> typing.ProxyUserProtocol:
         email = f"rule{self.rule_id}.bnode{self.bridge_node_id}.pnode{self.portal_node_id}.reverse{self.id}.{balancer_tag}@love.com"
-        return SimpleNamespace(xray_uuid=uuid.uuid5(self.base_conn_uuid, balancer_tag), xray_email=lambda: email)
+        return SimpleNamespace(xray_uuid=uuid.uuid5(self.base_conn_uuid, email), xray_email=lambda: email)
 
 
 class InternalUser(TimeStampedModel, models.Model):
