@@ -22,6 +22,19 @@ from django.utils.translation import gettext
 from . import models, tasks
 from .dns import AVAILABLE_DNS_PROVIDERS
 
+# Store a reference to the default each_context
+base_admin_context = admin.site.each_context
+
+
+def custom_admin_context(request):
+    context = base_admin_context(request)
+    firebaseConfig = {}
+    context["firebase_config"] = firebaseConfig
+    return context
+
+
+admin.site.each_context = custom_admin_context
+
 
 @admin.register(models.SiteConfiguration)
 class SiteConfigurationModelAdmin(SingletonModelAdmin):

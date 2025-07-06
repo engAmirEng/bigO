@@ -23,6 +23,10 @@ CERTBOT_CONFIG_DIR = pathlib.Path(settings.MEDIA_ROOT) / "protected" / "certbot"
 # ------------------------------------------------------------------------------
 ANSIBLE_WORKING_DIR = pathlib.Path(settings.MEDIA_ROOT) / "protected" / "ansible"
 
+# notifications
+# ------------------------------------------------------------------------------
+ACTUAL_SEND = env.bool("NOTIFICATIONS_ACTUAL_SEND", default=not settings.DEBUG)
+
 
 # other
 TELEGRAM_BOT_TOKEN = env.str("TELEGRAM_BOT_TOKEN")

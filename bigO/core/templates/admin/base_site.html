@@ -1,0 +1,24 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block extrahead %}
+    {{ block.super }}
+    <script type="module">
+      // import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
+      import { initializeApp } from "{% static "vendor/firebase/11.10.0/firebase-app.js" %}";
+
+      const aa = document.getElementById('firebase_config')
+      if (aa) {
+        const firebaseConfig = JSON.parse(aa.textContent);
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        // TODO
+      }
+    </script>
+{% endblock %}
+{% block footer %}
+  {{ block.super }}
+  {% if firebase_config %}
+    {{ firebase_config|json_script:"firebase_config" }}
+  {% endif %}
+{% endblock %}

@@ -6,7 +6,7 @@ from bigO.utils.models import TimeStampedModel
 from django.core import validators
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.db.models import CheckConstraint, OuterRef, Q, Subquery
+from django.db.models import CheckConstraint, OuterRef, Q, Subquery, UniqueConstraint
 from django.utils import timezone
 from django.utils.translation import gettext
 
@@ -220,3 +220,12 @@ class DNSProvider(TimeStampedModel, models.Model):
 
     def get_provider(self) -> BaseDNSProvider:
         return self.provider_cls(args=self.provider_args)
+
+
+class UserDevice(TimeStampedModel, models.Model):
+    user_agent = models.CharField(max_length=255)
+    user = models.ForeignKey("users.User", on_delete=models.CASCADE, related_name="userdevices")
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [UniqueConstraint(fields=("user_agent", "user"), name="unique_user_useragent_for_userdevice")]
