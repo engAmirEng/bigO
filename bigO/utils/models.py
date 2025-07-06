@@ -1,5 +1,7 @@
 import re
 
+from simple_history.models import HistoricalRecords
+
 from django.core.exceptions import SynchronousOnlyOperation, ValidationError
 from django.core.validators import RegexValidator
 from django.db import models
@@ -30,6 +32,8 @@ class TimeStampedModel(models.Model):
 class TextExtractor(TimeStampedModel, models.Model):
     name = models.CharField(max_length=255)
     regex_pattern = models.TextField(validators=[RegexValidator])
+
+    history = HistoricalRecords()
 
     def extract(self, raw_text: str):
         match = re.search(self.regex_pattern, raw_text, re.DOTALL)

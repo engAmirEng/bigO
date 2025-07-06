@@ -2,11 +2,13 @@ import uuid
 from types import SimpleNamespace
 
 import django_jsonform.models.fields
+from simple_history.models import HistoricalRecords
 from solo.models import SingletonModel
 
 from bigO.utils.models import TimeStampedModel
 from django.db import models
-from django.db.models import UniqueConstraint
+from django.db.models import OuterRef, Subquery, Sum, UniqueConstraint
+from django.db.models.functions import Coalesce
 
 from .. import typing
 
@@ -31,6 +33,7 @@ class Config(TimeStampedModel, SingletonModel):
     geoip = models.ForeignKey(
         "node_manager.ProgramVersion", related_name="geoip_xrayconfig", on_delete=models.PROTECT, null=True, blank=True
     )
+    history = HistoricalRecords()
 
 
 class Region(TimeStampedModel, models.Model):
@@ -67,6 +70,7 @@ class NodeOutbound(TimeStampedModel, models.Model):
         null=True,
         blank=True,
     )
+    history = HistoricalRecords()
 
     class Meta:
         ordering = ["-created_at"]
@@ -87,6 +91,23 @@ class NodeOutbound(TimeStampedModel, models.Model):
 
 
 class ConnectionRule(TimeStampedModel, models.Model):
+    class ConnectionRuleQuerySet(models.QuerySet):
+        def ann_periods_count(self):
+            from ..models import SubscriptionPlan
+
+            qs = SubscriptionPlan.objects.filter(connection_rule=OuterRef("id")).ann_periods_count()
+            return self.annotate(
+                periods_count=Coalesce(
+                    Subquery(
+                        qs.order_by()
+                        .values("connection_rule")
+                        .annotate(periods_count=Sum("periods_count"))
+                        .values("periods_count")
+                    ),
+                    0,
+                ),
+            )
+
     name = models.SlugField()
     origin_region = models.ForeignKey(Region, on_delete=models.CASCADE, related_name="originregion_connectionrules")
     destination_region = models.ForeignKey(
@@ -106,6 +127,10 @@ class ConnectionRule(TimeStampedModel, models.Model):
     inbound_choose_rule = django_jsonform.models.fields.JSONField(
         schema=INBOUND_CHOOSE_RULE_SCHEMA, null=True, blank=True
     )
+
+    history = HistoricalRecords()
+
+    objects = ConnectionRuleQuerySet.as_manager()
 
     def __str__(self):
         return f"{self.pk}-{self.name}"
@@ -141,6 +166,8 @@ class Reverse(TimeStampedModel, models.Model):
     )
     base_conn_uuid = models.UUIDField()
 
+    history = HistoricalRecords()
+
     class Meta:
         ordering = ["-created_at"]
         constraints = [
@@ -166,7 +193,7 @@ class Reverse(TimeStampedModel, models.Model):
 
     def get_proxyuser_balancer_tag(self, balancer_tag: str) -> typing.ProxyUserProtocol:
         email = f"rule{self.rule_id}.bnode{self.bridge_node_id}.pnode{self.portal_node_id}.reverse{self.id}.{balancer_tag}@love.com"
-        return SimpleNamespace(xray_uuid=uuid.uuid5(self.base_conn_uuid, balancer_tag), xray_email=lambda: email)
+        return SimpleNamespace(xray_uuid=uuid.uuid5(self.base_conn_uuid, email), xray_email=lambda: email)
 
 
 class InternalUser(TimeStampedModel, models.Model):
@@ -212,6 +239,8 @@ class InboundType(TimeStampedModel, models.Model):
     haproxy_backend = models.TextField(blank=True, null=True, help_text="{{ node_obj }}")
     haproxy_matcher_80 = models.TextField(blank=True, null=True, help_text="{{ node_obj }}")
     haproxy_matcher_443 = models.TextField(blank=True, null=True, help_text="{{ node_obj }}")
+
+    history = HistoricalRecords()
 
     def __str__(self):
         return f"{self.pk}-{self.name}"

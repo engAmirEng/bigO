@@ -52,9 +52,16 @@ from(bucket: "{settings.INFLUX_BUCKET}")
         if df.empty:
             sentry_sdk.capture_message("did data not received by influx yet?")
             continue
-
-        new_flow_download_bytes = df[df["_field"] == "dl_bytes"].iloc[0].to_dict()["_value"]
-        new_flow_upload_bytes = df[df["_field"] == "up_bytes"].iloc[0].to_dict()["_value"]
+        try:
+            new_flow_download_bytes = df[df["_field"] == "dl_bytes"].iloc[0].to_dict()["_value"]
+        except IndexError:
+            new_flow_download_bytes = 0
+        try:
+            new_flow_upload_bytes = df[df["_field"] == "up_bytes"].iloc[0].to_dict()["_value"]
+        except IndexError:
+            new_flow_upload_bytes = 0
+        if new_flow_download_bytes == 0 and new_flow_upload_bytes == 0:
+            continue
 
         old_flow_download_bytes = subscriptionperiod.flow_download_bytes
         download_flow_diff = new_flow_download_bytes - old_flow_download_bytes

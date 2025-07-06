@@ -14,7 +14,7 @@ from django.db.models import Prefetch, Q
 from django.urls import reverse
 from django.utils import timezone
 
-from .. import models, typing, services
+from .. import models, services, typing
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +92,11 @@ def get_xray_conf_v2(
     rule_parts = ""
 
     connectionrule_qs = (
-        models.ConnectionRule.objects.filter(rule_nodeoutbounds__node=node_obj)
+        models.ConnectionRule.objects.filter(
+            Q(rule_nodeoutbounds__node=node_obj)
+            | Q(rule_reverses__bridge_node=node_obj)
+            | Q(rule_reverses__portal_node=node_obj)
+        )
         .prefetch_related(
             Prefetch(
                 "rule_nodeoutbounds",
@@ -343,7 +347,10 @@ def get_xray_conf_v2(
 
     all_balancer_parts = ",\n".join(
         [
-            '{{"tag": "{0}", "selector": [{1}]}}'.format(tag, ",".join([f'"{i}"' for i in selectors]))
+            '{{"tag": "{0}", "selector": [{1}]}}'.format(
+                tag,
+                ",".join([f'"{i}"' for i in sorted(selectors, key=lambda x: sha256(x.encode("utf-8")).hexdigest())]),
+            )
             for tag, selectors in all_xray_balancers.items()
         ]
     )
@@ -433,9 +440,7 @@ priority=10
 
 
 def get_agent_current_subscriptionperiods_qs(agent: models.Agent):
-    return models.SubscriptionPeriod.objects.filter(
-        profile__initial_agency_id=agent.agency_id
-    )
+    return models.SubscriptionPeriod.objects.filter(profile__initial_agency_id=agent.agency_id)
 
 
 def set_profile_last_stat(

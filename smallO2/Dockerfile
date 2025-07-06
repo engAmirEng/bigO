@@ -1,3 +1,6 @@
+FROM golang:1.24-alpine3.22 as builder
+
+WORKDIR /app
 # Copy go.mod and go.sum first for dependency caching
 COPY go.mod go.sum ./
 RUN go mod download
@@ -46,6 +49,7 @@ RUN touch config.toml
 RUN mkdir /app/workdir
 ENV working_dir=/app/workdir
 ENV full_control_supervisord=True
+ENV supervisor_base_config_path=/etc/supervisor/supervisord.conf
 
 # Start the app
 CMD ["./myapp", "--config", "./config.toml"]

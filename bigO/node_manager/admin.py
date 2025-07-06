@@ -6,8 +6,10 @@ import humanize.filesize
 from django_json_widget.widgets import JSONEditorWidget
 from render_block import render_block_to_string
 from rest_framework_api_key.admin import APIKeyModelAdmin
+from simple_history.admin import SimpleHistoryAdmin
 
 from bigO.net_manager import models as net_manager_models
+from config.celery_app import app as celery_app
 from django.conf import settings
 from django.contrib import admin, messages
 from django.contrib.auth.decorators import login_required
@@ -24,6 +26,7 @@ from . import forms, models, tasks
 
 class NodeLatestSyncStatInline(admin.StackedInline):
     model = models.NodeLatestSyncStat
+    form = forms.NodeLatestSyncStatModelForm
 
 
 class NodePublicIPInline(admin.StackedInline):
@@ -190,21 +193,30 @@ class AnsibleTaskNodeInline(admin.StackedInline):
     model = models.AnsibleTaskNode
     extra = 0
     formfield_overrides = {
-        JSONField: {"widget": JSONEditorWidget},
+        JSONField: {"widget": JSONEditorWidget(mode="view")},
     }
 
 
 @admin.register(models.AnsibleTask)
 class AnsibleTaskModelAdmin(admin.ModelAdmin):
-    inlines = [AnsibleTaskNodeInline]
     list_display = ("__str__", "name", "status", "ok", "dark", "changed", "failures", "created_at", "finished_at")
-
+    actions = ["revoke_with_terminate"]
+    inlines = [AnsibleTaskNodeInline]
     formfield_overrides = {
-        JSONField: {"widget": JSONEditorWidget},
+        JSONField: {"widget": JSONEditorWidget(mode="view")},
     }
 
     def get_queryset(self, request):
         return super().get_queryset(request).ann_stats()
+
+    @admin.action()
+    def revoke_with_terminate(self, request, queryset: QuerySet[models.AnsibleTask]):
+        celery_app.control.revoke([i.celery_task_id for i in queryset], terminate=True)
+        self.message_user(
+            request,
+            gettext("terminated for {0} records").format(queryset.count()),
+            messages.INFO,
+        )
 
 
 @admin.register(models.NodeAPIKey)
@@ -232,7 +244,7 @@ class ProgramVersionInline(admin.StackedInline):
 
 
 @admin.register(models.Snippet)
-class SnippetModelAdmin(admin.ModelAdmin):
+class SnippetModelAdmin(SimpleHistoryAdmin, admin.ModelAdmin):
     search_fields = ("name", "template")
 
 
@@ -250,25 +262,55 @@ class ProgramVersionModelAdmin(admin.ModelAdmin):
 
 @admin.register(models.SupervisorProcessInfo)
 class SupervisorProcessInfoModelAdmin(admin.ModelAdmin):
-    ordering = ("node", "name", "-captured_at")
-    list_display = ("id", "node", "name", "description", "statename", "captured_at", "start")
-    list_filter = ("node", "name", "state")
+    ordering = ("node", "name")
+    list_display = (
+        "id",
+        "node",
+        "name",
+        "last_changed_at_display",
+        "description",
+        "statename_display",
+        "last_captured_at_display",
+    )
+    list_filter = ("node", "name", "last_state")
     search_fields = ("name",)
     autocomplete_fields = ("node",)
+
+    @admin.display(ordering="last_statename")
+    def statename_display(self, obj: models.SupervisorProcessInfo):
+        perv_fortime = obj.perv_captured_at - obj.perv_changed_at
+        last_fortime = obj.last_captured_at - obj.last_changed_at
+        perv_fortime_str = ""
+        if perv_fortime:
+            perv_fortime_str = str(perv_fortime)
+        last_fortime_str = ""
+        if last_fortime:
+            last_fortime_str = str(last_fortime)
+        return f"{obj.perv_statename}({perv_fortime_str}) -> {obj.last_statename}({last_fortime_str})"
+
+    @admin.display(ordering="last_changed_at", description="last changed at")
+    def last_changed_at_display(self, obj: models.SupervisorProcessInfo):
+        return naturaltime(obj.last_changed_at)
+
+    @admin.display(ordering="last_captured_at", description="last captured at")
+    def last_captured_at_display(self, obj: models.SupervisorProcessInfo):
+        return naturaltime(obj.last_captured_at)
 
 
 class NodeCustomConfigInline(admin.StackedInline):
     extra = 1
     model = models.NodeCustomConfig
+    autocomplete_fields = ("node",)
 
 
 class CustomConfigDependantFileInline(admin.StackedInline):
     extra = 1
     model = models.CustomConfigDependantFile
+    show_change_link = True
 
 
 @admin.register(models.CustomConfig)
-class CustomConfigModelAdmin(admin.ModelAdmin):
+class CustomConfigModelAdmin(SimpleHistoryAdmin, admin.ModelAdmin):
     list_display = ("__str__", "used_by_count")
     list_filter = ("nodecustomconfigs__node",)
     inlines = [CustomConfigDependantFileInline, NodeCustomConfigInline]
@@ -280,6 +322,11 @@ class CustomConfigModelAdmin(admin.ModelAdmin):
     @admin.display(ordering="used_by_count")
     def used_by_count(self, obj):
         return obj.used_by_count
+
+
+@admin.register(models.CustomConfigDependantFile)
+class CustomConfigDependantFileModelAdmin(SimpleHistoryAdmin, admin.ModelAdmin):
+    pass
 
 
 @admin.register(models.EasyTierNetwork)

@@ -1,11 +1,11 @@
 import uuid
 
-from django.contrib.auth import get_user_model
-
 from bigO.proxy_manager import models as proxy_manager_models
+from django.contrib.auth import get_user_model
 from django.db import transaction
 
 User = get_user_model()
+
 
 def create_new_user(
     agency: proxy_manager_models.Agency,
@@ -42,6 +42,7 @@ def create_new_user(
         subscriptionevent.save()
         return subscriptionperiod
 
+
 def renew_user(
     agency: proxy_manager_models.Agency,
     agentuser: User,
@@ -70,7 +71,6 @@ def renew_user(
         return subscriptionperiod
 
 
-
 def suspend_user(profile: proxy_manager_models.SubscriptionProfile, agentuser: User):
     profile.is_active = False
 
@@ -83,7 +83,6 @@ def suspend_user(profile: proxy_manager_models.SubscriptionProfile, agentuser: U
     with transaction.atomic(using="main"):
         profile.save()
         subscriptionevent.save()
-
 
 
 def unsuspend_user(profile: proxy_manager_models.SubscriptionProfile, agentuser: User):

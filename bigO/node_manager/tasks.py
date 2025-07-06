@@ -13,6 +13,7 @@ import ansible_runner
 import influxdb_client.domain.write_precision
 import requests.adapters
 import requests.auth
+import sentry_sdk
 from asgiref.sync import async_to_sync
 from celery import current_task
 
@@ -86,7 +87,11 @@ def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str,
         try:
             res = json.loads(line)
         except json.JSONDecodeError as e:
-            raise Exception(f"error in decoding goingto stdout line: err is {e} and line is {line}")
+            # most likely due to offset log tailing
+            sentry_sdk.capture_exception(
+                Exception(f"error in decoding goingto stdout line: err is {e} and line is {line}")
+            )
+            continue
         else:
             if res["result_type"] == "xray_raw_traffic_v1":
                 collect_time = datetime.datetime.fromisoformat(res["timestamp"])
@@ -313,7 +318,7 @@ def send_to_loki(streams: list[typing.LokiStram]):
             raise Exception(f"faild send to Loki, {res.text=}")
 
 
-@app.task(soft_time_limit=10 * 60)
+@app.task(soft_time_limit=15 * 60)
 def ansible_deploy_node(node_id: int):
     celery_task_id = current_task.request.id
 
@@ -359,17 +364,19 @@ def ansible_deploy_node(node_id: int):
     # Create inventory file
     inventory_path = tasks_assets_dir.joinpath(f"inventory_{an_task_obj.id}_{time_str}")
     with open(inventory_path, "w") as f:
-        ip = node_obj.node_nodepublicips.first().ip.ip.ip
+        ips = [i.ip.ip.ip for i in node_obj.node_nodepublicips.all()]
+        ips.sort(key=lambda x: x.version, reverse=False)
+        ip = ips[0]
         username = node_obj.ssh_user
         passwd = node_obj.ssh_pass
-        line = f"{ip} ansible_user={username} ansible_password={passwd} ansible_become_pass={passwd} ansible_port={node_obj.ssh_port} ansible_ssh_common_args='-o StrictHostKeyChecking=no'\n"
+        line = f"{node_obj.name} ansible_host={ip} ansible_user={username} ansible_password='{passwd}' ansible_become_pass={passwd} ansible_port={node_obj.ssh_port} ansible_ssh_common_args='-o StrictHostKeyChecking=no'\n"
         f.write(line)
     # Create playbook file
     playbook_path = tasks_assets_dir.joinpath(f"playbook_{an_task_obj.id}_{time_str}.yml")
     with open(playbook_path, "w") as f:
         f.write(deploy_content)
 
-    ansibletasknode_mapping = {str(ip): ansibletasknode_obj}
+    ansibletasknode_mapping = {node_obj.name: ansibletasknode_obj}
 
     current_python_path = sys.executable
     # ansible is installed in this python env so

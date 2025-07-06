@@ -1,4 +1,5 @@
 import humanize.filesize
+from simple_history.admin import SimpleHistoryAdmin
 from solo.admin import SingletonModelAdmin
 
 from django.contrib import admin
@@ -10,7 +11,10 @@ from . import forms, models
 
 
 @admin.register(models.Config)
-class ConfigModelAdmin(SingletonModelAdmin):
+class ConfigModelAdmin(
+    SimpleHistoryAdmin,
+    SingletonModelAdmin,
+):
     list_display = ("__str__",)
 
 
@@ -76,9 +80,26 @@ class AgencyPlanSpecInline(admin.StackedInline):
 
 @admin.register(models.SubscriptionPlan)
 class SubscriptionPlanModelAdmin(admin.ModelAdmin):
-    list_display = ("__str__",)
+    list_display = ("__str__", "connection_rule_display", "capacity", "periods_count_display")
+    list_select_related = ("connection_rule",)
+    list_filter = ("connection_rule",)
     form = forms.SubscriptionPlanModelForm
     inlines = (AgencyPlanSpecInline,)
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).ann_periods_count()
+
+    @admin.display(ordering="periods_count")
+    def periods_count_display(self, obj):
+        return obj.periods_count
+
+    @admin.display(ordering="connection_rule")
+    def connection_rule_display(self, obj):
+        return format_html(
+            "<a href='{}'>{}</a>",
+            reverse("admin:proxy_manager_connectionrule_change", args=[obj.connection_rule.id]),
+            str(obj.connection_rule),
+        )
 
 
 @admin.register(models.SubscriptionPeriod)
@@ -97,8 +118,6 @@ class SubscriptionPeriodModelAdmin(admin.ModelAdmin):
         "up_bytes_remained",
         "dl_bytes_remained",
     )
-    form = forms.SubscriptionPeriodModelForm
-    autocomplete_fields = ("profile",)
     search_fields = (
         "profile__title",
         "profile__user__name",
@@ -106,6 +125,9 @@ class SubscriptionPeriodModelAdmin(admin.ModelAdmin):
         "profile__uuid",
         "profile__xray_uuid",
     )
+    list_filter = ("selected_as_current", "plan", "plan__connection_rule")
+    form = forms.SubscriptionPeriodModelForm
+    autocomplete_fields = ("profile",)
 
     def get_queryset(self, request):
         return (
@@ -169,8 +191,15 @@ class SubscriptionPeriodModelAdmin(admin.ModelAdmin):
 
 
 @admin.register(models.NodeOutbound)
-class NodeOutboundModelAdmin(admin.ModelAdmin):
+class NodeOutboundModelAdmin(SimpleHistoryAdmin):
     list_display = ("id", "name", "rule", "node", "to_inbound_type", "inbound_spec")
+    search_fields = ("name", "xray_outbound_template")
+    list_filter = ("to_inbound_type", "rule")
+
+
+@admin.register(models.Reverse)
+class ReverseModelAdmin(SimpleHistoryAdmin):
+    list_display = ("id", "name", "rule", "bridge_node", "portal_node", "to_inbound_type", "inbound_spec")
     search_fields = ("name", "xray_outbound_template")
     list_filter = ("to_inbound_type", "rule")
 
@@ -180,6 +209,7 @@ class RuleNodeOutboundInline(admin.StackedInline):
     model = models.NodeOutbound
     autocomplete_fields = ("rule", "node", "inbound_spec")
     ordering = ("node", "-created_at")
+    show_change_link = True
 
 
 class ReverseInline(admin.StackedInline):
@@ -187,6 +217,8 @@ class ReverseInline(admin.StackedInline):
     model = models.Reverse
     form = forms.ReverseModelForm
     autocomplete_fields = ("bridge_node", "portal_node", "inbound_spec")
+    show_change_link = True
+    ordering = ("bridge_node", "portal_node", "-created_at")
 
 
 class ConnectionRuleInboundSpecInline(admin.StackedInline):
@@ -196,10 +228,17 @@ class ConnectionRuleInboundSpecInline(admin.StackedInline):
 
 
 @admin.register(models.ConnectionRule)
-class ConnectionRuleModelAdmin(admin.ModelAdmin):
-    list_display = ("__str__",)
+class ConnectionRuleModelAdmin(SimpleHistoryAdmin):
+    list_display = ("__str__", "periods_count_display")
     inlines = (ConnectionRuleInboundSpecInline, RuleNodeOutboundInline, ReverseInline)
     search_fields = ("name", "xray_rules_template")
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).ann_periods_count()
+
+    @admin.display(ordering="periods_count")
+    def periods_count_display(self, obj):
+        return obj.periods_count
 
 
 @admin.register(models.InternalUser)
@@ -224,7 +263,7 @@ class NodeOutboundInline(admin.StackedInline):
 
 
 @admin.register(models.InboundType)
-class InboundTypeModelAdmin(admin.ModelAdmin):
+class InboundTypeModelAdmin(SimpleHistoryAdmin, admin.ModelAdmin):
     list_display = ("__str__", "is_active", "is_template")
     search_fields = ("name", "inbound_template")
     inlines = (InboundComboInline, NodeOutboundInline)

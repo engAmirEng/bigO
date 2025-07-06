@@ -4,7 +4,8 @@ from bigO.proxy_manager.subscription import AVAILABLE_SUBSCRIPTION_PLAN_PROVIDER
 from bigO.proxy_manager.subscription.base import BaseSubscriptionPlanProvider
 from bigO.utils.models import TimeStampedModel
 from django.db import models
-from django.db.models import Case, F, OuterRef, Q, Subquery, UniqueConstraint, When
+from django.db.models import Case, Count, F, OuterRef, Q, Subquery, UniqueConstraint, When
+from django.db.models.functions import Coalesce
 
 
 class Agency(TimeStampedModel, models.Model):
@@ -28,6 +29,19 @@ class Agent(TimeStampedModel, models.Model):
 
 
 class SubscriptionPlan(TimeStampedModel, models.Model):
+    class SubscriptionPlanQuerySet(models.QuerySet):
+        def ann_periods_count(self):
+            from ..models import SubscriptionPeriod
+
+            qs = SubscriptionPeriod.objects.filter(plan=OuterRef("id"), selected_as_current=True)
+            return self.annotate(
+                periods_count=Coalesce(
+                    Subquery(qs.order_by().values("plan").annotate(count=Count("id")).values("count")), 0
+                )
+            )
+
+    objects = SubscriptionPlanQuerySet.as_manager()
+
     name = models.SlugField()
     plan_provider_key = models.SlugField(max_length=127, db_index=True)
     plan_provider_args = models.JSONField(null=True, blank=True)
@@ -212,6 +226,8 @@ class SubscriptionProfile(TimeStampedModel, models.Model):
 class SubscriptionEvent(TimeStampedModel, models.Model):
     related_agency = models.ForeignKey(Agency, on_delete=models.CASCADE, related_name="+")
     agentuser = models.ForeignKey("users.User", on_delete=models.CASCADE, related_name="+")
-    profile = models.ForeignKey(SubscriptionProfile, on_delete=models.CASCADE, related_name="profile_subscriptionevents")
+    profile = models.ForeignKey(
+        SubscriptionProfile, on_delete=models.CASCADE, related_name="profile_subscriptionevents"
+    )
     period = models.ForeignKey(SubscriptionPeriod, on_delete=models.CASCADE, null=True, blank=True)
     title = models.CharField(max_length=255)

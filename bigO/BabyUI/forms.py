@@ -42,6 +42,7 @@ class NewUserForm(forms.Form):
                 raise forms.ValidationError("this is required")
         return value
 
+
 class RenewUserForm(forms.Form):
     plan = forms.ModelChoiceField(queryset=proxy_manager_models.SubscriptionPlan.objects.none())
     expiry_days = forms.IntegerField(required=False)
@@ -51,7 +52,9 @@ class RenewUserForm(forms.Form):
         super().__init__(*args, **kwargs)
         current_plan_qs = profile.periods.filter(selected_as_current=True, plan_id=OuterRef("id"))
         sub_qs = proxy_manager_models.AgencyPlanSpec.objects.filter(capacity__gt=0, plan=OuterRef("id"))
-        subscriptionplan_qs = proxy_manager_models.SubscriptionPlan.objects.filter(Exists(sub_qs) | Exists(current_plan_qs))
+        subscriptionplan_qs = proxy_manager_models.SubscriptionPlan.objects.filter(
+            Exists(sub_qs) | Exists(current_plan_qs)
+        )
         self.fields["plan"].queryset = subscriptionplan_qs
 
     def get_plan_args(self) -> dict:

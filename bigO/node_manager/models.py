@@ -7,6 +7,7 @@ from typing import Self, TypedDict
 
 import netfields
 from rest_framework_api_key.models import AbstractAPIKey
+from simple_history.models import HistoricalRecords
 from taggit.managers import TaggableManager
 
 import django.template.loader
@@ -237,6 +238,8 @@ class Snippet(TimeStampedModel, models.Model):
     name = models.SlugField()
     template = models.TextField()
 
+    history = HistoricalRecords()
+
     def __str__(self):
         return f"{self.pk}-{self.name}"
 
@@ -285,19 +288,30 @@ class SupervisorProcessInfo(TimeStampedModel, models.Model):
     name = models.CharField(max_length=255)
     group: models.CharField(max_length=255)
     description = models.CharField(max_length=255)
-    start = models.DateTimeField()
-    stop = models.DateTimeField(null=True, blank=True)
-    captured_at = models.DateTimeField()
-    state = models.PositiveSmallIntegerField(choices=ProcessState.choices)
-    statename = models.CharField(max_length=255)
-    spawnerr = models.CharField(max_length=255, null=True, blank=True)
-    exitstatus = models.PositiveSmallIntegerField(null=True, blank=True)
+    perv_state = models.PositiveSmallIntegerField(choices=ProcessState.choices)
+    last_state = models.PositiveSmallIntegerField(choices=ProcessState.choices)
+    perv_statename = models.CharField(max_length=255)
+    last_statename = models.CharField(max_length=255)
+    perv_start = models.DateTimeField()
+    last_start = models.DateTimeField()
+    perv_stop = models.DateTimeField(null=True, blank=True)
+    last_stop = models.DateTimeField(null=True, blank=True)
+    perv_spawnerr = models.CharField(max_length=255, null=True, blank=True)
+    last_spawnerr = models.CharField(max_length=255, null=True, blank=True)
+    perv_exitstatus = models.SmallIntegerField(null=True, blank=True)
+    last_exitstatus = models.SmallIntegerField(null=True, blank=True)
+    perv_pid = models.PositiveBigIntegerField(null=True, blank=True)
+    last_pid = models.PositiveBigIntegerField(null=True, blank=True)
     stdout_logfile = models.CharField(max_length=255)
     stderr_logfile = models.CharField(max_length=255)
-    pid = models.PositiveBigIntegerField(null=True, blank=True)
+    perv_captured_at = models.DateTimeField()
+    last_captured_at = models.DateTimeField()
+    perv_changed_at = models.DateTimeField()
+    last_changed_at = models.DateTimeField()
 
     class Meta:
-        ordering = ["-captured_at"]
+        ordering = ["-last_captured_at"]
+        constraints = [UniqueConstraint(fields=("node", "name"), name="unique_name_node_for_supervisor")]
 
     def __str__(self):
         return f"{self.name}|{self.node}"
@@ -316,6 +330,8 @@ class CustomConfig(TimeStampedModel, models.Model):
     run_opts_template = models.TextField(help_text="{node_obj}, *#path:key#*")
     tags = TaggableManager(related_name="tag_customconfigs", blank=True)
 
+    history = HistoricalRecords()
+
     def __str__(self):
         return f"{self.pk}-{self.name}"
 
@@ -328,6 +344,8 @@ class CustomConfigDependantFile(TimeStampedModel, models.Model):
         ProgramVersion, on_delete=models.PROTECT, related_name="customconfigdependants", null=True, blank=True
     )
     name_extension = models.CharField(max_length=15, null=True, blank=True)
+
+    history = HistoricalRecords()
 
     class Meta:
         ordering = ["-created_at"]
@@ -559,9 +577,11 @@ class EasyTierNode(TimeStampedModel):
         for i in new_nodepeers:
             i.save()
         for nodepeer in node_peers:
-            peer = (
-                f"{nodepeer.peer_listener.protocol}://{nodepeer.peer_public_ip.ip.ip.ip}:{nodepeer.peer_listener.port}"
-            )
+            if nodepeer.peer_public_ip.ip.ip.ip.version == 6:
+                ip_part = f"[{nodepeer.peer_public_ip.ip.ip.ip}]"
+            else:
+                ip_part = str(nodepeer.peer_public_ip.ip.ip.ip)
+            peer = f"{nodepeer.peer_listener.protocol}://{ip_part}:{nodepeer.peer_listener.port}"
             peers.append(peer)
 
         proxy_networks = []
@@ -701,6 +721,7 @@ class NodeLatestSyncStat(TimeStampedModel, models.Model):
     node = models.OneToOneField(Node, on_delete=models.CASCADE, related_name="node_nodesyncstat")
     agent_spec = models.CharField(max_length=255, null=True, blank=True)
     initiated_at = models.DateTimeField()
+    config = models.JSONField(null=True)
     respond_at = models.DateTimeField(null=True)
     request_headers = models.JSONField()
     response_payload = models.JSONField(null=True)

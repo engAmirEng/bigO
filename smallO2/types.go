@@ -2,14 +2,24 @@ package main
 
 import "time"
 
+type UrlSpec struct {
+	URL      string `toml:"url" json:"url"`
+	ProxyUrl string `toml:"proxy_url" json:"proxy_url"`
+	Weight   int    `toml:"weight" json:"weight"`
+}
 type Config struct {
-	SyncURL                string  `toml:"sync_url" json:"sync_url"`
-	APIKey                 string  `toml:"api_key" json:"api_key"`
-	IntervalSec            int     `toml:"interval_sec" json:"interval_sec"`
-	WorkingDir             string  `toml:"working_dir" json:"working_dir"`
-	IsDev                  bool    `toml:"is_dev" json:"is_dev"`
-	SentryDsn              *string `toml:"sentry_dsn" json:"sentry_dsn"`
-	FullControlSupervisord bool    `toml:"full_control_supervisord" json:"full_control_supervisord"`
+	SyncURL      string    `toml:"sync_url" json:"sync_url"` // Deprecated
+	SyncURLSpecs []UrlSpec `toml:"sync_urls" json:"sync_urls"`
+	//ProxyUrl                 string    `toml:"proxy_url" json:"proxy_url"`
+	APIKey                   string  `toml:"api_key" json:"api_key"`
+	IntervalSec              int     `toml:"interval_sec" json:"interval_sec"`
+	WorkingDir               string  `toml:"working_dir" json:"working_dir"`
+	IsDev                    bool    `toml:"is_dev" json:"is_dev"`
+	SentryDsn                *string `toml:"sentry_dsn" json:"sentry_dsn"`
+	FullControlSupervisord   bool    `toml:"full_control_supervisord" json:"full_control_supervisord"`
+	SupervisorBaseConfigPath string  `toml:"supervisor_base_config_path" json:"supervisor_base_config_path"`
+	SafeStatsSize            int     `toml:"safe_stats_size" json:"safe_stats_size"`
+	EachCollectionSize       int     `toml:"each_collection_size" json:"each_collection_size"`
 }
 
 type FileSchema struct {
@@ -70,4 +80,10 @@ type APIRequest struct {
 	ConfigsStates []ConfigStateSchema                      `json:"configs_states"`
 	SelfLogs      SupervisorProcessTailLogSerializerSchema `json:"self_logs"`
 	Config        Config                                   `json:"config"`
+}
+
+type backFileInfo struct {
+	path string
+	size int
+	time time.Time
 }
