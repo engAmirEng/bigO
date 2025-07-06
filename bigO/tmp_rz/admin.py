@@ -1,3 +1,4 @@
+from simple_history.admin import SimpleHistoryAdmin
 from solo.admin import SingletonModelAdmin
 
 from django.contrib import admin
@@ -7,7 +8,10 @@ from . import models
 
 
 @admin.register(models.Config)
-class ConfigModelAdmin(SingletonModelAdmin):
+class ConfigModelAdmin(
+    SimpleHistoryAdmin,
+    SingletonModelAdmin,
+):
     pass
 
 

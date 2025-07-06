@@ -1,3 +1,4 @@
+from simple_history.models import HistoricalRecords
 from solo.models import SingletonModel
 
 from bigO.utils.models import TimeStampedModel
@@ -10,6 +11,8 @@ class Config(SingletonModel):
     type2_formula = models.TextField(
         help_text="foroosh_record & kharid_record & ahrom_last_price => bazdeh & risk_percentage"
     )
+
+    history = HistoricalRecords()
 
     def get_type2_expressions_var(self):
         lines = self.type2_formula.split("\n")
