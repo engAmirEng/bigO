@@ -128,6 +128,8 @@ def process_process_state(supervisorprocessinfo_list: list[typing.SupervisorProc
 
             process_instance.perv_captured_at = process_instance.last_captured_at = captured_at
             process_instance.perv_changed_at = process_instance.last_changed_at = captured_at
+
+            all_proccessinfo_list.append(process_instance)
         process_instance.stdout_logfile = spi.stdout_logfile
         process_instance.stderr_logfile = spi.stderr_logfile
         process_instance.save()
