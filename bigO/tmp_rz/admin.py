@@ -26,6 +26,7 @@ class Type1ConfigModelAdmin(admin.ModelAdmin):
     list_display = ("ahrom", "order")
     ordering = ("order",)
     search_fields = ("ahrom__contract_num",)
+    list_editable = ("order",)
     autocomplete_fields = ("ahrom",)
 
 
@@ -41,6 +42,7 @@ class Type2ConfigModelAdmin(admin.ModelAdmin):
     list_display = ("foroosh_ahrom", "order", "related_kharids")
     ordering = ("order",)
     search_fields = ("foroosh_ahrom__contract_num", "relates__kharid_ahrom__contract_num")
+    list_editable = ("order",)
     inlines = (Type2RelateInline,)
     autocomplete_fields = ("foroosh_ahrom",)
 
