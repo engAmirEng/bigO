@@ -51,6 +51,7 @@ Pillow = ">=10.1.0,<10.2.0"
 requests = ">=2.32.3"
 whitenoise = ">=6.6.0,<6.7.0"
 sentry-sdk = "2.20.0"
+simpleeval = ">=1.0.3,<1.1.0"
 wonderwords = ">=2.2.0,<2.3.0"
 
 [dev-packages]
