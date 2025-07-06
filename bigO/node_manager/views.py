@@ -1,11 +1,9 @@
 import json
 import logging
-import pathlib
 import socket
 import ssl
 import tomllib
 from hashlib import sha256
-from typing import Literal
 from urllib.parse import urlparse
 
 import aiohttp.client_exceptions

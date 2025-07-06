@@ -1,13 +1,15 @@
-from django.core.exceptions import ValidationError
 from solo.models import SingletonModel
 
 from bigO.utils.models import TimeStampedModel
+from django.core.exceptions import ValidationError
 from django.db import models
 
 
 class Config(SingletonModel):
     type1_formula = models.TextField()
-    type2_formula = models.TextField(help_text="foroosh_record & kharid_record & ahrom_last_price => bazdeh & risk_percentage")
+    type2_formula = models.TextField(
+        help_text="foroosh_record & kharid_record & ahrom_last_price => bazdeh & risk_percentage"
+    )
 
     def get_type2_expressions_var(self):
         lines = self.type2_formula.split("\n")
@@ -37,6 +39,7 @@ class Ahrom(TimeStampedModel, models.Model):
     def __str__(self):
         return f"{self.id}-{self.contract_num}-{self.strike_price}"
 
+
 class Type1Config(TimeStampedModel, models.Model):
     title = models.CharField(max_length=255, null=True, blank=True)
     ahrom = models.ForeignKey(Ahrom, on_delete=models.PROTECT, related_name="+")
@@ -47,6 +50,7 @@ class Type1Config(TimeStampedModel, models.Model):
         if self.title:
             return f"{self.id}-{self.title}-{self.ahrom.contract_num}"
         return f"{self.id}-{self.ahrom.contract_num}"
+
 
 class Type2Config(TimeStampedModel, models.Model):
     title = models.CharField(max_length=255, null=True, blank=True)

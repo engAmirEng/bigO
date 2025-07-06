@@ -8,14 +8,15 @@ from zoneinfo import ZoneInfo
 import influxdb_client
 import pandas as pd
 import pydantic
+import simpleeval
 
 import django.shortcuts
-from django.db.models import Prefetch
 from django.core.exceptions import PermissionDenied
+from django.db.models import Prefetch
 from django.http import HttpResponse
 from django.utils import timezone
-from . import settings, models
-import simpleeval
+
+from . import models, settings
 
 
 async def tmp_rz1(request):
@@ -32,7 +33,11 @@ async def tmp_rz1(request):
         |> filter(fn: (r) => r["_measurement"] == "ahrom")
         |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
         """
-        df = influxdb_client.InfluxDBClient(url=settings.url, token=settings.token, org=settings.org).query_api().query_data_frame(query=query)
+        df = (
+            influxdb_client.InfluxDBClient(url=settings.url, token=settings.token, org=settings.org)
+            .query_api()
+            .query_data_frame(query=query)
+        )
         df["_time"] = pd.to_datetime(df["_time"])
         df_sorted = df.sort_values(by=["contrace_number", "_time"], ascending=[True, False])
         latest_df = df_sorted.drop_duplicates(subset="contrace_number", keep="first")
@@ -75,6 +80,7 @@ async def tmp_rz1(request):
         },
     )
 
+
 async def tmp_rz2(request):
     config = await models.Config.objects.aget()
     if not config.type2_formula:
@@ -86,6 +92,7 @@ async def tmp_rz2(request):
         parsed_expressions.append(s.parse(expression))
 
     if request.GET.get("csv"):
+
         class TMP_RZ2(pydantic.BaseModel):
             title: str = pydantic.Field(serialization_alias="عنوان")
             foroosh_contract_name: str = pydantic.Field(serialization_alias="قرارداد طهرم")
@@ -100,30 +107,37 @@ async def tmp_rz2(request):
         |> filter(fn: (r) => r["_measurement"] == "ahrom")
         |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
         """
-        df = influxdb_client.InfluxDBClient(url=settings.url, token=settings.token, org=settings.org).query_api().query_data_frame(query=query)
+        df = (
+            influxdb_client.InfluxDBClient(url=settings.url, token=settings.token, org=settings.org)
+            .query_api()
+            .query_data_frame(query=query)
+        )
         df["_time"] = pd.to_datetime(df["_time"])
         df_sorted = df.sort_values(by=["contrace_number", "_time"], ascending=[True, False])
         latest_df = df_sorted.drop_duplicates(subset="contrace_number", keep="first")
         latest_df = latest_df.sort_values(by="_time", ascending=False)
 
         res = []
-        async for type2 in models.Type2Config.objects\
-            .select_related("foroosh_ahrom")\
-            .prefetch_related(
-                Prefetch(
-                    "relates",
-                    queryset=models.Type2Relate.objects.select_related("kharid_ahrom").order_by("order"),
-                    to_attr="all_relates"
-                )
-            )\
-            .order_by("order"):
+        async for type2 in models.Type2Config.objects.select_related("foroosh_ahrom").prefetch_related(
+            Prefetch(
+                "relates",
+                queryset=models.Type2Relate.objects.select_related("kharid_ahrom").order_by("order"),
+                to_attr="all_relates",
+            )
+        ).order_by("order"):
             foroosh_contract_info = latest_df[latest_df["contrace_number"] == type2.foroosh_ahrom.contract_num]
             for type2_relate in type2.all_relates:
-                kharid_contract_info = latest_df[latest_df["contrace_number"] == type2_relate.kharid_ahrom.contract_num]
+                kharid_contract_info = latest_df[
+                    latest_df["contrace_number"] == type2_relate.kharid_ahrom.contract_num
+                ]
                 if foroosh_contract_info.empty:
-                    res.append(TMP_RZ2(contract_name=type2.main_ahrom.contract_num, profit_percent=None, last_update_at=None))
+                    res.append(
+                        TMP_RZ2(contract_name=type2.main_ahrom.contract_num, profit_percent=None, last_update_at=None)
+                    )
                 elif kharid_contract_info.empty:
-                    res.append(TMP_RZ2(contract_name=type2.main_ahrom.contract_num, profit_percent=None, last_update_at=None))
+                    res.append(
+                        TMP_RZ2(contract_name=type2.main_ahrom.contract_num, profit_percent=None, last_update_at=None)
+                    )
                 else:
                     foroosh_record = foroosh_contract_info.iloc[0].to_dict()
                     kharid_record = kharid_contract_info.iloc[0].to_dict()
@@ -131,7 +145,13 @@ async def tmp_rz2(request):
                     ahrom_last_price = foroosh_record["ahrom_last_price"]
                     s.names = simpleeval.DEFAULT_NAMES
                     for i, pe in enumerate(parsed_expressions):
-                        s.names.update({"foroosh_record": foroosh_record, "kharid_record": kharid_record, "ahrom_last_price": ahrom_last_price})
+                        s.names.update(
+                            {
+                                "foroosh_record": foroosh_record,
+                                "kharid_record": kharid_record,
+                                "ahrom_last_price": ahrom_last_price,
+                            }
+                        )
                         expression_var = expressions_var[i]
                         r = s.eval(expression_var[1], previously_parsed=pe)
                         s.names.update({expression_var[0]: r})
