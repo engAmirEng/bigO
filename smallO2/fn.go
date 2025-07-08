@@ -496,7 +496,6 @@ func makeSyncAPIRequest(config Config, payload *APIRequest, logger *zap.Logger) 
 	if err != nil {
 		return &response, nil, fmt.Errorf("failed to marshal request payload: %w", err)
 	}
-	payloadBuffer := bytes.NewBuffer(payloadBytes)
 
 	var proxyURL *url.URL
 	var Url string
@@ -516,7 +515,7 @@ func makeSyncAPIRequest(config Config, payload *APIRequest, logger *zap.Logger) 
 			proxyURL = nil
 		}
 		Url = urlChoice.url
-
+		payloadBuffer := bytes.NewBuffer(payloadBytes)
 		req, err := http.NewRequest("POST", Url, payloadBuffer)
 		if err != nil {
 			return &response, nil, fmt.Errorf("failed to create request: %w", err)
