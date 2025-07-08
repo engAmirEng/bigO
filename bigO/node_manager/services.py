@@ -17,7 +17,7 @@ from asgiref.sync import sync_to_async
 
 import django.template
 from bigO.core import models as core_models
-from bigO.proxy_manager import services as services_models
+from bigO.proxy_manager import models as proxy_manager_models, services as proxy_manager_services
 from config import settings
 from django.core.cache import cache
 from django.db import transaction
@@ -414,8 +414,10 @@ def get_global_haproxy_conf_v2(
         node_work_dir=node_work_dir,
         base_url=base_url,
     )
-    haproxy_config_content = django.template.Template(
-        """
+    proxy_manager_config = proxy_manager_models.Config.objects.get()
+    haproxy_config_template = proxy_manager_config.haproxy_config_template
+    # depracated (remove this)
+    default_haproxy_config_template ="""
 {% load node_manager %}
 global
     log /dev/log local0
@@ -486,7 +488,9 @@ backend nginx_dispatcher
 #   server vlessw abns@h2_vless_ws_new send-proxy-v2 tfo
 {{ xray_backends_part }}
 """
-    ).render(context=template_context)
+    haproxy_config_template = haproxy_config_template or default_haproxy_config_template
+    haproxy_config_template += "\n"  # fix haproxyerror: Missing LF on last line, file might have been truncated
+    haproxy_config_content = django.template.Template(haproxy_config_template).render(context=template_context)
 
     haproxy_config_content_hash = sha256(haproxy_config_content.encode("utf-8")).hexdigest()
     haproxy_config_content_file = typing.FileSchema(
@@ -521,7 +525,7 @@ def get_global_nginx_conf_v1(node: models.Node) -> tuple[str, str, dict] | None:
         http_part += supervisor_nginx_conf[0]
         deps = supervisor_nginx_conf[1]
         usage = True
-    proxy_manager_nginx_conf = services_models.get_proxy_manager_nginx_conf_v1(node_obj=node)
+    proxy_manager_nginx_conf = proxy_manager_services.get_proxy_manager_nginx_conf_v1(node_obj=node)
     if proxy_manager_nginx_conf and (proxy_manager_nginx_conf[0] or proxy_manager_nginx_conf[1]):
         http_part += proxy_manager_nginx_conf[0]
         stream_part += proxy_manager_nginx_conf[1]
@@ -602,7 +606,7 @@ def get_global_nginx_conf_v2(
         new_files = supervisor_nginx_conf[1]
         files.extend(new_files)
         usage = True
-    proxy_manager_nginx_conf = services_models.get_proxy_manager_nginx_conf_v2(
+    proxy_manager_nginx_conf = proxy_manager_services.get_proxy_manager_nginx_conf_v2(
         node_obj=node_obj,
         xray_path_matchers_parts=xray_path_matchers_parts,
         node_work_dir=node_work_dir,

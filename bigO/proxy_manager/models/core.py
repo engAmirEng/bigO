@@ -18,6 +18,7 @@ class Config(TimeStampedModel, SingletonModel):
         null=True, blank=False, help_text="{{ node_obj, xray_path_matchers }}"
     )
     nginx_config_stream_template = models.TextField(null=True, blank=False, help_text="{{ node_obj }}")
+    haproxy_config_template = models.TextField(null=True, blank=True, help_text="{{ node_obj, xray_backends_part, xray_80_matchers_par, xray_443_matchers_part }}")
     xray_config_template = models.TextField(
         null=True,
         blank=False,
