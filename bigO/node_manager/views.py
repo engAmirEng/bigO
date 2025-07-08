@@ -283,9 +283,16 @@ class RuntimeSchema(pydantic.BaseModel):
 class SupervisorConfigSchema(pydantic.BaseModel):
     config_content: str
 
+class LogSetting(pydantic.BaseModel):
+    pass
+
+class ProccessSetting(pydantic.BaseModel):
+    stdout_log: LogSetting
+    stderr_log: LogSetting
 
 class NodeBaseSyncV2OutputSchema(pydantic.BaseModel):
     supervisor_config: SupervisorConfigSchema
+    proccess_settings: ProccessSetting
     files: list[typing.FileSchema]
     config: typing.ConfigSchema
     runtime: RuntimeSchema
