@@ -327,6 +327,14 @@ def ansible_deploy_node(node_id: int):
     deploy_snippet = o2spec.ansible_deploy_snippet
     deploy_content = django.template.Template(deploy_snippet.template).render(django.template.Context())
     assert "templateerror" not in deploy_content
+
+    ips = [i.ip.ip.ip for i in node_obj.node_nodepublicips.all()]
+    ips.sort(key=lambda x: x.version, reverse=False)
+    ip = ips[0]
+    username = node_obj.ssh_user
+    passwd = node_obj.ssh_pass
+    inventory_content = f"{node_obj.name} ansible_host={ip} ansible_user={username} ansible_password='{passwd}' ansible_become_pass={passwd} ansible_port={node_obj.ssh_port} ansible_ssh_common_args='-o StrictHostKeyChecking=no'\n"
+
     o2_binary = o2spec.program.get_program_for_node(node_obj)
     if o2_binary is None or not isinstance(o2_binary, models.ProgramBinary):
         raise Exception(f"no ProgramBinary of {o2spec.program=} found for {node_obj=}")
@@ -350,6 +358,8 @@ def ansible_deploy_node(node_id: int):
     an_task_obj.status = models.AnsibleTask.StatusChoices.STARTED
     an_task_obj.playbook_snippet = deploy_snippet
     an_task_obj.playbook_content = deploy_content
+    an_task_obj.inventory_content = inventory_content
+    an_task_obj.extravars = extravars
     ansibletasknode_obj = models.AnsibleTaskNode()
     ansibletasknode_obj.task = an_task_obj
     ansibletasknode_obj.node = node_obj
@@ -364,13 +374,7 @@ def ansible_deploy_node(node_id: int):
     # Create inventory file
     inventory_path = tasks_assets_dir.joinpath(f"inventory_{an_task_obj.id}_{time_str}")
     with open(inventory_path, "w") as f:
-        ips = [i.ip.ip.ip for i in node_obj.node_nodepublicips.all()]
-        ips.sort(key=lambda x: x.version, reverse=False)
-        ip = ips[0]
-        username = node_obj.ssh_user
-        passwd = node_obj.ssh_pass
-        line = f"{node_obj.name} ansible_host={ip} ansible_user={username} ansible_password='{passwd}' ansible_become_pass={passwd} ansible_port={node_obj.ssh_port} ansible_ssh_common_args='-o StrictHostKeyChecking=no'\n"
-        f.write(line)
+        f.write(inventory_content)
     # Create playbook file
     playbook_path = tasks_assets_dir.joinpath(f"playbook_{an_task_obj.id}_{time_str}.yml")
     with open(playbook_path, "w") as f:
@@ -383,7 +387,7 @@ def ansible_deploy_node(node_id: int):
     os.environ["PATH"] = os.environ["PATH"] + f":{pathlib.Path(current_python_path).parent}"
     thread, runner = ansible_runner.run_async(
         extravars=extravars,
-        private_data_dir=workdir,
+        private_data_dir=str(workdir),
         playbook=str(playbook_path),
         inventory=str(inventory_path),
     )

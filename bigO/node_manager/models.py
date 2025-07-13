@@ -137,6 +137,8 @@ class AnsibleTask(TimeStampedModel, models.Model):
         "Snippet", on_delete=models.SET_NULL, related_name="playbooksnippet_ansibletasks", null=True, blank=True
     )
     playbook_content = models.TextField()
+    inventory_content = models.TextField(null=True, blank=True)
+    extravars = models.JSONField(null=True, blank=True)
     status = models.PositiveSmallIntegerField(choices=StatusChoices)
     logs = models.TextField(blank=True)
     result = models.JSONField(null=True)
