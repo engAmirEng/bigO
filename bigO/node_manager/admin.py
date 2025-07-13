@@ -276,7 +276,7 @@ class SupervisorProcessInfoModelAdmin(admin.ModelAdmin):
     search_fields = ("name",)
     autocomplete_fields = ("node",)
 
-    @admin.display(ordering="last_statename")
+    @admin.display(ordering="last_statename", description="statename")
     def statename_display(self, obj: models.SupervisorProcessInfo):
         perv_fortime = obj.perv_captured_at - obj.perv_changed_at
         last_fortime = obj.last_captured_at - obj.last_changed_at

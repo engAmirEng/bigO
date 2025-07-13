@@ -117,7 +117,6 @@ def process_process_state(supervisorprocessinfo_list: list[typing.SupervisorProc
             process_instance.node = node
             process_instance.name = spi.name
             process_instance.group = spi.group
-            process_instance.description = spi.description
             process_instance.perv_state = process_instance.last_state = spi.state
             process_instance.perv_statename = process_instance.last_statename = spi.statename
             process_instance.perv_start = process_instance.last_start = start
@@ -130,6 +129,7 @@ def process_process_state(supervisorprocessinfo_list: list[typing.SupervisorProc
             process_instance.perv_changed_at = process_instance.last_changed_at = captured_at
 
             all_proccessinfo_list.append(process_instance)
+        process_instance.description = spi.description
         process_instance.stdout_logfile = spi.stdout_logfile
         process_instance.stderr_logfile = spi.stderr_logfile
         process_instance.save()
