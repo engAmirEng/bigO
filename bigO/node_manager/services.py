@@ -17,7 +17,8 @@ from asgiref.sync import sync_to_async
 
 import django.template
 from bigO.core import models as core_models
-from bigO.proxy_manager import models as proxy_manager_models, services as proxy_manager_services
+from bigO.proxy_manager import models as proxy_manager_models
+from bigO.proxy_manager import services as proxy_manager_services
 from config import settings
 from django.core.cache import cache
 from django.db import transaction
@@ -417,7 +418,7 @@ def get_global_haproxy_conf_v2(
     proxy_manager_config = proxy_manager_models.Config.objects.get()
     haproxy_config_template = proxy_manager_config.haproxy_config_template
     # depracated (remove this)
-    default_haproxy_config_template ="""
+    default_haproxy_config_template = """
 {% load node_manager %}
 global
     log /dev/log local0

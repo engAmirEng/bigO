@@ -1,5 +1,5 @@
 import ipaddress
-from typing import Optional, Protocol
+from typing import Protocol
 
 import pydantic
 

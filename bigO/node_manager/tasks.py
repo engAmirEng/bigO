@@ -325,7 +325,9 @@ def ansible_deploy_node(node_id: int):
     node_obj = models.Node.objects.get(id=node_id)
     o2spec = node_obj.o2spec
     deploy_snippet = node_obj.ansible_deploy_snippet
-    deploy_content = django.template.Template(deploy_snippet.template).render(django.template.Context({"node_obj": node_obj}))
+    deploy_content = django.template.Template(deploy_snippet.template).render(
+        django.template.Context({"node_obj": node_obj})
+    )
     assert "templateerror" not in deploy_content
 
     ips = [i.ip.ip.ip for i in node_obj.node_nodepublicips.all()]

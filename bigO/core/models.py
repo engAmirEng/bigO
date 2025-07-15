@@ -77,6 +77,7 @@ class PrivateKey(AbstractCryptographicObject, TimeStampedModel, models.Model):
     passphrase = models.CharField(max_length=255, null=True, blank=True)
     key_length = models.PositiveSmallIntegerField()
 
+
 class PublicKey(AbstractCryptographicObject, TimeStampedModel, models.Model):
     private_key = models.ForeignKey(PrivateKey, on_delete=models.CASCADE, null=True, blank=True)
 
