@@ -1,6 +1,7 @@
 package main
 
 import (
+	"alexejk.io/go-xmlrpc"
 	"bufio"
 	"bytes"
 	"context"
@@ -8,7 +9,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/kolo/xmlrpc"
 	"github.com/pelletier/go-toml/v2"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -224,7 +224,7 @@ func getSupervisorXmlRpcClient() (*xmlrpc.Client, error) {
 				return (&net.Dialer{}).DialContext(ctx, "unix", supervisorXmlRpcUnixAddr)
 			},
 		}
-		supervisorXmlRpcClient, err = xmlrpc.NewClient("http://dummy/RPC2", UnixStreamTransport)
+		supervisorXmlRpcClient, err = xmlrpc.NewClient("http://dummy/RPC2", xmlrpc.HttpClient(&http.Client{Transport: UnixStreamTransport}))
 	} else {
 		supervisorXmlRpcClient, err = xmlrpc.NewClient("http://127.0.0.1:9002/RPC2", nil)
 	}
@@ -234,11 +234,14 @@ func getSupervisorXmlRpcClient() (*xmlrpc.Client, error) {
 	return supervisorXmlRpcClient, nil
 }
 func IsSupervisorRunning(supervisorXmlRpcClient *xmlrpc.Client) (bool, error) {
-	supervisorStateInfos := struct {
-		Statecode int    `xmlrpc:"statecode"`
-		Statename string `xmlrpc:"statename"`
+	result := struct {
+		Result struct {
+			Statecode int    `xmlrpc:"statecode"`
+			Statename string `xmlrpc:"statename"`
+		}
 	}{}
-	err := supervisorXmlRpcClient.Call("supervisor.getState", nil, &supervisorStateInfos)
+
+	err := supervisorXmlRpcClient.Call("supervisor.getState", nil, &result)
 	if err != nil {
 		return false, err
 	}
@@ -270,13 +273,18 @@ func getAPIRequest(config Config, supervisorXmlRpcClient *xmlrpc.Client) (*APIRe
 }
 
 func getConfigsStates(configsStates *[]ConfigStateSchema, config Config, supervisorXmlRpcClient *xmlrpc.Client) (error, func() error) {
-	var supervisorProcessInfos []SupervisorProcessInfoSchema
+	result := struct {
+		SupervisorProcessInfos []SupervisorProcessInfoSchema
+	}{
+		SupervisorProcessInfos: nil,
+	}
 	var currentConfigsStates []ConfigStateSchema
 	var includedBackfilePaths []string
-	err := supervisorXmlRpcClient.Call("supervisor.getAllProcessInfo", nil, &supervisorProcessInfos)
+	err := supervisorXmlRpcClient.Call("supervisor.getAllProcessInfo", nil, &result)
 	if err != nil {
 		return fmt.Errorf("failed to get process info: %w", err), nil
 	}
+	supervisorProcessInfos := result.SupervisorProcessInfos
 	safeStatsSize := config.SafeStatsSize
 	//safeStatsGage := 5_000_000
 	eachCollectionSize := config.EachCollectionSize
