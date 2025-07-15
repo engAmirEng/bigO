@@ -339,7 +339,9 @@ def ansible_deploy_node(node_id: int):
     if o2_binary is None or not isinstance(o2_binary, models.ProgramBinary):
         raise Exception(f"no ProgramBinary of {o2spec.program=} found for {node_obj=}")
 
+    ssh_keys_raw = ",".join([i.content for i in node_obj.ssh_public_keys.all()])
     extravars = {
+        "ssh_keys_raw": ssh_keys_raw,
         "install_dir": str(pathlib.Path(o2spec.working_dir).parent),
         "smallO2_binary_download_url": urllib.parse.urljoin(
             o2spec.sync_domain, reverse("node_manager:node_program_binary_content_by_hash", args=[o2_binary.hash])

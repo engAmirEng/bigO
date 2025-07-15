@@ -84,6 +84,7 @@ class Node(TimeStampedModel, models.Model):
     ssh_port = models.PositiveSmallIntegerField(null=True, blank=True)
     ssh_user = models.CharField(max_length=255, null=True, blank=True)
     ssh_pass = models.CharField(max_length=255, null=True, blank=True)
+    ssh_public_keys = models.ManyToManyField("core.PublicKey", related_name="+", blank=True)
     ansible_deploy_snippet = models.ForeignKey(
         "Snippet", on_delete=models.PROTECT, related_name="ansibledeploysnippet_nodes", null=True, blank=True
     )

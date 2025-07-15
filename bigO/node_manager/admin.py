@@ -78,7 +78,7 @@ class NodeModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.ModelAd
         NodeInnerProgramInline,
         NodeLatestSyncStatInline,
     ]
-    autocomplete_fields = ("ansible_deploy_snippet",)
+    autocomplete_fields = ("ansible_deploy_snippet", "ssh_public_keys")
 
     @admin.action(description="Do Deploy")
     def do_deploy(self, request, queryset: QuerySet[models.Node]):
