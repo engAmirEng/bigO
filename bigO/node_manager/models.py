@@ -85,7 +85,7 @@ class Node(TimeStampedModel, models.Model):
     ssh_user = models.CharField(max_length=255, null=True, blank=True)
     ssh_pass = models.CharField(max_length=255, null=True, blank=True)
     ansible_deploy_snippet = models.ForeignKey(
-        "Snippet", on_delete=models.PROTECT, related_name="ansibledeploysnippet_o2specs", null=True, blank=True
+        "Snippet", on_delete=models.PROTECT, related_name="ansibledeploysnippet_nodes", null=True, blank=True
     )
 
     class NodeQuerySet(models.QuerySet):
