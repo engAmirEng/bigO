@@ -54,9 +54,6 @@ class ContainerSpec(TimeStampedModel):
 class O2Spec(TimeStampedModel, models.Model):
     node = models.OneToOneField("Node", on_delete=models.CASCADE, related_name="o2spec")
     program = models.ForeignKey("ProgramVersion", on_delete=models.PROTECT, related_name="program_o2spec")
-    ansible_deploy_snippet = models.ForeignKey(
-        "Snippet", on_delete=models.PROTECT, related_name="ansibledeploysnippet_o2specs"
-    )
     sync_domain = models.URLField(max_length=255)
     api_key = models.CharField(max_length=255)
     interval_sec = models.PositiveSmallIntegerField()
@@ -87,6 +84,9 @@ class Node(TimeStampedModel, models.Model):
     ssh_port = models.PositiveSmallIntegerField(null=True, blank=True)
     ssh_user = models.CharField(max_length=255, null=True, blank=True)
     ssh_pass = models.CharField(max_length=255, null=True, blank=True)
+    ansible_deploy_snippet = models.ForeignKey(
+        "Snippet", on_delete=models.PROTECT, related_name="ansibledeploysnippet_o2specs", null=True, blank=True
+    )
 
     class NodeQuerySet(models.QuerySet):
         def support_ipv6(self):

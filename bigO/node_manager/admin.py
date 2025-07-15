@@ -52,7 +52,7 @@ class NodeSupervisorConfigInline(admin.StackedInline):
 
 class O2SpecInline(admin.StackedInline):
     model = models.O2Spec
-    autocomplete_fields = ("program", "ansible_deploy_snippet")
+    autocomplete_fields = ("program",)
 
 
 @admin.register(models.Node)
@@ -78,6 +78,7 @@ class NodeModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.ModelAd
         NodeInnerProgramInline,
         NodeLatestSyncStatInline,
     ]
+    autocomplete_fields = ("ansible_deploy_snippet",)
 
     @admin.action(description="Do Deploy")
     def do_deploy(self, request, queryset: QuerySet[models.Node]):
@@ -87,6 +88,7 @@ class NodeModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.ModelAd
                 | Q(ssh_user__isnull=True)
                 | Q(ssh_user="")
                 | Q(ssh_pass__isnull=True)
+                | Q(ansible_deploy_snippet__isnull=True)
                 | Q(ssh_pass="")
                 | Q(o2spec__isnull=True)
             )
