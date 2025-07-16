@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	Release   = "1.2.3"
+	Release   = "1.2.4"
 	BuildTime = "unknown"
 )
 
@@ -189,13 +189,16 @@ MainLoop:
 			panic(fmt.Sprintf("panic in writing %s with %v", supervisorConfigPath, err))
 		}
 
-		var reloadConfigResult [][][]string
-		err = supervisorXmlRpcClient.Call("supervisor.reloadConfig", nil, &reloadConfigResult)
+		reloadConfigResultDummy := struct {
+			SupervisorProcessInfos [][][]string
+		}{}
+		err = supervisorXmlRpcClient.Call("supervisor.reloadConfig", nil, &reloadConfigResultDummy)
 		if err != nil {
 			logger.Error(fmt.Sprintf("Error reloading supervisor config: %v", err))
 			time.Sleep(time.Second * time.Duration(config.IntervalSec))
 			continue MainLoop
 		}
+		reloadConfigResult := reloadConfigResultDummy.SupervisorProcessInfos
 		added := reloadConfigResult[0][0]
 		changed := reloadConfigResult[0][1]
 		removed := reloadConfigResult[0][2]
