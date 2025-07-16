@@ -47,23 +47,24 @@ type APIResponse struct {
 	Runtime          RuntimeSchema    `json:"runtime"`
 }
 type SupervisorProcessInfoSchema struct {
-	Name          string `xmlrpc:"name" json:"name"`
-	Group         string `xmlrpc:"group" json:"group"`
-	Description   string `xmlrpc:"description" json:"description"`
-	Start         int    `xmlrpc:"start" json:"start"`
-	Stop          int    `xmlrpc:"stop" json:"stop"`
-	Now           int    `xmlrpc:"now" json:"now"`
-	State         int    `xmlrpc:"state" json:"state"`
-	StateName     string `xmlrpc:"statename" json:"statename"`
-	SpawnErr      string `xmlrpc:"spawnerr" json:"spawnerr"`
-	ExitStatus    int    `xmlrpc:"exitstatus" json:"exitstatus"`
-	StdoutLogfile string `xmlrpc:"stdout_logfile" json:"stdout_logfile"`
-	StderrLogfile string `xmlrpc:"stderr_logfile" json:"stderr_logfile"`
-	PID           int    `xmlrpc:"pid" json:"pid"`
+	Name          string `xmlrpc:"Name" json:"name"`
+	Group         string `xmlrpc:"Group" json:"group"`
+	Description   string `xmlrpc:"Description" json:"description"`
+	Start         int    `xmlrpc:"Start" json:"start"`
+	Stop          int    `xmlrpc:"Stop" json:"stop"`
+	Now           int    `xmlrpc:"Now" json:"now"`
+	State         int    `xmlrpc:"State" json:"state"`
+	StateName     string `xmlrpc:"Statename" json:"statename"`
+	SpawnErr      string `xmlrpc:"Spawnerr" json:"spawnerr"`
+	ExitStatus    int    `xmlrpc:"Exitstatus" json:"exitstatus"`
+	Logfile       string `xmlrpc:"Logfile" json:"logfile"` //deprecated, just for alexejk-xmlrpc
+	StdoutLogfile string `xmlrpc:"Stdout_logfile" json:"stdout_logfile"`
+	StderrLogfile string `xmlrpc:"Stderr_logfile" json:"stderr_logfile"`
+	PID           int    `xmlrpc:"Pid" json:"pid"`
 }
 type SupervisorProcessTailLogSerializerSchema struct {
 	Bytes    string `json:"bytes"`
-	Offset   int64  `json:"offset"`
+	Offset   int    `json:"offset"`
 	Overflow bool   `json:"overflow"`
 }
 type ConfigStateSchema struct {

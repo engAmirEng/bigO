@@ -1,6 +1,7 @@
 package main
 
 import (
+	"alexejk.io/go-xmlrpc"
 	"bufio"
 	"bytes"
 	"context"
@@ -8,7 +9,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/kolo/xmlrpc"
 	"github.com/pelletier/go-toml/v2"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -224,7 +224,7 @@ func getSupervisorXmlRpcClient() (*xmlrpc.Client, error) {
 				return (&net.Dialer{}).DialContext(ctx, "unix", supervisorXmlRpcUnixAddr)
 			},
 		}
-		supervisorXmlRpcClient, err = xmlrpc.NewClient("http://dummy/RPC2", UnixStreamTransport)
+		supervisorXmlRpcClient, err = xmlrpc.NewClient("http://dummy/RPC2", xmlrpc.HttpClient(&http.Client{Transport: UnixStreamTransport}))
 	} else {
 		supervisorXmlRpcClient, err = xmlrpc.NewClient("http://127.0.0.1:9002/RPC2", nil)
 	}
@@ -234,11 +234,14 @@ func getSupervisorXmlRpcClient() (*xmlrpc.Client, error) {
 	return supervisorXmlRpcClient, nil
 }
 func IsSupervisorRunning(supervisorXmlRpcClient *xmlrpc.Client) (bool, error) {
-	supervisorStateInfos := struct {
-		Statecode int    `xmlrpc:"statecode"`
-		Statename string `xmlrpc:"statename"`
+	result := struct {
+		Result struct {
+			Statecode int    `xmlrpc:"statecode"`
+			Statename string `xmlrpc:"statename"`
+		}
 	}{}
-	err := supervisorXmlRpcClient.Call("supervisor.getState", nil, &supervisorStateInfos)
+
+	err := supervisorXmlRpcClient.Call("supervisor.getState", nil, &result)
 	if err != nil {
 		return false, err
 	}
@@ -270,13 +273,18 @@ func getAPIRequest(config Config, supervisorXmlRpcClient *xmlrpc.Client) (*APIRe
 }
 
 func getConfigsStates(configsStates *[]ConfigStateSchema, config Config, supervisorXmlRpcClient *xmlrpc.Client) (error, func() error) {
-	var supervisorProcessInfos []SupervisorProcessInfoSchema
+	SupervisorProcessInfosDummy := struct {
+		SupervisorProcessInfos []SupervisorProcessInfoSchema
+	}{
+		SupervisorProcessInfos: nil,
+	}
 	var currentConfigsStates []ConfigStateSchema
 	var includedBackfilePaths []string
-	err := supervisorXmlRpcClient.Call("supervisor.getAllProcessInfo", nil, &supervisorProcessInfos)
+	err := supervisorXmlRpcClient.Call("supervisor.getAllProcessInfo", nil, &SupervisorProcessInfosDummy)
 	if err != nil {
 		return fmt.Errorf("failed to get process info: %w", err), nil
 	}
+	supervisorProcessInfos := SupervisorProcessInfosDummy.SupervisorProcessInfos
 	safeStatsSize := config.SafeStatsSize
 	//safeStatsGage := 5_000_000
 	eachCollectionSize := config.EachCollectionSize
@@ -300,20 +308,41 @@ ProcessInfoLoop:
 			// https://github.com/Supervisor/supervisor/issues/804
 			collectionSize = int(math.Round(float64(eachCollectionSize) * 0.1))
 		}
-		var tailProcessStdoutLogResult []interface{}
-		err = supervisorXmlRpcClient.Call("supervisor.tailProcessStdoutLog", []interface{}{supervisorProcessInfo.Name, 0, collectionSize}, &tailProcessStdoutLogResult)
+		TailProcessStdoutLogResultDummy := struct {
+			TailProcessStdoutLogResult []interface{}
+		}{}
+		err = supervisorXmlRpcClient.Call("supervisor.tailProcessStdoutLog", struct {
+			DumParam1 string
+			DumParam2 int
+			DumParam3 int
+		}{
+			DumParam1: supervisorProcessInfo.Name,
+			DumParam2: 0,
+			DumParam3: collectionSize,
+		}, &TailProcessStdoutLogResultDummy)
 		if err != nil {
 			return fmt.Errorf("failed to tail process stdout: %w", err), getOnCommit(includedBackfilePaths)
 		}
+		tailProcessStdoutLogResult := TailProcessStdoutLogResultDummy.TailProcessStdoutLogResult
 		if tailProcessStdoutLogResult[0] == nil {
 			tailProcessStdoutLogResult[0] = ""
 		}
-
-		var tailProcessStderrLogResult []interface{}
-		err = supervisorXmlRpcClient.Call("supervisor.tailProcessStderrLog", []interface{}{supervisorProcessInfo.Name, 0, collectionSize}, &tailProcessStderrLogResult)
+		TailProcessStderrLogResultDummy := struct {
+			TailProcessStderrLogResult []interface{}
+		}{}
+		err = supervisorXmlRpcClient.Call("supervisor.tailProcessStderrLog", struct {
+			DumParam1 string
+			DumParam2 int
+			DumParam3 int
+		}{
+			DumParam1: supervisorProcessInfo.Name,
+			DumParam2: 0,
+			DumParam3: collectionSize,
+		}, &TailProcessStderrLogResultDummy)
 		if err != nil {
 			return fmt.Errorf("failed to tail process stdout: %w", err), getOnCommit(includedBackfilePaths)
 		}
+		tailProcessStderrLogResult := TailProcessStdoutLogResultDummy.TailProcessStdoutLogResult
 		if tailProcessStderrLogResult[0] == nil {
 			tailProcessStderrLogResult[0] = ""
 		}
@@ -327,8 +356,15 @@ ProcessInfoLoop:
 			//safeSizePassed = true
 			break ProcessInfoLoop
 		}
-		var clearSuccess bool
-		err = supervisorXmlRpcClient.Call("supervisor.clearProcessLogs", []interface{}{supervisorProcessInfo.Name}, &clearSuccess)
+		ClearSuccessDummy := struct {
+			ClearSuccess bool
+		}{}
+		err = supervisorXmlRpcClient.Call("supervisor.clearProcessLogs", struct {
+			DumParam1 string
+		}{
+			DumParam1: supervisorProcessInfo.Name,
+		}, &ClearSuccessDummy)
+		clearSuccess := ClearSuccessDummy.ClearSuccess
 		if err != nil || clearSuccess == false {
 			return fmt.Errorf("failed to clear process logs: %w", err), getOnCommit(includedBackfilePaths)
 		}
@@ -339,12 +375,12 @@ ProcessInfoLoop:
 			SupervisorProcessInfo: supervisorProcessInfo,
 			Stdout: SupervisorProcessTailLogSerializerSchema{
 				Bytes:    stdoutContent,
-				Offset:   tailProcessStdoutLogResult[1].(int64),
+				Offset:   tailProcessStdoutLogResult[1].(int),
 				Overflow: tailProcessStdoutLogResult[2].(bool),
 			},
 			Stderr: SupervisorProcessTailLogSerializerSchema{
 				Bytes:    stderrContent,
-				Offset:   tailProcessStderrLogResult[1].(int64),
+				Offset:   tailProcessStderrLogResult[1].(int),
 				Overflow: tailProcessStderrLogResult[2].(bool),
 			},
 		}
