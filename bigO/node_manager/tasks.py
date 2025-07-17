@@ -13,6 +13,7 @@ import ansible_runner
 import influxdb_client.domain.write_precision
 import requests.adapters
 import requests.auth
+import sentry_sdk
 from asgiref.sync import async_to_sync
 from celery import current_task
 
@@ -86,7 +87,11 @@ def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str,
         try:
             res = json.loads(line)
         except json.JSONDecodeError as e:
-            raise Exception(f"error in decoding goingto stdout line: err is {e} and line is {line}")
+            # most likely due to offset log tailing
+            sentry_sdk.capture_exception(
+                Exception(f"error in decoding goingto stdout line: err is {e} and line is {line}")
+            )
+            continue
         else:
             if res["result_type"] == "xray_raw_traffic_v1":
                 collect_time = datetime.datetime.fromisoformat(res["timestamp"])
@@ -313,20 +318,32 @@ def send_to_loki(streams: list[typing.LokiStram]):
             raise Exception(f"faild send to Loki, {res.text=}")
 
 
-@app.task(soft_time_limit=10 * 60)
+@app.task(soft_time_limit=15 * 60)
 def ansible_deploy_node(node_id: int):
     celery_task_id = current_task.request.id
 
     node_obj = models.Node.objects.get(id=node_id)
     o2spec = node_obj.o2spec
-    deploy_snippet = o2spec.ansible_deploy_snippet
-    deploy_content = django.template.Template(deploy_snippet.template).render(django.template.Context())
+    deploy_snippet = node_obj.ansible_deploy_snippet
+    deploy_content = django.template.Template(deploy_snippet.template).render(
+        django.template.Context({"node_obj": node_obj})
+    )
     assert "templateerror" not in deploy_content
+
+    ips = [i.ip.ip.ip for i in node_obj.node_nodepublicips.all()]
+    ips.sort(key=lambda x: x.version, reverse=False)
+    ip = ips[0]
+    username = node_obj.ssh_user
+    passwd = node_obj.ssh_pass
+    inventory_content = f"{node_obj.name} ansible_host={ip} ansible_user={username} ansible_password='{passwd}' ansible_become_pass={passwd} ansible_port={node_obj.ssh_port} ansible_ssh_common_args='-o StrictHostKeyChecking=no'\n"
+
     o2_binary = o2spec.program.get_program_for_node(node_obj)
     if o2_binary is None or not isinstance(o2_binary, models.ProgramBinary):
         raise Exception(f"no ProgramBinary of {o2spec.program=} found for {node_obj=}")
 
+    ssh_keys_raw = ",".join([i.content for i in node_obj.ssh_public_keys.all()])
     extravars = {
+        "ssh_keys_raw": ssh_keys_raw,
         "install_dir": str(pathlib.Path(o2spec.working_dir).parent),
         "smallO2_binary_download_url": urllib.parse.urljoin(
             o2spec.sync_domain, reverse("node_manager:node_program_binary_content_by_hash", args=[o2_binary.hash])
@@ -345,6 +362,8 @@ def ansible_deploy_node(node_id: int):
     an_task_obj.status = models.AnsibleTask.StatusChoices.STARTED
     an_task_obj.playbook_snippet = deploy_snippet
     an_task_obj.playbook_content = deploy_content
+    an_task_obj.inventory_content = inventory_content
+    an_task_obj.extravars = extravars
     ansibletasknode_obj = models.AnsibleTaskNode()
     ansibletasknode_obj.task = an_task_obj
     ansibletasknode_obj.node = node_obj
@@ -359,24 +378,20 @@ def ansible_deploy_node(node_id: int):
     # Create inventory file
     inventory_path = tasks_assets_dir.joinpath(f"inventory_{an_task_obj.id}_{time_str}")
     with open(inventory_path, "w") as f:
-        ip = node_obj.node_nodepublicips.first().ip.ip.ip
-        username = node_obj.ssh_user
-        passwd = node_obj.ssh_pass
-        line = f"{ip} ansible_user={username} ansible_password={passwd} ansible_become_pass={passwd} ansible_port={node_obj.ssh_port} ansible_ssh_common_args='-o StrictHostKeyChecking=no'\n"
-        f.write(line)
+        f.write(inventory_content)
     # Create playbook file
     playbook_path = tasks_assets_dir.joinpath(f"playbook_{an_task_obj.id}_{time_str}.yml")
     with open(playbook_path, "w") as f:
         f.write(deploy_content)
 
-    ansibletasknode_mapping = {str(ip): ansibletasknode_obj}
+    ansibletasknode_mapping = {node_obj.name: ansibletasknode_obj}
 
     current_python_path = sys.executable
     # ansible is installed in this python env so
     os.environ["PATH"] = os.environ["PATH"] + f":{pathlib.Path(current_python_path).parent}"
     thread, runner = ansible_runner.run_async(
         extravars=extravars,
-        private_data_dir=workdir,
+        private_data_dir=str(workdir),
         playbook=str(playbook_path),
         inventory=str(inventory_path),
     )

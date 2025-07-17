@@ -1,6 +1,5 @@
 import json
 import logging
-import pathlib
 import socket
 import ssl
 import tomllib
@@ -276,16 +275,6 @@ class NodeBaseSyncAPIView(APIView):
         return Response(response_payload, status=status.HTTP_200_OK)
 
 
-class ConfigSchema(pydantic.BaseModel):
-    sync_url: pydantic.HttpUrl
-    api_key: str
-    interval_sec: int
-    working_dir: pathlib.Path
-    is_dev: bool
-    sentry_dsn: pydantic.HttpUrl | None
-    full_control_supervisord: bool
-
-
 class RuntimeSchema(pydantic.BaseModel):
     node_id: str
     node_name: str
@@ -298,7 +287,7 @@ class SupervisorConfigSchema(pydantic.BaseModel):
 class NodeBaseSyncV2OutputSchema(pydantic.BaseModel):
     supervisor_config: SupervisorConfigSchema
     files: list[typing.FileSchema]
-    config: ConfigSchema
+    config: typing.ConfigSchema
     runtime: RuntimeSchema
 
 
@@ -306,7 +295,7 @@ class NodeBaseSyncV2InputSchema(pydantic.BaseModel):
     metrics: typing.MetricSchema
     configs_states: list[typing.ConfigStateSchema] | None
     self_logs: typing.SupervisorProcessTailLogSerializerSchema | None
-    config: ConfigSchema
+    config: typing.ConfigSchema
 
 
 @csrf_exempt
@@ -326,12 +315,13 @@ async def node_base_sync_v2(request: HttpRequest):
     )
 
     try:
-        body = bigO.utils.http.get_body_from_request(request, 20 * 1024 * 1024)
+        body = bigO.utils.http.get_body_from_request(request, 100 * 1024 * 1024)
         input_json = json.loads(body)
         input_data = NodeBaseSyncV2InputSchema(**input_json)
     except pydantic.ValidationError as e:
         sentry_sdk.capture_exception(e)
         return JsonResponse(e.errors(), status=400, safe=False)
+    node_config = await sync_to_async(services.node_sync_stat_config)(obj=node_sync_stat_obj, config=input_data.config)
     await sync_to_async(services.node_process_stats)(
         node_obj=node_obj,
         configs_states=input_data.configs_states,
@@ -340,7 +330,6 @@ async def node_base_sync_v2(request: HttpRequest):
     )
     await sync_to_async(services.node_spec_create)(node=node_obj, ip_a=input_data.metrics.ip_a)
 
-    node_config = input_data.config
     supervisor_config = ""
     files = []
 

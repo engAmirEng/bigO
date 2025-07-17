@@ -11,13 +11,16 @@ from collections import defaultdict
 from datetime import timedelta
 from hashlib import sha256
 
+import pydantic
 import sentry_sdk
 from asgiref.sync import sync_to_async
 
 import django.template
 from bigO.core import models as core_models
-from bigO.proxy_manager import services as services_models
+from bigO.proxy_manager import models as proxy_manager_models
+from bigO.proxy_manager import services as proxy_manager_services
 from config import settings
+from django.core.cache import cache
 from django.db import transaction
 from django.db.models import Subquery
 from django.http import HttpHeaders
@@ -53,61 +56,84 @@ def node_spec_create(*, node: models.Node, ip_a: str):
 
 
 def process_process_state(supervisorprocessinfo_list: list[typing.SupervisorProcessInfoSchema], node: models.Node):
-    last_captured_for_node = models.SupervisorProcessInfo.objects.filter(node=node).order_by("-captured_at").first()
-    if last_captured_for_node:
-        latest_supervisorprocessinfo_list = [
-            i for i in supervisorprocessinfo_list if i.now > last_captured_for_node.captured_at.timestamp()
-        ]
-    else:
-        latest_supervisorprocessinfo_list = supervisorprocessinfo_list
-    latest_supervisorprocessinfo_list.sort(key=lambda x: x.now)
-    if last_captured_for_node and latest_supervisorprocessinfo_list:
-        removed_proccesses = models.SupervisorProcessInfo.objects.filter(
-            node=node, captured_at__gt=last_captured_for_node.captured_at
-        ).exclude(name__in=[i.name for i in latest_supervisorprocessinfo_list])
-        if removed_proccesses:
-            removed_proccesses.delete()
+    all_proccessinfo_list: list[models.SupervisorProcessInfo] = list(
+        models.SupervisorProcessInfo.objects.filter(node=node)
+    )
 
-    for i in latest_supervisorprocessinfo_list:
-        process_instance_qs = models.SupervisorProcessInfo.objects.filter(node=node, name=i.name).order_by(
-            "captured_at"
-        )
-        if len(process_instance_qs) == 0:
-            obj = models.SupervisorProcessInfo()
-            obj.node = node
-            obj.name = i.name
-        elif len(process_instance_qs) == 1:
-            if process_instance_qs[0].state != i.state:
-                obj = models.SupervisorProcessInfo()
-                obj.node = node
-                obj.name = i.name
+    sorted_supervisorprocessinfo_list = sorted(supervisorprocessinfo_list, key=lambda x: x.now)
+
+    for spi in sorted_supervisorprocessinfo_list:
+        start = datetime.datetime.fromtimestamp(spi.start, tz=zoneinfo.ZoneInfo("UTC"))
+        stop = datetime.datetime.fromtimestamp(spi.stop, tz=zoneinfo.ZoneInfo("UTC")) if spi.stop else None
+        captured_at = datetime.datetime.fromtimestamp(spi.now, tz=zoneinfo.ZoneInfo("UTC"))
+        pid = spi.pid or None
+        exitstatus = spi.exitstatus or None
+        spawnerr = spi.spawnerr or None
+
+        process_instance = [i for i in all_proccessinfo_list if i.name == spi.name]
+        if process_instance:
+            changed_list = set()
+            process_instance = process_instance[0]
+            if process_instance.last_captured_at > captured_at:
+                # the data is old
+                continue
+            if process_instance.last_state != spi.state:
+                changed_list.add("state")
+                process_instance.perv_state = process_instance.last_state
+                process_instance.last_state = spi.state
+                process_instance.perv_statename = process_instance.last_statename
+                process_instance.last_statename = spi.statename
+            if process_instance.last_spawnerr != spawnerr:
+                changed_list.add("spawnerr")
+                process_instance.perv_spawnerr = process_instance.last_spawnerr
+                process_instance.last_spawnerr = spawnerr
+            if process_instance.last_exitstatus != exitstatus:
+                changed_list.add("exitstatus")
+                process_instance.perv_exitstatus = process_instance.last_exitstatus
+                process_instance.last_exitstatus = exitstatus
+            if process_instance.last_start != start:
+                changed_list.add("start")
+                process_instance.perv_start = process_instance.last_start
+                process_instance.last_start = start
+            if process_instance.last_stop != stop:
+                changed_list.add("stop")
+                process_instance.perv_stop = process_instance.last_stop
+                process_instance.last_stop = stop
+            if process_instance.last_pid != pid:
+                changed_list.add("pid")
+                process_instance.perv_pid = process_instance.last_pid
+                process_instance.last_pid = pid
+            if changed_list:
+                # todo notif?!
+                process_instance.perv_changed_at = process_instance.last_changed_at
+                process_instance.last_changed_at = captured_at
+                process_instance.perv_captured_at = process_instance.last_captured_at
+                process_instance.last_captured_at = captured_at
             else:
-                obj = process_instance_qs[0]
-        elif len(process_instance_qs) == 2:
-            if process_instance_qs[1].state != i.state:
-                process_instance_qs[0].delete()
-                obj = models.SupervisorProcessInfo()
-                obj.node = node
-                obj.name = i.name
-            else:
-                obj = process_instance_qs[1]
+                # no change
+                process_instance.last_captured_at = captured_at
+
         else:
-            raise Exception(f"{len(process_instance_qs)=} for process {i.name} for {node=}")
+            process_instance = models.SupervisorProcessInfo()
+            process_instance.node = node
+            process_instance.name = spi.name
+            process_instance.group = spi.group
+            process_instance.perv_state = process_instance.last_state = spi.state
+            process_instance.perv_statename = process_instance.last_statename = spi.statename
+            process_instance.perv_start = process_instance.last_start = start
+            process_instance.perv_stop = process_instance.last_stop = stop
+            process_instance.perv_spawnerr = process_instance.last_spawnerr = spawnerr
+            process_instance.perv_exitstatus = process_instance.last_exitstatus = exitstatus
+            process_instance.perv_pid = process_instance.last_pid = pid
 
-        obj.group = i.group
-        obj.description = i.description
-        obj.start = datetime.datetime.fromtimestamp(i.start, tz=zoneinfo.ZoneInfo("UTC"))
-        if i.stop:
-            obj.stop = datetime.datetime.fromtimestamp(i.stop, tz=zoneinfo.ZoneInfo("UTC"))
-        obj.captured_at = datetime.datetime.fromtimestamp(i.now, tz=zoneinfo.ZoneInfo("UTC"))
-        obj.state = i.state
-        obj.statename = i.statename
-        obj.spawnerr = i.spawnerr or None
-        obj.exitstatus = i.exitstatus or None
-        obj.stderr_logfile = i.stderr_logfile
-        obj.stderr_logfile = i.stderr_logfile
-        obj.pid = i.pid or None
-        obj.save()
+            process_instance.perv_captured_at = process_instance.last_captured_at = captured_at
+            process_instance.perv_changed_at = process_instance.last_changed_at = captured_at
+
+            all_proccessinfo_list.append(process_instance)
+        process_instance.description = spi.description
+        process_instance.stdout_logfile = spi.stdout_logfile
+        process_instance.stderr_logfile = spi.stderr_logfile
+        process_instance.save()
 
 
 def node_process_stats(
@@ -229,7 +255,7 @@ def create_node_sync_stat(request_headers: HttpHeaders, node: models.Node) -> mo
         obj = models.NodeLatestSyncStat.objects.get(node=node)
     except models.NodeLatestSyncStat.DoesNotExist:
         obj = models.NodeLatestSyncStat(node=node)
-    obj.request_headers = json.dumps(dict(request_headers))
+    obj.request_headers = dict(request_headers)
     obj.initiated_at = timezone.now()
     obj.agent_spec = request_headers.get("user-agent", "")[:200]
     obj.response_payload = None
@@ -244,8 +270,22 @@ def create_node_sync_stat(request_headers: HttpHeaders, node: models.Node) -> mo
     return obj
 
 
-def complete_node_sync_stat(obj: models.NodeLatestSyncStat, response_payload) -> None:
-    obj.response_payload = json.dumps(response_payload)
+def node_sync_stat_config(obj: models.NodeLatestSyncStat, config: typing.ConfigSchema) -> typing.ConfigSchema:
+    result = config
+    config_to = get_change_node_config_to(obj.node)
+    if config_to:
+        if config_to == config:
+            # config_to is completed
+            delete_node_config_to(obj.node)
+        else:
+            result = config_to
+    obj.config = json.loads(config.model_dump_json())
+    obj.save()
+    return result
+
+
+def complete_node_sync_stat(obj: models.NodeLatestSyncStat, response_payload: dict) -> None:
+    obj.response_payload = response_payload
     obj.respond_at = timezone.now()
 
     obj.save()
@@ -375,8 +415,10 @@ def get_global_haproxy_conf_v2(
         node_work_dir=node_work_dir,
         base_url=base_url,
     )
-    haproxy_config_content = django.template.Template(
-        """
+    proxy_manager_config = proxy_manager_models.Config.objects.get()
+    haproxy_config_template = proxy_manager_config.haproxy_config_template
+    # depracated (remove this)
+    default_haproxy_config_template = """
 {% load node_manager %}
 global
     log /dev/log local0
@@ -426,7 +468,8 @@ frontend http-https-in
     {{ xray_80_matchers_part }}
 
     use_backend nginx_dispatcher_h2 if h2
-    default_backend nginx_dispatcher
+    default_backend nginx_dispatcher_h2
+    #default_backend nginx_dispatcher
 
 # this server handles xray http2 proxies
 backend nginx_dispatcher_h2
@@ -446,7 +489,9 @@ backend nginx_dispatcher
 #   server vlessw abns@h2_vless_ws_new send-proxy-v2 tfo
 {{ xray_backends_part }}
 """
-    ).render(context=template_context)
+    haproxy_config_template = haproxy_config_template or default_haproxy_config_template
+    haproxy_config_template += "\n"  # fix haproxyerror: Missing LF on last line, file might have been truncated
+    haproxy_config_content = django.template.Template(haproxy_config_template).render(context=template_context)
 
     haproxy_config_content_hash = sha256(haproxy_config_content.encode("utf-8")).hexdigest()
     haproxy_config_content_file = typing.FileSchema(
@@ -481,7 +526,7 @@ def get_global_nginx_conf_v1(node: models.Node) -> tuple[str, str, dict] | None:
         http_part += supervisor_nginx_conf[0]
         deps = supervisor_nginx_conf[1]
         usage = True
-    proxy_manager_nginx_conf = services_models.get_proxy_manager_nginx_conf_v1(node_obj=node)
+    proxy_manager_nginx_conf = proxy_manager_services.get_proxy_manager_nginx_conf_v1(node_obj=node)
     if proxy_manager_nginx_conf and (proxy_manager_nginx_conf[0] or proxy_manager_nginx_conf[1]):
         http_part += proxy_manager_nginx_conf[0]
         stream_part += proxy_manager_nginx_conf[1]
@@ -562,7 +607,7 @@ def get_global_nginx_conf_v2(
         new_files = supervisor_nginx_conf[1]
         files.extend(new_files)
         usage = True
-    proxy_manager_nginx_conf = services_models.get_proxy_manager_nginx_conf_v2(
+    proxy_manager_nginx_conf = proxy_manager_services.get_proxy_manager_nginx_conf_v2(
         node_obj=node_obj,
         xray_path_matchers_parts=xray_path_matchers_parts,
         node_work_dir=node_work_dir,
@@ -1098,3 +1143,23 @@ autorestart=true
 priority=10
 """
     return supervisor_config, files
+
+
+def change_node_config_to(new_config: typing.ConfigSchema, node: models.Node):
+    cache.set(f"change_node_config_to_{node.id}", new_config.model_dump_json(), timeout=2 * 60 * 60)
+
+
+def get_change_node_config_to(node: models.Node) -> typing.ConfigSchema | None:
+    json_str_res = cache.get(f"change_node_config_to_{node.id}")
+    if not json_str_res:
+        return None
+    dict_res: dict = json.loads(json_str_res)
+    try:
+        res = typing.ConfigSchema(**dict_res)
+    except pydantic.ValidationError:
+        return None
+    return res
+
+
+def delete_node_config_to(node: models.Node):
+    cache.delete(f"change_node_config_to_{node.id}")

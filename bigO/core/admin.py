@@ -192,6 +192,11 @@ class PrivateKeyModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.M
         return render(request, "admin/change_form.html", context=context)
 
 
+@admin.register(models.PublicKey)
+class PublicKeyModelAdmin(admin.ModelAdmin):
+    search_fields = ["slug"]
+
+
 class DomainCertificateInline(admin.StackedInline):
     extra = 1
     model = models.DomainCertificate

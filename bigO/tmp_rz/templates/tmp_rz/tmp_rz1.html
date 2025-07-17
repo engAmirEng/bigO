@@ -1,0 +1,48 @@
+{% load tz %}
+<table>
+  <caption>سود های ثابت (فیک)</caption>
+  <thead>
+    <tr>
+      <th>ردیف</th>
+      <th>قرارداد (فیک)</th>
+      <th>سود ثابت (فیک)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>1</td>
+      <td>فلان 1</td>
+      <td>{{ random_int }}</td>
+    </tr>
+    <tr>
+      <td>2</td>
+      <td>فلان 2</td>
+      <td>{{ random_int }}</td>
+    </tr>
+  <tr>
+      <td>3</td>
+      <td>فلان 3</td>
+      <td>{{ random_int }}</td>
+    </tr>
+  </tbody>
+
+</table>
+
+<table>
+  <caption>اطلاعات سرویس</caption>
+  <thead>
+    <tr>
+      <th>ویژگی</th>
+      <th>مقدار</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>زمان آخرین بروز رسانی</td>
+      {% timezone "Asia/Tehran" %}
+      <td>{{ last_update_at }}</td>
+      {% endtimezone %}
+    </tr>
+  </tbody>
+
+</table>

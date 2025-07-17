@@ -78,6 +78,10 @@ class PrivateKey(AbstractCryptographicObject, TimeStampedModel, models.Model):
     key_length = models.PositiveSmallIntegerField()
 
 
+class PublicKey(AbstractCryptographicObject, TimeStampedModel, models.Model):
+    private_key = models.ForeignKey(PrivateKey, on_delete=models.CASCADE, null=True, blank=True)
+
+
 class Certificate(AbstractCryptographicObject, TimeStampedModel, models.Model):
     is_ca = models.BooleanField(default=False)
     fingerprint = models.CharField(max_length=64, blank=False, db_index=True)

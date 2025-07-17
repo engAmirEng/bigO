@@ -60,8 +60,15 @@ class CloudflareDNS(BaseDNSProvider):
             break
         else:
             raise AssertionError(f"domain {base_domain_name} not found")
+        proxied = proxied if proxied is not None else cloudflare.NOT_GIVEN
         r = await self.client.dns.records.update(
-            dns_record_id=record_id, zone_id=zone_id, name=name, content=content, type=type, comment=comment
+            dns_record_id=record_id,
+            zone_id=zone_id,
+            name=name,
+            content=content,
+            proxied=proxied,
+            type=type,
+            comment=comment,
         )
         if r is not None:
             return r.id
