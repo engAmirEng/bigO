@@ -1,4 +1,8 @@
+import datetime
+import ipaddress
+import re
 from datetime import timedelta
+from zoneinfo import ZoneInfo
 
 import influxdb_client
 import sentry_sdk
@@ -133,3 +137,68 @@ from(bucket: "{settings.INFLUX_BUCKET}")
 
             subscriptionperiod.flow_point_at = new_flow_point
             subscriptionperiod.save()
+
+@app.task
+def process_xray_access_log(access_log_lines: str):
+    pattern = r"""
+                (?P<date>\d{4}\/\d{2}\/\d{2})[ ](?P<time>\d{2}:\d{2}:\d{2})
+                .*?from\s+
+                (?P<ip>(?:(?:[0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}|\d{1,3}(?:\.\d{1,3}){3})):\d+
+                .*[ ](?P<protocol>\w+):(?P<domain>[^:\s]+):(?P<port>\d+)
+                \s+\[(?P<inbound_tag_name>[^\]]+?)\s+->\s+(?P<outbound_tag_name>[^\]]+)\]
+                .*?email:[ ]period(?P<period_id>\d+)\.profile(?P<profile_id>\d+)@love\.com
+                """
+    subscriptionperiodaccess_obj_list = []
+    for line in access_log_lines.splitlines():
+        match_res = re.search(pattern, line, re.VERBOSE)
+        if len(match_res.groups()) != 10:
+            print("No match.")
+            continue
+        time_ = match_res.group("time")
+        date_ = match_res.group("date")
+        datetime_ = datetime.datetime.strptime(f"{date_} {time_}", "%Y/%m/%d %H:%M:%S")
+        datetime_ = datetime_.replace(tzinfo=ZoneInfo("UTC"))
+        ip = ipaddress.ip_interface(match_res.group("ip"))
+        inbound_tag_name = match_res.group("inbound_tag_name")
+        outbound_tag_name = match_res.group("outbound_tag_name")
+        protocol = match_res.group("protocol")
+        domain = match_res.group("domain")
+        port = match_res.group("port")
+        period_id = match_res.group("period_id")
+        profile_id = match_res.group("profile_id")
+
+        subscription_period = models.SubscriptionPeriod.objects.filter()
+        subscriptionperiodaccess_obj = models.SubscriptionPeriodAccess()
+        subscriptionperiodaccess_obj.inbound_tag_name = inbound_tag_name
+        subscriptionperiodaccess_obj.outbound_tag_name = outbound_tag_name
+        subscriptionperiodaccess_obj.dest_address = domain
+        subscriptionperiodaccess_obj.dest_port = port
+        subscriptionperiodaccess_obj.dest_protocol = protocol
+        subscriptionperiodaccess_obj.source_ip = ip
+        subscriptionperiodaccess_obj.subscription_period_id = period_id
+        subscriptionperiodaccess_obj.accessed_at = datetime_
+        subscriptionperiodaccess_obj_list.append(subscriptionperiodaccess_obj)
+    models.SubscriptionPeriodAccess.objects.bulk_create(subscriptionperiodaccess_obj_list)
+
+pattern = r"""
+    (?P<time>\d{2}:\d{2}:\d{2})                 # time
+    .*?from\s+
+    (?P<ip>
+        (?:                                     # start IPv6 or IPv4
+            (?:[0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}    # IPv6
+            |
+            \d{1,3}(?:\.\d{1,3}){3}             # or IPv4
+        )
+    )
+    :\d+                                       # port number (ignored)
+    .*?email:\s+
+    (?P<email>\S+)                             # email
+"""
+
+
+@app.task
+def clear_subscriptionperiodaccesses(longer_than_seconds: int = 10 * 24 * 60 * 60):
+    timepoint = timezone.now() - timedelta(seconds=longer_than_seconds)
+    qs = models.SubscriptionPeriodAccess.objects.filter(accessed_at__lt=timepoint)
+    deleted_objs = qs.delete()
+    return str(deleted_objs)

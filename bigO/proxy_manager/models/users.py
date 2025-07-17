@@ -1,5 +1,7 @@
 import datetime
 
+import netfields
+
 from bigO.proxy_manager.subscription import AVAILABLE_SUBSCRIPTION_PLAN_PROVIDERS
 from bigO.proxy_manager.subscription.base import BaseSubscriptionPlanProvider
 from bigO.utils.models import TimeStampedModel
@@ -231,3 +233,13 @@ class SubscriptionEvent(TimeStampedModel, models.Model):
     )
     period = models.ForeignKey(SubscriptionPeriod, on_delete=models.CASCADE, null=True, blank=True)
     title = models.CharField(max_length=255)
+
+class SubscriptionPeriodAccess(TimeStampedModel, models.Model):
+    subscription_period = models.ForeignKey(SubscriptionPeriod, on_delete=models.CASCADE, related_name="+")
+    accessed_at = models.DateTimeField()
+    source_ip = netfields.InetAddressField()
+    inbound_tag_name = models.CharField(max_length=255)
+    outbound_tag_name = models.CharField(max_length=255)
+    dest_address = models.CharField(max_length=255)
+    dest_port = models.PositiveSmallIntegerField()
+    dest_protocol = models.CharField(max_length=63)

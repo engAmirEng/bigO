@@ -17,8 +17,7 @@ from asgiref.sync import sync_to_async
 
 import django.template
 from bigO.core import models as core_models
-from bigO.proxy_manager import models as proxy_manager_models
-from bigO.proxy_manager import services as proxy_manager_services
+from bigO.proxy_manager import models as proxy_manager_models, services as proxy_manager_services, tasks as proxy_manager_tasks
 from config import settings
 from django.core.cache import cache
 from django.db import transaction
@@ -176,6 +175,11 @@ def node_process_stats(
                 continue
         elif service_name == "global_nginx_conf":
             continue
+        elif service_name == "xray_conf" and i.stdout.bytes:
+            send_stderr = True
+            process_xray_access_log = proxy_manager_tasks.process_xray_access_log if settings.DEBUG else proxy_manager_tasks.process_xray_access_log.delay
+            process_xray_access_log(access_log_lines=i.stdout.bytes)
+
         elif (
             node_obj.collect_metrics
             and service_name == "telegraf_conf"
