@@ -66,7 +66,7 @@ class NodeModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.ModelAd
         "view_supervisor_page_display",
     )
     list_editable = ["collect_metrics", "collect_logs"]
-    search_fields = ("name",)
+    search_fields = ("name", "node_nodepublicips__ip__ip")
     actions = ["do_deploy"]
     inlines = [
         NodePublicIPInline,
