@@ -112,6 +112,8 @@ LOCAL_APPS = [
     "bigO.net_manager",
     "bigO.node_manager",
     "bigO.proxy_manager",
+    "bigO.telegram_bot",
+    "bigO.teleport",
     "bigO.tmp_rz",
     "bigO.users",
     "bigO.utils",

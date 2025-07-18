@@ -1,13 +1,15 @@
 import humanize.filesize
+from django.db.models import QuerySet
 from simple_history.admin import SimpleHistoryAdmin
 from solo.admin import SingletonModelAdmin
 
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.contrib.humanize.templatetags.humanize import naturaltime
 from django.urls import reverse
 from django.utils.html import format_html
 
 from . import forms, models
+from bigO.teleport import services as teleport_services
 
 
 @admin.register(models.Config)
@@ -52,9 +54,10 @@ class AgentModelAdmin(admin.ModelAdmin):
 class SubscriptionProfileModelAdmin(admin.ModelAdmin):
     list_display = ("__str__", "initial_agency", "user", "last_usage_at", "last_sublink_at")
     list_editable = []
+    search_fields = ("title", "user__name", "description", "uuid", "xray_uuid")
+    actions = ("get_teleport_startlink",)
     form = forms.SubscriptionProfileModelForm
     autocomplete_fields = ("user",)
-    search_fields = ("title", "user__name", "description", "uuid", "xray_uuid")
 
     def get_queryset(self, request):
         return super().get_queryset(request).ann_last_usage_at().ann_last_sublink_at()
@@ -70,6 +73,16 @@ class SubscriptionProfileModelAdmin(admin.ModelAdmin):
         if obj.last_sublink_at is None:
             return "never"
         return naturaltime(obj.last_sublink_at)
+
+    @admin.action()
+    def get_teleport_startlink(self, request, queryset: QuerySet[models.SubscriptionProfile]):
+        for subscriptionprofile_obj in queryset:
+            try:
+                subscription_profile_startlink = teleport_services.get_subscription_profile_startlink(subscription_profile=subscriptionprofile_obj)
+            except teleport_services.TelegramBotNotSet as e:
+                self.message_user(request, f"{subscriptionprofile_obj}: {str(e)}", level=messages.ERROR)
+                continue
+            self.message_user(request, f"{subscriptionprofile_obj}: {subscription_profile_startlink}", level=messages.SUCCESS)
 
 
 class AgencyPlanSpecInline(admin.StackedInline):

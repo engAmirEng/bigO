@@ -1,0 +1,6 @@
+{% load jformat filesize %}
+#profile-title: ⚡️🇫🇮{{ subscriptionperiod_obj.profile.title|safe }}
+#profile-update-interval: 7
+#subscription-userinfo: upload={{ subscriptionperiod_obj.current_upload_bytes }}; download={{ subscriptionperiod_obj.current_download_bytes }}; total={{ subscriptionperiod_obj.total_limit_bytes }}; expire={{ subscriptionperiod_obj.expires_at.timestamp|floatformat:"0" }}
+
+trojan://1@10.53--2025.02.22.time:1053?sni=fake_ip_for_sub_link&security=tls#⏳{{ subscriptionperiod_obj.current_download_bytes|add:subscriptionperiod_obj.current_upload_bytes|filesize|urlencode  }}/{{ subscriptionperiod_obj.total_limit_bytes|filesize|urlencode  }} 📅{{ subscriptionperiod_obj.expires_at|jformat:"%Y/%m/%d" }} ({{ subscriptionperiod_obj.profile.title|safe }})

@@ -13,6 +13,8 @@ class Agency(TimeStampedModel, models.Model):
     is_active = models.BooleanField()
     sublink_header_template = models.TextField(null=True, blank=False, help_text="{{ subscription_obj, expires_at }}")
     sublink_host = models.ForeignKey("core.Domain", on_delete=models.PROTECT, related_name="+", null=True, blank=False)
+    telegrambot = models.ForeignKey("telegram_bot.TelegramBot", related_name="+", on_delete=models.PROTECT, null=True, blank=True)
+    defualt_timezone = models.CharField(max_length=255, null=True, blank=True)
 
     def __str__(self):
         return f"{self.pk}-{self.name}"
