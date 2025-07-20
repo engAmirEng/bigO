@@ -1,13 +1,15 @@
 import humanize.filesize
+from django.db.models import QuerySet
 from simple_history.admin import SimpleHistoryAdmin
 from solo.admin import SingletonModelAdmin
 
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.contrib.humanize.templatetags.humanize import naturaltime
 from django.urls import reverse
 from django.utils.html import format_html
 
 from . import forms, models
+from bigO.teleport import services as teleport_services
 
 
 @admin.register(models.Config)
@@ -52,9 +54,10 @@ class AgentModelAdmin(admin.ModelAdmin):
 class SubscriptionProfileModelAdmin(admin.ModelAdmin):
     list_display = ("__str__", "initial_agency", "user", "last_usage_at", "last_sublink_at")
     list_editable = []
+    search_fields = ("title", "user__name", "description", "uuid", "xray_uuid")
+    actions = ("get_teleport_startlink",)
     form = forms.SubscriptionProfileModelForm
     autocomplete_fields = ("user",)
-    search_fields = ("title", "user__name", "description", "uuid", "xray_uuid")
 
     def get_queryset(self, request):
         return super().get_queryset(request).ann_last_usage_at().ann_last_sublink_at()
@@ -71,6 +74,38 @@ class SubscriptionProfileModelAdmin(admin.ModelAdmin):
             return "never"
         return naturaltime(obj.last_sublink_at)
 
+    @admin.action()
+    def get_teleport_startlink(self, request, queryset: QuerySet[models.SubscriptionProfile]):
+        for subscriptionprofile_obj in queryset:
+            try:
+                subscription_profile_startlink = teleport_services.get_subscription_profile_startlink(subscription_profile=subscriptionprofile_obj)
+            except teleport_services.TelegramBotNotSet as e:
+                self.message_user(request, f"{subscriptionprofile_obj}: {str(e)}", level=messages.ERROR)
+                continue
+            self.message_user(request, f"{subscriptionprofile_obj}: {subscription_profile_startlink}", level=messages.SUCCESS)
+
+
+class AgencyUserGroupPlanSpecInline(admin.StackedInline):
+    model = models.AgencyUserGroupPlanSpec
+    extra = 0
+    autocomplete_fields = ("plan",)
+
+
+@admin.register(models.AgencyUserGroup)
+class AgencyUserGroupModelAdmin(admin.ModelAdmin):
+    list_display = ("__str__", "members_count_display")
+    list_filter = ("users__username",)
+    form = forms.AgencyUserGroupModelForm
+    autocomplete_fields = ("agency", "users")
+    inlines = (AgencyUserGroupPlanSpecInline,)
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).ann_members_count()
+
+    @admin.display(ordering="members_count")
+    def members_count_display(self, obj):
+        return obj.periods_count
+
 
 class AgencyPlanSpecInline(admin.StackedInline):
     model = models.AgencyPlanSpec
@@ -82,6 +117,7 @@ class AgencyPlanSpecInline(admin.StackedInline):
 class SubscriptionPlanModelAdmin(admin.ModelAdmin):
     list_display = ("__str__", "connection_rule_display", "capacity", "periods_count_display")
     list_select_related = ("connection_rule",)
+    search_fields = ("name",)
     list_filter = ("connection_rule",)
     form = forms.SubscriptionPlanModelForm
     inlines = (AgencyPlanSpecInline,)

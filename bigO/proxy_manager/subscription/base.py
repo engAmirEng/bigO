@@ -1,12 +1,23 @@
 import abc
+from typing import TypeVar, Generic
 
 import pydantic
 
+ProviderArgsT = TypeVar("ProviderArgsT", bound=pydantic.BaseModel | None)
+PlanArgsT = TypeVar("PlanArgsT", bound=pydantic.BaseModel | None)
 
-class BaseSubscriptionPlanProvider(abc.ABC):
-    ProviderArgsModel: pydantic.BaseModel | None
-    PlanArgsModel: pydantic.BaseModel | None
+class BaseSubscriptionPlanProvider(abc.ABC, Generic[ProviderArgsT, PlanArgsT]):
+    ProviderArgsModel: type[ProviderArgsT]
+    PlanArgsModel: type[PlanArgsT]
     TYPE_IDENTIFIER: str
+
+    def __init__(self, provider_args: ProviderArgsT, plan_args: PlanArgsT):
+        self.provider_args = provider_args
+        self.plan_args = plan_args
+
+    @abc.abstractmethod
+    def get_total_limit_bytes(self):
+        ...
 
     @classmethod
     @abc.abstractmethod
@@ -26,4 +37,24 @@ class BaseSubscriptionPlanProvider(abc.ABC):
     @classmethod
     @abc.abstractmethod
     def get_total_limit_bytes_expr(cls):
+        ...
+
+
+
+class BaseSubscriptionPlanPriceProvider(abc.ABC, Generic[ProviderArgsT, PlanArgsT]):
+    ProviderArgsModel: type[ProviderArgsT]
+    PlanArgsModel: type[PlanArgsT]
+    TYPE_IDENTIFIER: str
+
+
+    def __init__(self, provider_args: ProviderArgsT, plan_args: PlanArgsT):
+        self.provider_args = provider_args
+        self.plan_args = plan_args
+
+    @abc.abstractmethod
+    def get_priceunits(self, plan_provider: BaseSubscriptionPlanProvider):
+        ...
+
+    @abc.abstractmethod
+    def get_prepay_priceunits(self, plan_provider: BaseSubscriptionPlanProvider):
         ...
