@@ -14,6 +14,7 @@ import influxdb_client.domain.write_precision
 import requests.adapters
 import requests.auth
 import sentry_sdk
+import tomli_w
 from asgiref.sync import async_to_sync
 from celery import current_task
 
@@ -324,6 +325,15 @@ def ansible_deploy_node(node_id: int):
 
     node_obj = models.Node.objects.get(id=node_id)
     o2spec = node_obj.o2spec
+    try:
+        nodesyncstat_obj = node_obj.node_nodesyncstat
+    except models.NodeLatestSyncStat.DoesNotExist:
+        nodesyncstat_obj = None
+    if o2spec.keep_latest_config and nodesyncstat_obj is not None and nodesyncstat_obj.config:
+        raw_toml_config = tomli_w.dumps({k: v for k, v in nodesyncstat_obj.config.items() if v is not None})
+    else:
+        raw_toml_config = ""
+
     deploy_snippet = node_obj.ansible_deploy_snippet
     deploy_content = django.template.Template(deploy_snippet.template).render(
         django.template.Context({"node_obj": node_obj})
@@ -349,6 +359,7 @@ def ansible_deploy_node(node_id: int):
             o2spec.sync_domain, reverse("node_manager:node_program_binary_content_by_hash", args=[o2_binary.hash])
         ),
         "smallO2_binary_sha256": o2_binary.hash,
+        "raw_toml_config": raw_toml_config,
         "api_key": o2spec.api_key,
         "interval_sec": o2spec.interval_sec,
         "sync_url": o2spec.sync_url,
@@ -412,16 +423,17 @@ def ansible_deploy_node(node_id: int):
         an_task_obj.save()
     thread.join()
     result = runner
-    for stat_key, host_mapping in result.stats.items():
-        for host_key, count in host_mapping.items():
-            related_ansibletasknode_obj = ansibletasknode_mapping[host_key]
-            if not hasattr(related_ansibletasknode_obj, stat_key):
-                # 'processed', 'rescued', 'skipped', 'ignored'
-                continue
-            # 'ok', 'dark', 'failures', 'changed'
-            setattr(related_ansibletasknode_obj, stat_key, count)
-    for k, v in ansibletasknode_mapping.items():
-        v.save()
+    if result.stats:
+        for stat_key, host_mapping in result.stats.items():
+            for host_key, count in host_mapping.items():
+                related_ansibletasknode_obj = ansibletasknode_mapping[host_key]
+                if not hasattr(related_ansibletasknode_obj, stat_key):
+                    # 'processed', 'rescued', 'skipped', 'ignored'
+                    continue
+                # 'ok', 'dark', 'failures', 'changed'
+                setattr(related_ansibletasknode_obj, stat_key, count)
+        for k, v in ansibletasknode_mapping.items():
+            v.save()
     an_task_obj.status = models.AnsibleTask.StatusChoices.FINISHED
     an_task_obj.finished_at = timezone.now()
     an_task_obj.save()

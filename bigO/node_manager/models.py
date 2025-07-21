@@ -60,6 +60,7 @@ class O2Spec(TimeStampedModel, models.Model):
     working_dir = models.CharField(max_length=255)
     sentry_dsn = models.URLField(max_length=255, null=True, blank=True)
     full_control_supervisord = models.BooleanField(default=False)
+    keep_latest_config = models.BooleanField(default=True)
 
     @property
     def sync_url(self):
