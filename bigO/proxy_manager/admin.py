@@ -266,6 +266,7 @@ class NodeOutboundInline(admin.StackedInline):
 class InboundTypeModelAdmin(SimpleHistoryAdmin, admin.ModelAdmin):
     list_display = ("__str__", "is_active", "is_template")
     search_fields = ("name", "inbound_template")
+    autocomplete_fields = ("compatible_cores",)
     inlines = (InboundComboInline, NodeOutboundInline)
 
 
