@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import random
 import urllib.parse
 from hashlib import sha256
 from typing import Self, TypedDict
@@ -16,7 +17,7 @@ from bigO.utils.models import TimeStampedModel, async_related_obj_str
 from django.core import validators
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
-from django.db.models import F, Sum, UniqueConstraint
+from django.db.models import F, Sum, UniqueConstraint, OuterRef, Subquery
 from django.urls import reverse
 
 logger = logging.getLogger(__name__)
@@ -98,7 +99,7 @@ class Node(TimeStampedModel, models.Model):
     objects = NodeQuerySet.as_manager()
 
     def __str__(self):
-        return f"{self.pk}-{self.name}"
+        return f"{'❌' if self.is_revoked else '✅'}{self.pk}-{self.name}"
 
     def get_support_ipv6(self):
         return Node.objects.filter(id=self.id).support_ipv6().exists()
@@ -207,8 +208,18 @@ class NodeAPIKey(TimeStampedModel, AbstractAPIKey):
         related_name="apikeys",
     )
 
-
+class PublicIPQuerySet(models.QuerySet):
+    def ann_node(self):
+        nodepublicip_qs = NodePublicIP.objects.filter(ip_id=OuterRef("id"))
+        return self.annotate(
+            node_name=Subquery(nodepublicip_qs.values("node__name")),
+            node_id=Subquery(nodepublicip_qs.values("node__id"))
+        )
 class PublicIP(TimeStampedModel):
+    class PublicIPManager(models.Manager):
+        def get_queryset(self):
+            return PublicIPQuerySet(model=self.model, using=self._db, hints=self._hints).ann_node()
+
     name = models.CharField(max_length=255, null=True, blank=True)
     ip = netfields.InetAddressField(unique=True)
     is_cdn = models.BooleanField(default=False)
@@ -223,7 +234,30 @@ class PublicIP(TimeStampedModel):
         "core.Domain", on_delete=models.SET_NULL, related_name="+", null=True, blank=True
     )
 
+    objects = PublicIPManager()
+
+    @property
+    def node_name(self):
+        return self._node_name
+
+    @node_name.setter
+    def node_name(self, value):
+        self._node_name = value
+
+    @property
+    def node_id(self):
+        return self._node_id
+
+    @node_id.setter
+    def node_id(self, value):
+        self._node_id = value
+
     def __str__(self):
+        try:
+            if self.node_name:
+                return f"{self.pk}-{self.ip.ip} -> {self.node_id}-{self.node_name}"
+        except AttributeError:
+            pass
         return f"{self.pk}-{self.ip.ip}"
 
 
@@ -555,7 +589,7 @@ class EasyTierNode(TimeStampedModel):
             self.ipv4 = ipv4
             self.save()
 
-        node_peers = []
+        all_available_node_peers = []
         peers = []
         kept_current_nodepeers = []
         new_nodepeers = []
@@ -570,9 +604,9 @@ class EasyTierNode(TimeStampedModel):
                     peer.node = self
                     peer.peer_listener = nodelistener
                     peer.peer_public_ip = nodepublicip
-                    node_peers.append(peer)
+                    all_available_node_peers.append(peer)
 
-            for i in node_peers:
+            for i in all_available_node_peers:
                 for j in current_nodepeers_qs:
                     if not j.does_need_recreation_to(i):
                         kept_current_nodepeers.append(j)
@@ -580,7 +614,9 @@ class EasyTierNode(TimeStampedModel):
                 else:
                     new_nodepeers.append(i)
         current_nodepeers_qs.exclude(id__in=[i.id for i in kept_current_nodepeers]).delete()
-        first_touch_to_nodes = len(kept_current_nodepeers)
+        keeping_nodepeers = current_nodepeers_qs.filter(id__in=[i.id for i in kept_current_nodepeers])
+        first_touch_to_nodes = len(keeping_nodepeers)
+        random.shuffle(new_nodepeers)
         for i in new_nodepeers:
             if first_touch_to_nodes >= max_first_touch_to_nodes:
                 break
