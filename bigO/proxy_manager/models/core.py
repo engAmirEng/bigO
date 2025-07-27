@@ -230,6 +230,7 @@ class InternalUser(TimeStampedModel, models.Model):
 
 
 class InboundType(TimeStampedModel, models.Model):
+    compatible_cores = models.ManyToManyField("node_manager.ProgramVersion", blank=True)
     is_active = models.BooleanField(default=True)
     is_template = models.BooleanField(default=False)
     name = models.SlugField()
