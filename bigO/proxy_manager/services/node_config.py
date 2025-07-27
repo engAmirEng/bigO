@@ -4,7 +4,6 @@ import logging
 import pathlib
 from collections import defaultdict
 from hashlib import sha256
-from typing import TypedDict
 
 import django.template
 from bigO.core import models as core_models
@@ -62,15 +61,34 @@ def get_xray_conf_v2(
     elif site_config.main_xray is None:
         logger.critical("no program set for xray_conf")
         return None
+    xray_program = site_config.main_xray.get_program_for_node(node_obj)
+    if xray_program is None:
+        raise node_manager_services.ProgramNotFound(program_version=site_config.main_xray)
+    elif isinstance(xray_program, node_manager_models.ProgramBinary):
+        dest_path = node_work_dir.joinpath("bin", f"{xray_program.id}_{xray_program.hash[:6]}")
+        xray_program_file = node_manager_typing.FileSchema(
+            dest_path=dest_path,
+            url=base_url + reverse("node_manager:node_program_binary_content_by_hash", args=[xray_program.hash]),
+            permission=node_manager_services.all_permission,
+            hash=xray_program.hash,
+        )
+    elif isinstance(xray_program, node_manager_models.NodeInnerProgram):
+        xray_program_file = node_manager_typing.FileSchema(
+            dest_path=xray_program.path,
+            permission=node_manager_services.all_permission,
+        )
+    else:
+        raise AssertionError
     files = []
+    files.append(xray_program_file)
+
     haproxy_backends_parts = []
     haproxy_80_matchers_parts = []
     haproxy_443_matchers_parts = []
     nginx_path_matchers_parts = []
 
     proxy_manager_config = models.Config.objects.get()
-    CoreAttrs = TypedDict('CoreAttrs', {'inbound_parts': str, "xray_program_file": node_manager_typing.FileSchema})
-    cores: dict[node_manager_models.ProgramVersion, CoreAttrs] = {}
+    inbound_parts = ""
     rule_parts = ""
 
     connectionrule_qs = (
@@ -266,50 +284,7 @@ def get_xray_conf_v2(
         rule_parts = reverse_rule_parts + "," + rule_parts
 
     inbound_tags = []
-    for inbound in models.InboundType.objects.filter(is_active=True).prefetch_related(Prefetch("compatible_cores", to_attr="compatible_cores_list")):
-        core = None
-        cores_priority = []
-        if not inbound.compatible_cores_list:
-            cores_priority.append(site_config.main_xray)
-        elif cores:
-            usable_cores = set(cores.keys()).intersection(inbound.compatible_cores_list)
-            if usable_cores:
-                cores_priority.extend(list(usable_cores))
-        if not cores_priority:
-            cores_priority.extend(inbound.compatible_cores_list)
-        for core_priority in cores_priority:
-            if cores.get(core_priority):
-                core = core_priority
-                break
-            core_priority_xray_program = core_priority.get_program_for_node(node_obj)
-            if core_priority_xray_program is None:
-                continue
-            elif isinstance(core_priority_xray_program, node_manager_models.ProgramBinary):
-                dest_path = node_work_dir.joinpath("bin", f"{core_priority_xray_program.id}_{core_priority_xray_program.hash[:6]}")
-                xray_program_file = node_manager_typing.FileSchema(
-                    dest_path=dest_path,
-                    url=base_url + reverse("node_manager:node_program_binary_content_by_hash", args=[core_priority_xray_program.hash]),
-                    permission=node_manager_services.all_permission,
-                    hash=core_priority_xray_program.hash,
-                )
-                core = core_priority
-                cores[core] = {"inbound_parts": "", "xray_program_file": xray_program_file}
-                files.append(xray_program_file)
-                break
-            elif isinstance(core_priority_xray_program, node_manager_models.NodeInnerProgram):
-                xray_program_file = node_manager_typing.FileSchema(
-                    dest_path=core_priority_xray_program.path,
-                    permission=node_manager_services.all_permission,
-                )
-                core = core_priority
-                cores[core] = {"inbound_parts": "", "xray_program_file": xray_program_file}
-                files.append(xray_program_file)
-                break
-            else:
-                raise AssertionError
-        if core is None:
-            raise Exception(f"no program found from {cores_priority=} for {node_obj=}")
-
+    for inbound in models.InboundType.objects.filter(is_active=True):
         inbound_tag = inbound.name
         consumers_part = ""
         for proxyuser in [*all_subscriptionperiods_obj_list, *all_nodeinternaluser_ob_list, *reverse_proxyusers]:
@@ -341,9 +316,9 @@ def get_xray_conf_v2(
         files.extend(new_files)
         inbound_tags.append(inbound_tag)
         if xray_inbound.strip():
-            if cores[core]["inbound_parts"]:
-                cores[core]["inbound_parts"] += ",\n"
-            cores[core]["inbound_parts"] += xray_inbound
+            if inbound_parts:
+                inbound_parts += ",\n"
+            inbound_parts += xray_inbound
 
         if inbound.haproxy_backend:
             haproxy_backends_parts.append(
@@ -379,6 +354,32 @@ def get_xray_conf_v2(
             for tag, selectors in all_xray_balancers.items()
         ]
     )
+
+    template_context = node_manager_services.NodeTemplateContext(
+        {
+            "node": node_obj,
+            "inbound_parts": inbound_parts,
+            "rule_parts": rule_parts,
+            "outbound_parts": list(all_xray_outbounds.values()),
+            "balancer_parts": all_balancer_parts,
+            "bridge_parts": ",\n".join([json.dumps(i, indent=4) for i in xray_bridges]),
+            "portal_parts": ",\n".join([json.dumps(i, indent=4) for i in xray_portals]),
+        },
+        node_work_dir=node_work_dir,
+        base_url=base_url,
+    )
+    xray_config_template = "{% load node_manager proxy_manager %}" + proxy_manager_config.xray_config_template
+    xray_config_content = django.template.Template(xray_config_template).render(context=template_context)
+    xray_config_content_hash = sha256(xray_config_content.encode("utf-8")).hexdigest()
+    xray_config_content_file = node_manager_typing.FileSchema(
+        dest_path=node_work_dir.joinpath("conf", f"xray_{xray_config_content_hash[:6]}.json"),
+        content=xray_config_content,
+        hash=xray_config_content_hash,
+        permission=node_manager_services.all_permission,
+    )
+    files.append(xray_config_content_file)
+
+    new_files = node_manager_services.get_configdependentcontents_from_context(template_context)
 
     assets_dir_hash = sha256()
     geosite_file = None
@@ -416,39 +417,11 @@ def get_xray_conf_v2(
             )
         )
 
-    supervisor_config = ""
-    for core, attrs in cores.items():
-        template_context = node_manager_services.NodeTemplateContext(
-            {
-                "node": node_obj,
-                "inbound_parts": attrs["inbound_parts"],
-                "rule_parts": rule_parts,
-                "outbound_parts": list(all_xray_outbounds.values()),
-                "balancer_parts": all_balancer_parts,
-                "bridge_parts": ",\n".join([json.dumps(i, indent=4) for i in xray_bridges]),
-                "portal_parts": ",\n".join([json.dumps(i, indent=4) for i in xray_portals]),
-            },
-            node_work_dir=node_work_dir,
-            base_url=base_url,
-        )
-        xray_config_template = "{% load node_manager proxy_manager %}" + proxy_manager_config.xray_config_template
-        xray_config_content = django.template.Template(xray_config_template).render(context=template_context)
-        xray_config_content_hash = sha256(xray_config_content.encode("utf-8")).hexdigest()
-        xray_config_content_file = node_manager_typing.FileSchema(
-            dest_path=node_work_dir.joinpath("conf", f"xray_{xray_config_content_hash[:6]}.json"),
-            content=xray_config_content,
-            hash=xray_config_content_hash,
-            permission=node_manager_services.all_permission,
-        )
-        files.append(xray_config_content_file)
-
-        new_files = node_manager_services.get_configdependentcontents_from_context(template_context)
-        files.extend(new_files)
-
-        supervisor_config += f"""
+    files.extend(new_files)
+    supervisor_config = f"""
 # config={timezone.now()}
-[program:xray_conf_{core.id}]
-command={attrs['xray_program_file'].dest_path} -c {xray_config_content_file.dest_path}
+[program:xray_conf]
+command={xray_program_file.dest_path} -c {xray_config_content_file.dest_path}
 environment=XRAY_LOCATION_ASSET={assets_dir}
 autostart=true
 autorestart=true
