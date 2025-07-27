@@ -72,6 +72,7 @@ class SystemArchitectureTextChoices(models.TextChoices):
 
 
 class Node(TimeStampedModel, models.Model):
+    is_revoked = models.BooleanField(default=False)
     name = models.SlugField(max_length=255, unique=True)
     is_tunable = models.BooleanField(default=True, help_text="can tuns be created on it?")
     container_spec = models.OneToOneField(
@@ -558,7 +559,7 @@ class EasyTierNode(TimeStampedModel):
         kept_current_nodepeers = []
         new_nodepeers = []
         current_nodepeers_qs = self.node_nodepeers.all()
-        for network_easytiernode in self.network.network_easytiernodes.exclude(id=self.id):
+        for network_easytiernode in self.network.network_easytiernodes.filter(node__is_revoked=False).exclude(id=self.id):
             nodepublicips_qs = network_easytiernode.node.node_nodepublicips.all()
             if not self.node.get_support_ipv6():
                 nodepublicips_qs = nodepublicips_qs.exclude(ip__ip__family=6)
