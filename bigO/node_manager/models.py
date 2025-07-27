@@ -533,6 +533,7 @@ class EasyTierNode(TimeStampedModel):
 
     @transaction.atomic(using="main")
     def get_toml_config_content(self):
+        max_first_touch_to_nodes = 5
         ipv4 = None
         if self.get_can_create_tun():
             used_ipv4s = (
@@ -579,9 +580,13 @@ class EasyTierNode(TimeStampedModel):
                 else:
                     new_nodepeers.append(i)
         current_nodepeers_qs.exclude(id__in=[i.id for i in kept_current_nodepeers]).delete()
+        first_touch_to_nodes = len(kept_current_nodepeers)
         for i in new_nodepeers:
+            if first_touch_to_nodes >= max_first_touch_to_nodes:
+                break
             i.save()
-        for nodepeer in node_peers:
+            first_touch_to_nodes += 1
+        for nodepeer in self.node_nodepeers.all():
             if nodepeer.peer_public_ip.ip.ip.ip.version == 6:
                 ip_part = f"[{nodepeer.peer_public_ip.ip.ip.ip}]"
             else:
