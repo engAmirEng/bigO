@@ -59,6 +59,7 @@ class O2SpecInline(admin.StackedInline):
 class NodeModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.ModelAdmin):
     list_display = (
         "__str__",
+        "is_revoked",
         "agent_spec_display",
         "last_sync_req_display",
         "last_sync_duration_display",
@@ -191,6 +192,12 @@ class NodeModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.ModelAd
         )
 
 
+@admin.register(models.NodePublicIP)
+class NodePublicIPModelAdmin(admin.ModelAdmin):
+    list_display = ("pk", "node", "ip")
+    search_fields = ("node__name", "ip__ip")
+
+
 class AnsibleTaskNodeInline(admin.StackedInline):
     model = models.AnsibleTaskNode
     extra = 0
@@ -235,9 +242,15 @@ class DNSRecordIPValueInline(admin.StackedInline):
 
 @admin.register(models.PublicIP)
 class PublicIPModelAdmin(admin.ModelAdmin):
+    list_display = ("__str__", "node_display")
     search_fields = ("name", "ip")
     inlines = (DNSRecordIPValueInline,)
     autocomplete_fields = ("same_asn_domain",)
+
+    @admin.display(ordering="node_id")
+    def node_display(self, obj):
+        return obj.node_name
+
 
 
 class ProgramVersionInline(admin.StackedInline):
@@ -337,6 +350,13 @@ class EasyTierNetworkModelAdmin(admin.ModelAdmin):
     list_select_related = ("program_version",)
 
 
+@admin.register(models.EasyTierNodeListener)
+class EasyTierNodeListenerModelAdmin(admin.ModelAdmin):
+    list_display = ("__str__", "node__node", "node__network", "protocol", "port")
+    list_select_related = ("node",)
+    search_fields = ("node__node__name", "node__node__node_nodepublicips__ip__ip")
+
+
 class EasyTierNodeListenerInline(admin.StackedInline):
     extra = 1
     model = models.EasyTierNodeListener
@@ -346,6 +366,7 @@ class EasyTierNodePeerInline(admin.StackedInline):
     extra = 1
     model = models.EasyTierNodePeer
     fk_name = models.EasyTierNodePeer.node.field.name
+    autocomplete_fields = ("peer_listener", "peer_public_ip")
 
 
 @admin.register(models.EasyTierNode)
@@ -354,7 +375,7 @@ class EasyTierNodeModelAdmin(admin.ModelAdmin):
     inlines = [EasyTierNodePeerInline, EasyTierNodeListenerInline]
     list_display = ("__str__", "network_display", "preferred_program_version", "ipv4", "latency_first")
     list_editable = ("latency_first", "preferred_program_version")
-    autocomplete_fields = ("preferred_program_version",)
+    autocomplete_fields = ("preferred_program_version", "node")
     list_filter = ("network", "node")
     list_select_related = ("network",)
 

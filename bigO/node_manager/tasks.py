@@ -46,7 +46,7 @@ def check_node_latest_sync(*, limit_seconds: int, ignore_node_ids: list[int] | N
     limit_seconds = timedelta(seconds=limit_seconds)
     ignore_node_ids = ignore_node_ids or []
     all_offlines_qs = models.NodeLatestSyncStat.objects.filter(respond_at__lt=now - limit_seconds)
-    reporting_offlines_qs = all_offlines_qs.exclude(node_id__in=ignore_node_ids)
+    reporting_offlines_qs = all_offlines_qs.filter(node__is_revoked=False).exclude(node_id__in=ignore_node_ids)
     perv_offline_nodes = cache.get("offline_nodes")
     back_onlines_qs = models.NodeLatestSyncStat.objects.none()
     if perv_offline_nodes:
