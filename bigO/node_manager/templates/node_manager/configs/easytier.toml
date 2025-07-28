@@ -1,5 +1,5 @@
-instance_name = "{{ easytier_node_obj }}"
-hostname = "{{ easytier_node_obj.node }}"
+instance_name = "{{ easytier_node_obj.id }}-{{ easytier_node_obj.node.id }}-{{ easytier_node_obj.node.name }}|{{ easytier_node_obj.network.id }}-{{ easytier_node_obj.network.name }}"
+hostname = "{{ easytier_node_obj.network.id }}-{{ easytier_node_obj.node.name }}"
 
 {% if ipv4 %}
 ipv4 = "{{ ipv4 }}"
