@@ -532,6 +532,7 @@ func makeSyncAPIRequest(config Config, payload *APIRequest, logger *zap.Logger) 
 	if err != nil {
 		return &response, nil, fmt.Errorf("failed to marshal request payload: %w", err)
 	}
+	err = os.WriteFile(filepath.Join(config.WorkingDir, "sync_request.txt"), payloadBytes, 0644)
 
 	var proxyURL *url.URL
 	var Url string
