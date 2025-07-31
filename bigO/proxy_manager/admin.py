@@ -80,7 +80,13 @@ class AgencyPlanSpecInline(admin.StackedInline):
 
 @admin.register(models.SubscriptionPlan)
 class SubscriptionPlanModelAdmin(admin.ModelAdmin):
-    list_display = ("__str__", "connection_rule_display", "capacity", "periods_count_display", "alive_periods_count_display")
+    list_display = (
+        "__str__",
+        "connection_rule_display",
+        "capacity",
+        "periods_count_display",
+        "alive_periods_count_display",
+    )
     list_select_related = ("connection_rule",)
     list_filter = ("connection_rule",)
     form = forms.SubscriptionPlanModelForm
@@ -96,7 +102,6 @@ class SubscriptionPlanModelAdmin(admin.ModelAdmin):
     @admin.display(ordering="alive_periods_count")
     def alive_periods_count_display(self, obj):
         return obj.alive_periods_count
-
 
     @admin.display(ordering="connection_rule")
     def connection_rule_display(self, obj):

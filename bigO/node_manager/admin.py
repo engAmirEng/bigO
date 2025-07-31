@@ -252,7 +252,6 @@ class PublicIPModelAdmin(admin.ModelAdmin):
         return obj.node_name
 
 
-
 class ProgramVersionInline(admin.StackedInline):
     extra = 1
     model = models.ProgramVersion

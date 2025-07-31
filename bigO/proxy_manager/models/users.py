@@ -1,13 +1,12 @@
 import datetime
 
-from django.utils import timezone
-
 from bigO.proxy_manager.subscription import AVAILABLE_SUBSCRIPTION_PLAN_PROVIDERS
 from bigO.proxy_manager.subscription.base import BaseSubscriptionPlanProvider
 from bigO.utils.models import TimeStampedModel
 from django.db import models
-from django.db.models import Case, Count, F, OuterRef, Q, Subquery, UniqueConstraint, When, Exists, Value
+from django.db.models import Case, Count, Exists, F, OuterRef, Q, Subquery, UniqueConstraint, Value, When
 from django.db.models.functions import Coalesce
+from django.utils import timezone
 
 
 class Agency(TimeStampedModel, models.Model):
@@ -34,7 +33,10 @@ class SubscriptionPlan(TimeStampedModel, models.Model):
     class SubscriptionPlanQuerySet(models.QuerySet):
         def ann_periods_count(self):
             from ..models import SubscriptionPeriod
-            alive_profiles_qs = SubscriptionProfile.objects.filter(id=OuterRef("profile_id")).ann_is_alive().filter(is_alive=True)
+
+            alive_profiles_qs = (
+                SubscriptionProfile.objects.filter(id=OuterRef("profile_id")).ann_is_alive().filter(is_alive=True)
+            )
             qs = SubscriptionPeriod.objects.filter(plan=OuterRef("id"), selected_as_current=True)
             alive_qs = qs.filter(Exists(alive_profiles_qs))
             return self.annotate(
@@ -43,7 +45,7 @@ class SubscriptionPlan(TimeStampedModel, models.Model):
                 ),
                 alive_periods_count=Coalesce(
                     Subquery(alive_qs.order_by().values("plan").annotate(count=Count("id")).values("count")), 0
-                )
+                ),
             )
 
     objects = SubscriptionPlanQuerySet.as_manager()
@@ -194,12 +196,9 @@ class SubscriptionProfile(TimeStampedModel, models.Model):
             now = timezone.now()
             return self.ann_last_usage_at().annotate(
                 is_alive=Case(
-                    When(last_usage_at__gt=now - datetime.timedelta(hours=24), then=Value(True)),
-                    default=Value(False)
+                    When(last_usage_at__gt=now - datetime.timedelta(hours=24), then=Value(True)), default=Value(False)
                 ),
-
             )
-
 
     initial_agency = models.ForeignKey(
         "Agency", on_delete=models.PROTECT, related_name="initialagency_subscriptionprofiles", null=True, blank=False

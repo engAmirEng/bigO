@@ -17,7 +17,7 @@ from bigO.utils.models import TimeStampedModel, async_related_obj_str
 from django.core import validators
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
-from django.db.models import F, Sum, UniqueConstraint, OuterRef, Subquery
+from django.db.models import F, OuterRef, Subquery, Sum, UniqueConstraint
 from django.urls import reverse
 
 logger = logging.getLogger(__name__)
@@ -208,13 +208,16 @@ class NodeAPIKey(TimeStampedModel, AbstractAPIKey):
         related_name="apikeys",
     )
 
+
 class PublicIPQuerySet(models.QuerySet):
     def ann_node(self):
         nodepublicip_qs = NodePublicIP.objects.filter(ip_id=OuterRef("id"))
         return self.annotate(
             node_name=Subquery(nodepublicip_qs.values("node__name")),
-            node_id=Subquery(nodepublicip_qs.values("node__id"))
+            node_id=Subquery(nodepublicip_qs.values("node__id")),
         )
+
+
 class PublicIP(TimeStampedModel):
     class PublicIPManager(models.Manager):
         def get_queryset(self):
@@ -594,7 +597,9 @@ class EasyTierNode(TimeStampedModel):
         kept_current_nodepeers = []
         new_nodepeers = []
         current_nodepeers_qs = self.node_nodepeers.all()
-        for network_easytiernode in self.network.network_easytiernodes.filter(node__is_revoked=False).exclude(id=self.id):
+        for network_easytiernode in self.network.network_easytiernodes.filter(node__is_revoked=False).exclude(
+            id=self.id
+        ):
             nodepublicips_qs = network_easytiernode.node.node_nodepublicips.all()
             if not self.node.get_support_ipv6():
                 nodepublicips_qs = nodepublicips_qs.exclude(ip__ip__family=6)
