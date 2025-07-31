@@ -111,6 +111,15 @@ class ConnectionRule(TimeStampedModel, models.Model):
                     ),
                     0,
                 ),
+                alive_periods_count=Coalesce(
+                    Subquery(
+                        qs.order_by()
+                        .values("connection_rule")
+                        .annotate(alive_periods_count=Sum("alive_periods_count"))
+                        .values("alive_periods_count")
+                    ),
+                    0,
+                ),
             )
 
     name = models.SlugField()

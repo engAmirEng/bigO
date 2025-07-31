@@ -1,10 +1,12 @@
 import datetime
 
+from django.utils import timezone
+
 from bigO.proxy_manager.subscription import AVAILABLE_SUBSCRIPTION_PLAN_PROVIDERS
 from bigO.proxy_manager.subscription.base import BaseSubscriptionPlanProvider
 from bigO.utils.models import TimeStampedModel
 from django.db import models
-from django.db.models import Case, Count, F, OuterRef, Q, Subquery, UniqueConstraint, When
+from django.db.models import Case, Count, F, OuterRef, Q, Subquery, UniqueConstraint, When, Exists, Value
 from django.db.models.functions import Coalesce
 
 
@@ -32,11 +34,15 @@ class SubscriptionPlan(TimeStampedModel, models.Model):
     class SubscriptionPlanQuerySet(models.QuerySet):
         def ann_periods_count(self):
             from ..models import SubscriptionPeriod
-
+            alive_profiles_qs = SubscriptionProfile.objects.filter(id=OuterRef("profile_id")).ann_is_alive().filter(is_alive=True)
             qs = SubscriptionPeriod.objects.filter(plan=OuterRef("id"), selected_as_current=True)
+            alive_qs = qs.filter(Exists(alive_profiles_qs))
             return self.annotate(
                 periods_count=Coalesce(
                     Subquery(qs.order_by().values("plan").annotate(count=Count("id")).values("count")), 0
+                ),
+                alive_periods_count=Coalesce(
+                    Subquery(alive_qs.order_by().values("plan").annotate(count=Count("id")).values("count")), 0
                 )
             )
 
@@ -183,6 +189,17 @@ class SubscriptionProfile(TimeStampedModel, models.Model):
                 F("last_sublink_at").desc(nulls_last=True)
             )
             return self.annotate(last_sublink_at=Subquery(subscriptionperiod_sub_qs.values("last_sublink_at")[:1]))
+
+        def ann_is_alive(self):
+            now = timezone.now()
+            return self.ann_last_usage_at().annotate(
+                is_alive=Case(
+                    When(last_usage_at__gt=now - datetime.timedelta(hours=24), then=Value(True)),
+                    default=Value(False)
+                ),
+
+            )
+
 
     initial_agency = models.ForeignKey(
         "Agency", on_delete=models.PROTECT, related_name="initialagency_subscriptionprofiles", null=True, blank=False
