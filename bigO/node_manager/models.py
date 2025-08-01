@@ -115,10 +115,24 @@ class Node(TimeStampedModel, models.Model):
         return self.default_cert
 
     def get_asn_domain(self) -> core_models.Domain:
+        """used in templates, deprecated, use get_reality"""
+        from bigO.proxy_manager.models import RealitySpec
+
+        realityspec = RealitySpec.objects.filter(for_ip__ip_nodepublicips__node=self, port=443).first()
+        if realityspec:
+            return realityspec.certificate_domain
+
+    def get_reality(self, port=443) -> dict:
         """used in templates"""
-        the_ip = PublicIP.objects.filter(ip_nodepublicips__node=self, same_asn_domain__isnull=False).first()
-        if the_ip:
-            return the_ip.same_asn_domain
+        from bigO.proxy_manager.models import RealitySpec
+
+        realityspec = RealitySpec.objects.filter(for_ip__ip_nodepublicips__node=self, port=port).first()
+        if realityspec:
+            if realityspec.dest_ip:
+                dest = str(realityspec.dest_ip.ip.ip)
+            else:
+                dest = realityspec.certificate_domain.name
+            return {"dest": dest + ":" + str(realityspec.port), "domain": realityspec.certificate_domain.name}
 
 
 class AnsibleTask(TimeStampedModel, models.Model):
@@ -233,9 +247,6 @@ class PublicIP(TimeStampedModel):
         "proxy_manager.Region", on_delete=models.PROTECT, related_name="region_publicips", null=True, blank=True
     )
     asn = models.PositiveIntegerField(null=True, blank=True)
-    same_asn_domain = models.ForeignKey(
-        "core.Domain", on_delete=models.SET_NULL, related_name="+", null=True, blank=True
-    )
 
     objects = PublicIPManager()
 
