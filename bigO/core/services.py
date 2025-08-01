@@ -272,11 +272,11 @@ def certbot_init_renew(certbotinfo_obj: models.CertbotInfo) -> tuple[bool, str]:
             else:
                 # parse the certs
                 just_pars = True
-
-        certificatetask_obj.is_success = False
-        certificatetask_obj.is_closed = True
-        certificatetask_obj.save()
-        return False, certbot_res
+        if not just_pars:
+            certificatetask_obj.is_success = False
+            certificatetask_obj.is_closed = True
+            certificatetask_obj.save()
+            return False, certbot_res
     if "was successful" not in certbot_res:
         return False, certbot_res
 
