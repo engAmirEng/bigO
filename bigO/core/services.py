@@ -1,8 +1,9 @@
 import pathlib
+import re
 import subprocess
 import sys
 import uuid
-from datetime import timedelta
+from datetime import timedelta, datetime
 from typing import TypedDict
 from zoneinfo import ZoneInfo
 
@@ -242,6 +243,7 @@ def certbot_init_renew(certbotinfo_obj: models.CertbotInfo) -> tuple[bool, str]:
     ).communicate(timeout=500)
     certbot_res = res.decode("utf-8")
     certbot_err = err.decode("utf-8")
+    just_pars = False
 
     certificatetask_obj.log("final", "certbot_res: " + certbot_res)
     certificatetask_obj.log("final", "certbot_err: " + certbot_err)
@@ -257,6 +259,20 @@ def certbot_init_renew(certbotinfo_obj: models.CertbotInfo) -> tuple[bool, str]:
         certificatetask_obj.save()
         return False, certbot_res
     if "Certificate not yet due for renewal" in certbot_res:
+        now = timezone.now()
+        match = re.search(r'\d{4}-\d{2}-\d{2}', certbot_res)
+        if match:
+            date_str = match.group(0)
+            expires_on_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+            if expires_on_date - now.date() < timedelta(days=15):
+                certificatetask_obj.is_success = False
+                certificatetask_obj.is_closed = True
+                certificatetask_obj.save()
+                return False, certbot_res
+            else:
+                # parse the certs
+                just_pars = True
+
         certificatetask_obj.is_success = False
         certificatetask_obj.is_closed = True
         certificatetask_obj.save()
