@@ -9,6 +9,7 @@ from rest_framework_api_key.admin import APIKeyModelAdmin
 from simple_history.admin import SimpleHistoryAdmin
 
 from bigO.net_manager import models as net_manager_models
+from bigO.proxy_manager import models as proxy_manager_models
 from config.celery_app import app as celery_app
 from django.conf import settings
 from django.contrib import admin, messages
@@ -233,6 +234,14 @@ class NodeAPIKeyModelAdmin(APIKeyModelAdmin):
     pass
 
 
+class RealitySpecForIPInline(admin.StackedInline):
+    model = proxy_manager_models.RealitySpec
+    extra = 0
+    autocomplete_fields = ("dest_ip",)
+    fk_name = "for_ip"
+    verbose_name = "ForIP RealitySpecs"
+
+
 class DNSRecordIPValueInline(admin.StackedInline):
     model = net_manager_models.DNSRecord
     extra = 0
@@ -242,12 +251,14 @@ class DNSRecordIPValueInline(admin.StackedInline):
 
 @admin.register(models.PublicIP)
 class PublicIPModelAdmin(admin.ModelAdmin):
-    list_display = ("__str__", "node_display")
+    list_display = ("__str__", "asn", "node_display")
     search_fields = ("name", "ip")
-    inlines = (DNSRecordIPValueInline,)
-    autocomplete_fields = ("same_asn_domain",)
+    inlines = (
+        RealitySpecForIPInline,
+        DNSRecordIPValueInline,
+    )
 
-    @admin.display(ordering="node_id")
+    @admin.display(ordering="node_id", description="node")
     def node_display(self, obj):
         return obj.node_name
 
