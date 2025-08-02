@@ -107,7 +107,7 @@ def certbot_init_new(domains: list[models.Domain]) -> tuple[bool, str]:
         env={},
         stderr=subprocess.PIPE,
         stdout=subprocess.PIPE,
-    ).communicate(timeout=500)
+    ).communicate(timeout=800)
     certificatetask_obj.refresh_from_db()
     certbot_res = res.decode("utf-8")
     certbot_err = err.decode("utf-8")
@@ -240,7 +240,7 @@ def certbot_init_renew(certbotinfo_obj: models.CertbotInfo) -> tuple[bool, str]:
         env={},
         stderr=subprocess.PIPE,
         stdout=subprocess.PIPE,
-    ).communicate(timeout=500)
+    ).communicate(timeout=800)
     certbot_res = res.decode("utf-8")
     certbot_err = err.decode("utf-8")
     just_pars = False
