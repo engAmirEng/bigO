@@ -16,6 +16,7 @@ class ConfigModelAdmin(
     SingletonModelAdmin,
 ):
     list_display = ("__str__",)
+    autocomplete_fields = ("geosite", "geoip")
 
 
 @admin.register(models.Region)

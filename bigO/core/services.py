@@ -3,7 +3,7 @@ import re
 import subprocess
 import sys
 import uuid
-from datetime import timedelta, datetime
+from datetime import datetime, timedelta
 from typing import TypedDict
 from zoneinfo import ZoneInfo
 
@@ -260,10 +260,10 @@ def certbot_init_renew(certbotinfo_obj: models.CertbotInfo) -> tuple[bool, str]:
         return False, certbot_res
     if "Certificate not yet due for renewal" in certbot_res:
         now = timezone.now()
-        match = re.search(r'\d{4}-\d{2}-\d{2}', certbot_res)
+        match = re.search(r"\d{4}-\d{2}-\d{2}", certbot_res)
         if match:
             date_str = match.group(0)
-            expires_on_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+            expires_on_date = datetime.strptime(date_str, "%Y-%m-%d").date()
             if expires_on_date - now.date() < timedelta(days=15):
                 certificatetask_obj.is_success = False
                 certificatetask_obj.is_closed = True

@@ -332,12 +332,23 @@ class CustomConfigDependantFileInline(admin.StackedInline):
     extra = 1
     model = models.CustomConfigDependantFile
     show_change_link = True
+    autocomplete_fields = ("file",)
 
 
 @admin.register(models.CustomConfig)
 class CustomConfigModelAdmin(SimpleHistoryAdmin, admin.ModelAdmin):
     list_display = ("__str__", "used_by_count")
     list_filter = ("nodecustomconfigs__node",)
+    search_fields = (
+        "name",
+        "program_version__program__name",
+        "program_version__version",
+        "run_opts_template",
+        "dependantfiles__key",
+        "dependantfiles__template",
+        "dependantfiles__file__program__name",
+        "dependantfiles__file__version",
+    )
     inlines = [CustomConfigDependantFileInline, NodeCustomConfigInline]
 
     def get_queryset(self, request):

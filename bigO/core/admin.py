@@ -25,7 +25,7 @@ from .dns import AVAILABLE_DNS_PROVIDERS
 
 @admin.register(models.SiteConfiguration)
 class SiteConfigurationModelAdmin(SingletonModelAdmin):
-    autocomplete_fields = ["nodes_ca_cert"]
+    autocomplete_fields = ["nodes_ca_cert", "main_nginx", "main_goingto", "main_telegraf", "main_haproxy", "main_xray"]
 
     def save_model(self, request, obj, form, change):
         change_htpasswd_content = set(form.changed_data) & {
