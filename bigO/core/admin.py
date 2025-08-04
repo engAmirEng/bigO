@@ -200,7 +200,7 @@ class PublicKeyModelAdmin(admin.ModelAdmin):
 class DomainCertificateInline(admin.StackedInline):
     extra = 1
     model = models.DomainCertificate
-    autocomplete_fields = ("certificate",)
+    autocomplete_fields = ("certificate", "domain")
 
 
 @admin.register(models.Certificate)
@@ -214,7 +214,7 @@ class CertificateModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.
         "certbot_info",
     )
     search_fields = ["slug", "certbot_info__cert_name"]
-    autocomplete_fields = ["private_key", "parent_certificate"]
+    autocomplete_fields = ["private_key", "parent_certificate", "certbot_info"]
     inlines = (DomainCertificateInline,)
 
     @admin.display(ordering="private_key")
@@ -277,8 +277,16 @@ class CertbotInfoModelAdmin(admin.ModelAdmin):
     class CertificateInline(admin.StackedInline):
         extra = 0
         model = models.Certificate
+        show_change_link = True
+        autocomplete_fields = ("private_key", "parent_certificate")
 
     list_display = ("__str__", "cert_name", "uuid", "valid_to")
+    search_fields = (
+        "uuid",
+        "cert_name",
+        "certificates__slug",
+        "certificates__certificate_domaincertificates__domain__name",
+    )
     inlines = [CertificateInline]
     actions = ["issue_renew"]
 
