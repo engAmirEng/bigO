@@ -212,7 +212,7 @@ def get_xray_conf_v2(
             balancer_allocations = bridge_reverse.get_balancer_allocations()
             for balancer_allocation in balancer_allocations:
                 is_reverse_used = False
-                bridge_tag = f"{connection_rule.id}_{bridge_reverse.to_inbound_type.name if bridge_reverse.to_inbound_type else ''}_{bridge_reverse.name}_{bridge_reverse.bridge_node.id}_{balancer_allocation[0]}"
+                bridge_tag = f"{connection_rule.id}_{bridge_reverse.to_inbound_type.name if bridge_reverse.to_inbound_type else ''}_{bridge_reverse.name}_{bridge_reverse.portal_node.id}_{balancer_allocation[0]}"
                 balancer_tag = f"{connection_rule.id}_{balancer_allocation[0]}"
                 for i in range(balancer_allocation[1]):
                     is_reverse_used = True
