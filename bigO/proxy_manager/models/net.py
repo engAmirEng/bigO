@@ -13,3 +13,11 @@ class RealitySpec(TimeStampedModel, models.Model):
 
     def __str__(self):
         return f"{self.id}-{self.certificate_domain.name}"
+
+class SNIWhitedIP(TimeStampedModel, models.Model):
+    class IOType(models.IntegerChoices):
+        INPUT = 1, "input"
+        OUTPUT = 2, "output"
+    sni = models.ForeignKey("core.Domain", on_delete=models.CASCADE, related_name="+")
+    public_ip = models.ForeignKey("node_manager.PublicIP", on_delete=models.CASCADE, related_name="+")
+    io_type = models.SmallIntegerField(choices=IOType)
