@@ -67,7 +67,7 @@ def set_outbound_delay_tags(*, point: influxdb_client.Point, node: node_manager_
         point.tag("source_node_id", str(res.node_id))
         point.tag("connection_rule_id", str(res.rule_id))
     elif isinstance(res, models.Reverse):
-        if str(res.portal_node_id) == str(node.id):
+        if str(res.bridge_node_id) == str(node.id):
             point.tag("connection_type", "reverse_interconn")
             point.tag("source_node_id", str(res.bridge_node_id))
             point.tag("dest_node_id", str(res.portal_node_id))
