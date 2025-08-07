@@ -19,6 +19,7 @@ import django.template
 from bigO.core import models as core_models
 from bigO.proxy_manager import models as proxy_manager_models
 from bigO.proxy_manager import services as proxy_manager_services
+from bigO.proxy_manager import tasks as proxy_manager_tasks
 from config import settings
 from django.core.cache import cache
 from django.db import transaction
@@ -186,6 +187,11 @@ def node_process_stats(
         elif service_name == "goingto_conf" and i.stdout.bytes and getattr(settings, "INFLUX_URL", False):
             handle_goingto = tasks.handle_goingto if settings.DEBUG else tasks.handle_goingto.delay
             handle_goingto(node_obj.id, goingto_json_lines=i.stdout.bytes, base_labels=base_labels)
+        elif service_name == "xray_conf" and i.stderr.bytes and getattr(settings, "INFLUX_URL", False):
+            handle_xray_conf = (
+                proxy_manager_tasks.handle_xray_conf if settings.DEBUG else proxy_manager_tasks.handle_xray_conf.delay
+            )
+            handle_xray_conf(node_obj.id, xray_lines=i.stderr.bytes, base_labels=base_labels)
         if node_obj.collect_logs and getattr(settings, "LOKI_PUSH_ENDPOINT", False):
             collected_at = i.time
             if send_stderr and i.stderr.bytes:

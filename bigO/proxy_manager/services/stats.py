@@ -1,6 +1,10 @@
 import datetime
 import logging
 
+import influxdb_client
+
+from bigO.node_manager import models as node_manager_models
+
 from .. import models
 
 logger = logging.getLogger(__name__)
@@ -46,3 +50,22 @@ def set_internal_user_last_stat(
         internaluser.last_usage_at = collect_time
     internaluser.save()
     return internaluser
+
+
+def set_outbound_delay_tags(*, point: influxdb_client.Point, node: node_manager_models.Node, outbound_name: str):
+    from . import XrayOutBound
+
+    res = XrayOutBound.parse_outbound_name(node=node, name=outbound_name)
+    if res is None:
+        return
+    point.tag("connection_name", outbound_name)
+    if isinstance(res, models.NodeOutbound):
+        point.tag("connection_type", "node_outbound")
+        point.tag("source_node_id", str(res.node_id))
+        point.tag("connection_rule_id", str(res.rule_id))
+    elif isinstance(res, models.Reverse):
+        point.tag("connection_type", "reverse")
+        point.tag("source_node_id", str(res.portal_node_id))
+        point.tag("connection_rule_id", str(res.rule_id))
+    else:
+        raise NotImplementedError
