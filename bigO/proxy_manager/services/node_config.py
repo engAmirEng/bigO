@@ -191,7 +191,7 @@ def get_xray_conf_v2(
             balancer_allocations = portal_reverse.get_balancer_allocations()
             for balancer_allocation in balancer_allocations:
                 is_reverse_used = False
-                portal_tag = f"{connection_rule.id}_{portal_reverse.to_inbound_type.name if portal_reverse.to_inbound_type else ''}_{portal_reverse.name}_{portal_reverse.bridge_node.id}_{balancer_allocation[0]}"
+                portal_tag = XrayOutBound.get_portal_outbound_name(connection_rule=connection_rule, portal_reverse=portal_reverse, balancer_allocation=balancer_allocation)
                 balancer_tag = f"{connection_rule.id}_{balancer_allocation[0]}"
                 for i in range(balancer_allocation[1]):
                     is_reverse_used = True
@@ -504,7 +504,14 @@ class XrayOutBound:
         return bridge_tag, f"interconn-{bridge_tag}"
 
     @staticmethod
-    def parse_outbound_name(node: node_manager_models.Node, name: str) -> models.NodeOutbound | models.Reverse:
+    def get_portal_outbound_name(
+        *, connection_rule: models.ConnectionRule, portal_reverse: models.Reverse, balancer_allocation: tuple[str, int]
+    ):
+        portal_tag = f"reverse-{connection_rule.id}_{portal_reverse.to_inbound_type.name if portal_reverse.to_inbound_type else ''}_{portal_reverse.name}_{portal_reverse.bridge_node.id}_{balancer_allocation[0]}"
+        return portal_tag
+
+    @staticmethod
+    def parse_outbound_name(node: node_manager_models.Node, name: str) -> models.NodeOutbound | models.Reverse | None:
         node_outbound_pattern = r"(?P<connection_rule_id>\d.*)_(?P<to_inbound_type_name>.*)_(?P<nodeoutbound_name>.*)"
         match_res = re.search(node_outbound_pattern, name)
         if match_res and len(match_res.groups()) == 3:
@@ -516,7 +523,7 @@ class XrayOutBound:
                 node=node, rule_id=connection_rule_id, name=nodeoutbound_name
             ).first()
             return nodeoutbound_obj
-        node_outbound_pattern = r"interconn-(?P<connection_rule_id>\d.*)_(?P<to_inbound_type_name>.*)_(?P<bridge_reverse_name>.*)_(?P<bridge_node_id>\d.*)_(?P<allocation_name>.*)"
+        node_outbound_pattern = r"interconn-(?P<connection_rule_id>\d.*)_(?P<to_inbound_type_name>.*)_(?P<bridge_reverse_name>.*)_(?P<portal_node_id>\d.*)_(?P<allocation_name>.*)"
         match_res = re.search(node_outbound_pattern, name)
         if match_res and len(match_res.groups()) == 5:
             connection_rule_id = match_res.group("connection_rule_id")
@@ -527,5 +534,18 @@ class XrayOutBound:
 
             reverse_obj = models.Reverse.objects.filter(
                 bridge_node=node, rule_id=connection_rule_id, portal_node_id=portal_node_id, name=bridge_reverse_name
+            ).first()
+            return reverse_obj
+        node_outbound_pattern = r"reverse-(?P<connection_rule_id>\d.*)_(?P<to_inbound_type_name>.*)_(?P<portal_reverse_name>.*)_(?P<bridge_node_id>\d.*)_(?P<allocation_name>.*)"
+        match_res = re.search(node_outbound_pattern, name)
+        if match_res and len(match_res.groups()) == 5:
+            connection_rule_id = match_res.group("connection_rule_id")
+            to_inbound_type_name = match_res.group("to_inbound_type_name")
+            portal_reverse_name = match_res.group("portal_reverse_name")
+            bridge_node_id = match_res.group("bridge_node_id")
+            allocation_name = match_res.group("allocation_name")
+
+            reverse_obj = models.Reverse.objects.filter(
+                portal_node=node, rule_id=connection_rule_id, bridge_node_id=bridge_node_id, name=portal_reverse_name
             ).first()
             return reverse_obj
