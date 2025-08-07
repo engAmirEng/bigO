@@ -342,7 +342,7 @@ ProcessInfoLoop:
 		if err != nil {
 			return fmt.Errorf("failed to tail process stdout: %w", err), getOnCommit(includedBackfilePaths)
 		}
-		tailProcessStderrLogResult := TailProcessStdoutLogResultDummy.TailProcessStdoutLogResult
+		tailProcessStderrLogResult := TailProcessStderrLogResultDummy.TailProcessStderrLogResult
 		if tailProcessStderrLogResult[0] == nil {
 			tailProcessStderrLogResult[0] = ""
 		}
