@@ -1,6 +1,7 @@
 from bigO.core.dns import RecordType
 from bigO.utils.models import TimeStampedModel
 from django.db import models
+from polymorphic.models import PolymorphicModel
 from django.db.models import CheckConstraint, Q
 
 
@@ -39,3 +40,15 @@ class DNSRecord(TimeStampedModel, models.Model):
         check = "🔵" if self.proxied else "⚪"
         value = self.value_ip.ip if self.value_ip else self.value_domain.name
         return f"{self.pk}-({self.get_type_display()}){check}{self.domain.name}->{value}"
+#
+# class PortMapping(TimeStampedModel, PolymorphicModel, models.Model):
+#     from_node = models.ForeignKey("node_manager.Node", on_delete=models.CASCADE, related_name="+")
+#     to_node = models.ForeignKey("node_manager.Node", on_delete=models.CASCADE, related_name="+")
+#     from_address = models.CharField()
+#     to_port = models.CharField()
+#
+# class GostDirectCDN1(PortMapping):
+#     pass
+#
+# class GostDirect1(PortMapping):
+#     pass
