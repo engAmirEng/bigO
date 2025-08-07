@@ -24,8 +24,8 @@ import django.template
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.enums import ParseMode
 from bigO.core import models as core_models
-from config import settings
 from config.celery_app import app
+from django.conf import settings
 from django.core.cache import cache
 from django.db import transaction
 from django.db.models import Subquery
