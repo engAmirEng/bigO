@@ -218,6 +218,7 @@ def get_xray_conf_v2(
                 bridge_tag, interconn_outbound_tag = XrayOutBound.get_bridge_outbound_name(
                     connection_rule=connection_rule,
                     bridge_reverse=bridge_reverse,
+                    balancer_allocation=balancer_allocation
                 )
                 balancer_tag = f"{connection_rule.id}_{balancer_allocation[0]}"
                 for i in range(balancer_allocation[1]):
