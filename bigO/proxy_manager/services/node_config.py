@@ -114,6 +114,10 @@ def get_xray_conf_v2(
                 to_attr="portal_reverses",
                 queryset=models.Reverse.objects.filter(portal_node=node_obj).select_related("inbound_spec"),
             ),
+            Prefetch(
+                "balancers",
+                to_attr="balancers_list",
+            ),
         )
         .distinct()
     )
@@ -137,7 +141,8 @@ def get_xray_conf_v2(
         connection_rule_id_proxyusers[connection_rule_id].add(proxyuser)
 
     all_xray_outbounds = {}
-    all_xray_balancers = {}
+    all_xray_balancers: dict[str, list[typing.BalancerMemberType]] = {}
+    all_balancer_parts = ""
     reverse_proxyusers: list[typing.ProxyUserProtocol] = []
     portal_rules_parts: list[dict] = []
     xray_portals: list[dict] = []
@@ -156,7 +161,7 @@ def get_xray_conf_v2(
         if nodeinternaluser and not nodeinternaluser.is_active:
             nodeinternaluser = None
         xray_outbounds = {}
-        xray_balancers = defaultdict(list)
+        xray_balancers: dict[str, list[typing.BalancerMemberType]] = defaultdict(list)
         for nodeoutbound in connection_rule.node_connection_outbounds:
             is_outbound_used = False
             nodeoutbound: models.NodeOutbound
@@ -166,9 +171,9 @@ def get_xray_conf_v2(
             balancer_allocations = nodeoutbound.get_balancer_allocations()
             for balancer_allocation in balancer_allocations:
                 balancer_tag = f"{connection_rule.id}_{balancer_allocation[0]}"
-                for i in range(balancer_allocation[1]):
+                if balancer_allocation[1] > 0:
                     is_outbound_used = True
-                    xray_balancers[balancer_tag].append(outbound_tag)
+                    xray_balancers[balancer_tag].append({"tag": outbound_tag, "weight": balancer_allocation[1]})
             if not is_outbound_used:
                 continue
             if nodeoutbound.inbound_spec:
@@ -191,11 +196,15 @@ def get_xray_conf_v2(
             balancer_allocations = portal_reverse.get_balancer_allocations()
             for balancer_allocation in balancer_allocations:
                 is_reverse_used = False
-                portal_tag = XrayOutBound.get_portal_outbound_name(connection_rule=connection_rule, portal_reverse=portal_reverse, balancer_allocation=balancer_allocation)
+                portal_tag = XrayOutBound.get_portal_outbound_name(
+                    connection_rule=connection_rule,
+                    portal_reverse=portal_reverse,
+                    balancer_allocation=balancer_allocation,
+                )
                 balancer_tag = f"{connection_rule.id}_{balancer_allocation[0]}"
-                for i in range(balancer_allocation[1]):
+                if balancer_allocation[1] > 0:
                     is_reverse_used = True
-                    xray_balancers[balancer_tag].append(portal_tag)
+                    xray_balancers[balancer_tag].append({"tag": portal_tag, "weight": balancer_allocation[1]})
                 if not is_reverse_used:
                     continue
                 xray_portals.append(
@@ -218,7 +227,7 @@ def get_xray_conf_v2(
                 bridge_tag, interconn_outbound_tag = XrayOutBound.get_bridge_outbound_name(
                     connection_rule=connection_rule,
                     bridge_reverse=bridge_reverse,
-                    balancer_allocation=balancer_allocation
+                    balancer_allocation=balancer_allocation,
                 )
                 balancer_tag = f"{connection_rule.id}_{balancer_allocation[0]}"
                 for i in range(balancer_allocation[1]):
@@ -257,6 +266,33 @@ def get_xray_conf_v2(
                 )
 
         all_xray_outbounds = {**all_xray_outbounds, **xray_outbounds}
+
+        balancer_parts = ",\n".join(
+            [
+                '{{"tag": "{0}", "selector": [{1}], "strategy": {2}}}'.format(
+                    tag,
+                    ",".join(
+                        [
+                            f'"{balancer_member["tag"]}"'
+                            for balancer_member in sorted(
+                            balancer_members, key=lambda x: sha256(x["tag"].encode("utf-8")).hexdigest()
+                        )
+                        ]
+                    ),
+                    get_strategy_part(
+                        balancer_members,
+                        balancer_obj=[i for i in connection_rule.balancers_list if i.name == tag.split("_")[-1]][0]
+                        if [i for i in connection_rule.balancers_list if i.name == tag.split("_")[-1]] else None
+                    ),
+                )
+                for tag, balancer_members in xray_balancers.items()
+            ]
+        )
+        if all_balancer_parts:
+            all_balancer_parts += ",\n" + balancer_parts
+        else:
+            all_balancer_parts = balancer_parts
+
         all_xray_balancers = {**all_xray_balancers, **xray_balancers}
 
         template_context = node_manager_services.NodeTemplateContext(
@@ -351,22 +387,13 @@ def get_xray_conf_v2(
                 )
             )
 
-    all_balancer_parts = ",\n".join(
-        [
-            '{{"tag": "{0}", "selector": [{1}]}}'.format(
-                tag,
-                ",".join([f'"{i}"' for i in sorted(selectors, key=lambda x: sha256(x.encode("utf-8")).hexdigest())]),
-            )
-            for tag, selectors in all_xray_balancers.items()
-        ]
-    )
-
     template_context = node_manager_services.NodeTemplateContext(
         {
             "node": node_obj,
             "inbound_parts": inbound_parts,
             "rule_parts": rule_parts,
             "outbound_parts": list(all_xray_outbounds.values()),
+            "outbound_tags": list(all_xray_outbounds.keys()),
             "balancer_parts": all_balancer_parts,
             "bridge_parts": ",\n".join([json.dumps(i, indent=4) for i in xray_bridges]),
             "portal_parts": ",\n".join([json.dumps(i, indent=4) for i in xray_portals]),
@@ -443,6 +470,26 @@ priority=10
             "nginx_path_matchers_parts": nginx_path_matchers_parts,
         },
     )
+
+
+def get_strategy_part(balancer_members: list[typing.BalancerMemberType], balancer_obj: models.ConnectionRuleBalancer | None):
+    if balancer_obj is not None:
+        strategy_template = balancer_obj.strategy_template
+    else:
+        strategy_template = '{"type": "random"}'
+    weight_summation = sum([i["weight"] for i in balancer_members])
+    costs_part = ", ".join(
+        [
+            '{{"match": "{tag}", "value": {val}}}'.format(
+                tag=balancer_member["tag"], val=(weight_summation / balancer_member["weight"])
+            )
+            for balancer_member in balancer_members
+        ]
+    )
+    strategy_part = django.template.Template(strategy_template).render(
+        django.template.Context({"costs_part": costs_part, "node_count": len(balancer_members)})
+    )
+    return strategy_part
 
 
 def get_agent_current_subscriptionperiods_qs(agent: models.Agent):

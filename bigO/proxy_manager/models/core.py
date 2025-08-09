@@ -26,7 +26,7 @@ class Config(TimeStampedModel, SingletonModel):
     xray_config_template = models.TextField(
         null=True,
         blank=False,
-        help_text="{{ node, inbound_parts, rule_parts, balancer_parts, outbound_parts, portal_parts, bridge_parts }}",
+        help_text="{{ node, inbound_parts, rule_parts, balancer_parts, outbound_parts, outbound_tags, portal_parts, bridge_parts }}",
     )
     geosite = models.ForeignKey(
         "node_manager.ProgramVersion",
@@ -148,6 +148,20 @@ class ConnectionRule(TimeStampedModel, models.Model):
 
     def __str__(self):
         return f"{self.pk}-{self.name}"
+
+class ConnectionRuleBalancer(TimeStampedModel, models.Model):
+    name = models.SlugField(max_length=63)
+    connection_rule = models.ForeignKey(ConnectionRule, on_delete=models.CASCADE, related_name="balancers")
+    strategy_template = models.TextField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            UniqueConstraint(
+                fields=("name", "connection_rule"),
+                name="balancer_unique_name_connection_rule",
+                violation_error_message="already exists with this name for this connection rule"
+            )
+        ]
 
 
 class ConnectionRuleInboundSpec(TimeStampedModel, models.Model):

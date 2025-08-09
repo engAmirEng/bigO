@@ -238,10 +238,15 @@ class ConnectionRuleInboundSpecInline(admin.StackedInline):
     autocomplete_fields = ("spec",)
 
 
+class ConnectionRuleBalancerInline(admin.StackedInline):
+    extra = 0
+    model = models.ConnectionRuleBalancer
+
+
 @admin.register(models.ConnectionRule)
 class ConnectionRuleModelAdmin(SimpleHistoryAdmin):
     list_display = ("__str__", "periods_count_display", "alive_periods_count_display")
-    inlines = (ConnectionRuleInboundSpecInline, RuleNodeOutboundInline, ReverseInline)
+    inlines = (ConnectionRuleInboundSpecInline, ConnectionRuleBalancerInline, RuleNodeOutboundInline, ReverseInline)
     search_fields = ("name", "xray_rules_template")
 
     def get_queryset(self, request):
