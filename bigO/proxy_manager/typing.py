@@ -1,5 +1,5 @@
 import ipaddress
-from typing import Protocol
+from typing import Protocol, TypedDict
 
 import pydantic
 
@@ -15,6 +15,11 @@ class ChooseRuleItemsSchema(pydantic.BaseModel):
 class InboundChooseRuleSchema(pydantic.BaseModel):
     name: str
     inbounds: list[ChooseRuleItemsSchema]
+
+
+class BalancerMemberType(TypedDict):
+    tag: str
+    weight: int
 
 
 class ComboStat(pydantic.BaseModel):

@@ -30,7 +30,7 @@ class Migration(migrations.Migration):
                 (
                     "xray_config_template",
                     models.TextField(
-                        help_text="{{ node, inbound_parts, rule_parts, balancer_parts, outbound_parts, portal_parts, bridge_parts }}",
+                        help_text="{{ node, inbound_parts, rule_parts, balancer_parts, outbound_parts, outbound_tags, portal_parts, bridge_parts }}",
                         null=True,
                     ),
                 ),
