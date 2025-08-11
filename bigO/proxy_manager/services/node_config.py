@@ -54,7 +54,7 @@ def get_proxy_manager_nginx_conf_v2(
     return nginx_config_http_result, nginx_config_stream_result, new_files
 
 
-def get_local_tunnel_port(*, connectiontunnel: models.ConnectionTunnel , dest_port_number: int):
+def get_local_tunnel_port(*, connectiontunnel: models.ConnectionTunnel, dest_port_number: int):
     start_port = 50_111
 
     res_obj = models.LocalTunnelPort.objects.filter(
@@ -65,8 +65,9 @@ def get_local_tunnel_port(*, connectiontunnel: models.ConnectionTunnel , dest_po
     if res_obj:
         return res_obj.local_port
 
-    ocupied_ports = models.LocalTunnelPort.objects.filter(
-        source_node_id=connectiontunnel.source_node_id).values_list("local_port", flat=True)
+    ocupied_ports = models.LocalTunnelPort.objects.filter(source_node_id=connectiontunnel.source_node_id).values_list(
+        "local_port", flat=True
+    )
     local_port = None
     while start_port < 65_535:
         if start_port in ocupied_ports:
@@ -110,31 +111,39 @@ def get_connection_tunnel(node_obj: node_manager_models.Node):
             inbound_parts,
             xray_outbounds,
             all_balancer_parts,
-            rule_parts
+            rule_parts,
         )
     source_node_connectiontunnel_qs = models.ConnectionTunnel.objects.filter(source_node=node_obj).prefetch_related(
-            Prefetch(
-                "tunnel_outbounds",
-                to_attr="direct_tunnel_outbounds_list",
-                queryset=models.ConnectionTunnelOutbound.objects.filter(weight__gt=0, is_reverse=False).select_related("inbound_spec"),
+        Prefetch(
+            "tunnel_outbounds",
+            to_attr="direct_tunnel_outbounds_list",
+            queryset=models.ConnectionTunnelOutbound.objects.filter(weight__gt=0, is_reverse=False).select_related(
+                "inbound_spec"
             ),
-            Prefetch(
-                "tunnel_outbounds",
-                to_attr="portal_reverse_list",
-                queryset=models.ConnectionTunnelOutbound.objects.filter(weight__gt=0, is_reverse=True).select_related("inbound_spec"),
-            )
-        )
+        ),
+        Prefetch(
+            "tunnel_outbounds",
+            to_attr="portal_reverse_list",
+            queryset=models.ConnectionTunnelOutbound.objects.filter(weight__gt=0, is_reverse=True).select_related(
+                "inbound_spec"
+            ),
+        ),
+    )
     dest_node_connectiontunnel_qs = models.ConnectionTunnel.objects.filter(dest_node=node_obj).prefetch_related(
         Prefetch(
             "tunnel_outbounds",
             to_attr="direct_tunnel_outbounds_list",
-            queryset=models.ConnectionTunnelOutbound.objects.filter(weight__gt=0, is_reverse=False).select_related("inbound_spec"),
+            queryset=models.ConnectionTunnelOutbound.objects.filter(weight__gt=0, is_reverse=False).select_related(
+                "inbound_spec"
+            ),
         ),
         Prefetch(
             "tunnel_outbounds",
             to_attr="bridge_reverse_list",
-            queryset=models.ConnectionTunnelOutbound.objects.filter(weight__gt=0, is_reverse=True).select_related("inbound_spec"),
-        )
+            queryset=models.ConnectionTunnelOutbound.objects.filter(weight__gt=0, is_reverse=True).select_related(
+                "inbound_spec"
+            ),
+        ),
     )
     dest_port_numbers = [int(port_number.strip()) for port_number in config_obj.tunnel_dest_ports.split(",")]
     dokodemo_template = """
@@ -163,23 +172,26 @@ def get_connection_tunnel(node_obj: node_manager_models.Node):
         inbound_tags = []
         balancer_tag = f"tunn_{connectiontunnel.id}"
         for dest_port_number in dest_port_numbers:
-            local_port_number = get_local_tunnel_port(connectiontunnel=connectiontunnel, dest_port_number=dest_port_number)
+            local_port_number = get_local_tunnel_port(
+                connectiontunnel=connectiontunnel, dest_port_number=dest_port_number
+            )
             inbound_tag = f"tcp_udp_in_{local_port_number}"
             inbound_tags.append(inbound_tag)
-            inbound_part = django.template.Template(dokodemo_template).render(django.template.Context(
-                {
-                    "local_port": local_port_number, "dest_port": dest_port_number, "inbound_tag": inbound_tag
-                }
-            ))
+            inbound_part = django.template.Template(dokodemo_template).render(
+                django.template.Context(
+                    {"local_port": local_port_number, "dest_port": dest_port_number, "inbound_tag": inbound_tag}
+                )
+            )
             if inbound_parts:
-                inbound_parts  = inbound_parts + ",\n" + inbound_part
+                inbound_parts = inbound_parts + ",\n" + inbound_part
             else:
                 inbound_parts = inbound_part
 
-        rule_part = django.template.Template(rule_template).render(django.template.Context({
-            "balancer_tag": balancer_tag,
-            "inbounds": ", ".join([f'"{i}"' for i in inbound_tags])
-        }))
+        rule_part = django.template.Template(rule_template).render(
+            django.template.Context(
+                {"balancer_tag": balancer_tag, "inbounds": ", ".join([f'"{i}"' for i in inbound_tags])}
+            )
+        )
         if rule_parts:
             rule_parts = rule_parts + ",\n" + rule_part
         else:
@@ -199,7 +211,9 @@ def get_connection_tunnel(node_obj: node_manager_models.Node):
                 combo_stat = direct_tunnel_outbound.inbound_spec.get_combo_stat()
             else:
                 combo_stat = None
-            xray_outbounds[outbound_tag] = django.template.Template(direct_tunnel_outbound.xray_outbound_template).render(
+            xray_outbounds[outbound_tag] = django.template.Template(
+                direct_tunnel_outbound.xray_outbound_template
+            ).render(
                 django.template.Context(
                     {
                         "tag": outbound_tag,
@@ -238,14 +252,11 @@ def get_connection_tunnel(node_obj: node_manager_models.Node):
                         [
                             f'"{balancer_member["tag"]}"'
                             for balancer_member in sorted(
-                            balancer_members, key=lambda x: sha256(x["tag"].encode("utf-8")).hexdigest()
-                        )
+                                balancer_members, key=lambda x: sha256(x["tag"].encode("utf-8")).hexdigest()
+                            )
                         ]
                     ),
-                    get_strategy_part(
-                        balancer_members,
-                        balancer_obj=connectiontunnel.balancer
-                    ),
+                    get_strategy_part(balancer_members, balancer_obj=connectiontunnel.balancer),
                 )
                 for tag, balancer_members in xray_balancers.items()
             ]
@@ -311,7 +322,7 @@ def get_connection_tunnel(node_obj: node_manager_models.Node):
         inbound_parts,
         xray_outbounds,
         all_balancer_parts,
-        rule_parts
+        rule_parts,
     )
 
 
@@ -373,7 +384,7 @@ def get_xray_conf_v2(
         tunn_inbound_parts,
         tunn_outbounds,
         tunn_balancer_parts,
-        tunn_rule_parts
+        tunn_rule_parts,
     ) = get_connection_tunnel(node_obj=node_obj)
     if tunn_inbound_parts:
         if inbound_parts.strip():
@@ -383,11 +394,11 @@ def get_xray_conf_v2(
         if rule_parts.strip():
             rule_parts = tunn_rule_parts + ",\n" + rule_parts
         else:
-            rule_parts =  tunn_rule_parts
+            rule_parts = tunn_rule_parts
         if all_balancer_parts.strip():
             all_balancer_parts = all_balancer_parts + ",\n" + tunn_balancer_parts
         else:
-            all_balancer_parts =  tunn_balancer_parts
+            all_balancer_parts = tunn_balancer_parts
         xray_bridges.extend(tunn_xray_bridges)
         xray_portals.extend(tunn_xray_portals)
         portal_rules_parts.extend(tunn_portal_rules_parts)
@@ -583,14 +594,15 @@ def get_xray_conf_v2(
                         [
                             f'"{balancer_member["tag"]}"'
                             for balancer_member in sorted(
-                            balancer_members, key=lambda x: sha256(x["tag"].encode("utf-8")).hexdigest()
-                        )
+                                balancer_members, key=lambda x: sha256(x["tag"].encode("utf-8")).hexdigest()
+                            )
                         ]
                     ),
                     get_strategy_part(
                         balancer_members,
                         balancer_obj=[i for i in connection_rule.balancers_list if i.name == tag.split("_")[-1]][0]
-                        if [i for i in connection_rule.balancers_list if i.name == tag.split("_")[-1]] else None
+                        if [i for i in connection_rule.balancers_list if i.name == tag.split("_")[-1]]
+                        else None,
                     ),
                 )
                 for tag, balancer_members in xray_balancers.items()
@@ -637,7 +649,12 @@ def get_xray_conf_v2(
     for inbound in models.InboundType.objects.filter(is_active=True):
         inbound_tag = inbound.name
         consumers_part = ""
-        for proxyuser in [*all_subscriptionperiods_obj_list, *all_nodeinternaluser_ob_list, *reverse_proxyusers, *tunn_all_users]:
+        for proxyuser in [
+            *all_subscriptionperiods_obj_list,
+            *all_nodeinternaluser_ob_list,
+            *reverse_proxyusers,
+            *tunn_all_users,
+        ]:
             template_context = node_manager_services.NodeTemplateContext(
                 {"subscriptionperiod_obj": proxyuser}, node_work_dir=node_work_dir, base_url=base_url
             )
@@ -779,8 +796,10 @@ priority=10
         },
     )
 
+
 class Balancer(Protocol):
     strategy_template: str | None
+
 
 def get_strategy_part(balancer_members: list[typing.BalancerMemberType], balancer_obj: Balancer | None):
     if balancer_obj is not None and balancer_obj.strategy_template:
@@ -847,18 +866,23 @@ def set_internal_user_last_stat(
     internaluser.save()
     return internaluser
 
+
 class OutboundProtocol(Protocol):
     name: str
     to_inbound_type: models.InboundType
     xray_outbound_template: str
     inbound_spec: models.InboundSpec
+
+
 class XrayOutBound:
     @staticmethod
     def get_node_outbound_name(*, connection_rule: models.ConnectionRule, nodeoutbound: models.NodeOutbound):
         return f"{connection_rule.id}_{nodeoutbound.to_inbound_type.name if nodeoutbound.to_inbound_type else ''}_{nodeoutbound.name}"
 
     @staticmethod
-    def get_node_tunn_outbound_name(*, connectiontunnel: models.ConnectionTunnel, outbound: models.ConnectionTunnelOutbound):
+    def get_node_tunn_outbound_name(
+        *, connectiontunnel: models.ConnectionTunnel, outbound: models.ConnectionTunnelOutbound
+    ):
         return f"tunn_{connectiontunnel.id}_{outbound.to_inbound_type.name if outbound.to_inbound_type else ''}"
 
     @staticmethod
@@ -883,12 +907,16 @@ class XrayOutBound:
         return portal_tag
 
     @staticmethod
-    def get_tunn_portal_outbound_name(*, connectiontunnel: models.ConnectionTunnel, portal_reverse: models.ConnectionTunnelOutbound):
+    def get_tunn_portal_outbound_name(
+        *, connectiontunnel: models.ConnectionTunnel, portal_reverse: models.ConnectionTunnelOutbound
+    ):
         portal_tag = f"reverse-tunn_{connectiontunnel.id}_{portal_reverse.to_inbound_type.name if portal_reverse.to_inbound_type else ''}_{portal_reverse.name}_{portal_reverse.tunnel.dest_node_id}"
         return portal_tag
 
     @staticmethod
-    def parse_outbound_name(node: node_manager_models.Node, name: str) -> models.NodeOutbound | models.Reverse | models.ConnectionTunnelOutbound | None:
+    def parse_outbound_name(
+        node: node_manager_models.Node, name: str
+    ) -> models.NodeOutbound | models.Reverse | models.ConnectionTunnelOutbound | None:
         node_outbound_pattern = r"interconn-(?P<connection_rule_id>\d.*)_(?P<to_inbound_type_name>.*)_(?P<bridge_reverse_name>.*)_(?P<portal_node_id>\d.*)_(?P<allocation_name>.*)"
         match_res = re.search(node_outbound_pattern, name)
         if match_res and len(match_res.groups()) == 5:
@@ -911,7 +939,10 @@ class XrayOutBound:
             source_node_id = match_res.group("source_node_id")
 
             reverse_obj = models.ConnectionTunnelOutbound.objects.filter(
-                tunnel__dest_node=node, tunnel_id=connectiontunnel_id, tunnel__source_node_id=source_node_id, name=bridge_reverse_name
+                tunnel__dest_node=node,
+                tunnel_id=connectiontunnel_id,
+                tunnel__source_node_id=source_node_id,
+                name=bridge_reverse_name,
             ).first()
             return reverse_obj
         node_outbound_pattern = r"reverse-(?P<connection_rule_id>\d.*)_(?P<to_inbound_type_name>.*)_(?P<portal_reverse_name>.*)_(?P<bridge_node_id>\d.*)_(?P<allocation_name>.*)"
@@ -936,10 +967,15 @@ class XrayOutBound:
             dest_node_id = match_res.group("dest_node_id")
 
             reverse_obj = models.ConnectionTunnelOutbound.objects.filter(
-                tunnel__source_node=node, tunnel_id=connectiontunnel_id, tunnel__dest_node_id=dest_node_id, name=portal_reverse_name
+                tunnel__source_node=node,
+                tunnel_id=connectiontunnel_id,
+                tunnel__dest_node_id=dest_node_id,
+                name=portal_reverse_name,
             ).first()
             return reverse_obj
-        node_outbound_pattern = r"tunn_(?P<connectiontunnel_id>\d.*)_(?P<to_inbound_type_name>.*)_(?P<nodeoutbound_name>.*)"
+        node_outbound_pattern = (
+            r"tunn_(?P<connectiontunnel_id>\d.*)_(?P<to_inbound_type_name>.*)_(?P<nodeoutbound_name>.*)"
+        )
         match_res = re.search(node_outbound_pattern, name)
         if match_res and len(match_res.groups()) == 3:
             connectiontunnel_id = match_res.group("connectiontunnel_id")

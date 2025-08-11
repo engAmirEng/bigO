@@ -291,7 +291,8 @@ class InboundTypeModelAdmin(SimpleHistoryAdmin, admin.ModelAdmin):
 
 @admin.register(models.Balancer)
 class BalancerModelAdmin(SimpleHistoryAdmin, admin.ModelAdmin):
-    list_display = ("__str__", )
+    list_display = ("__str__",)
+
 
 class ConnectionTunnelOutboundInline(admin.StackedInline):
     extra = 0
@@ -307,7 +308,7 @@ class ConnectionTunnelModelAdmin(SimpleHistoryAdmin, admin.ModelAdmin):
 
 @admin.register(models.LocalTunnelPort)
 class LocalTunnelPortModelAdmin(SimpleHistoryAdmin, admin.ModelAdmin):
-    list_display = ("__str__", )
+    list_display = ("__str__",)
 
 
 class InboundComboChoiceGroupInline(admin.StackedInline):

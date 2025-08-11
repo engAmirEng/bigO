@@ -1,12 +1,13 @@
 import uuid
 from types import SimpleNamespace
 
-from django.db.models import UniqueConstraint
 from taggit.managers import TaggableManager
 
-from . import typing
 from bigO.utils.models import TimeStampedModel
 from django.db import models
+from django.db.models import UniqueConstraint
+
+from . import typing
 
 
 class RealitySpec(TimeStampedModel, models.Model):
@@ -54,7 +55,11 @@ class ConnectionTunnelOutbound(TimeStampedModel, models.Model):
     is_reverse = models.BooleanField(default=False)
     tags = TaggableManager(related_name="tags_connectiontunneloutbounds", blank=True)
     to_inbound_type = models.ForeignKey(
-        "InboundType", on_delete=models.CASCADE, related_name="toinboundtype_connectiontunneloutbounds", null=True, blank=True
+        "InboundType",
+        on_delete=models.CASCADE,
+        related_name="toinboundtype_connectiontunneloutbounds",
+        null=True,
+        blank=True,
     )
     xray_outbound_template = models.TextField(
         help_text="{{ source_node, dest_node, tag, nodeinternaluser, combo_stat: {'address', 'port', 'sni', 'domainhostheader', 'touch_node'} }}"
@@ -66,9 +71,9 @@ class ConnectionTunnelOutbound(TimeStampedModel, models.Model):
         null=True,
         blank=True,
     )
+
     class Meta:
         constraints = [UniqueConstraint(fields=("name", "tunnel"), name="unique_name_tunnel_connectiontunneloutbound")]
-
 
     def get_domain_for_balancer_tag(self) -> str:
         if not self.is_reverse:
@@ -78,6 +83,7 @@ class ConnectionTunnelOutbound(TimeStampedModel, models.Model):
     def get_proxyuser_balancer_tag(self) -> typing.ProxyUserProtocol:
         email = f"tun{self.tunnel_id}.bnode{self.tunnel.dest_node_id}.pnode{self.tunnel.source_node_id}.reverse{self.id}@love.com"
         return SimpleNamespace(xray_uuid=uuid.uuid5(self.base_conn_uuid, email), xray_email=lambda: email)
+
 
 class LocalTunnelPort(TimeStampedModel, models.Model):
     source_node = models.ForeignKey("node_manager.Node", on_delete=models.CASCADE, related_name="+")
