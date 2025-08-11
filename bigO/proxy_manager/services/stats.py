@@ -79,5 +79,23 @@ def set_outbound_delay_tags(*, point: influxdb_client.Point, node: node_manager_
             raise NotImplementedError
 
         point.tag("connection_rule_id", str(res.rule_id))
+    elif isinstance(res, models.ConnectionTunnelOutbound):
+        point.tag("connectiontunnel_id", str(res.tunnel_id))
+        if res.is_reverse:
+            if res.tunnel.dest_node == node:
+                point.tag("connection_type", "tunnel_reverse_interconn")
+                point.tag("source_node_id", str(res.tunnel.dest_node_id))
+                point.tag("dest_node_id", str(res.tunnel.source_node_id))
+            elif res.tunnel.source_node == node:
+                point.tag("connection_type", "tunnel_reverse")
+                point.tag("source_node_id", str(res.tunnel.source_node_id))
+                point.tag("dest_node_id", str(res.tunnel.dest_node_id))
+            else:
+                raise NotImplementedError
+        else:
+            point.tag("connection_type", "tunnel_outbound")
+            point.tag("source_node_id", str(res.tunnel.source_node_id))
+            point.tag("dest_node_id", str(res.tunnel.dest_node_id))
+
     else:
         raise NotImplementedError

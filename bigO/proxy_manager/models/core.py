@@ -2,6 +2,7 @@ import uuid
 from types import SimpleNamespace
 
 import django_jsonform.models.fields
+from django.core.validators import int_list_validator
 from simple_history.models import HistoricalRecords
 from solo.models import SingletonModel
 
@@ -38,6 +39,7 @@ class Config(TimeStampedModel, SingletonModel):
     geoip = models.ForeignKey(
         "node_manager.ProgramVersion", related_name="geoip_xrayconfig", on_delete=models.PROTECT, null=True, blank=True
     )
+    tunnel_dest_ports = models.CharField(max_length=255, validators=[int_list_validator], null=True, blank=True)
     history = HistoricalRecords()
 
 

@@ -87,3 +87,13 @@ class ReverseModelForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["base_conn_uuid"].initial = uuid.uuid4()
+
+
+class ConnectionTunnelModelForm(forms.ModelForm):
+    class Meta:
+        model = models.ConnectionTunnel
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["base_conn_uuid"].initial = uuid.uuid4()

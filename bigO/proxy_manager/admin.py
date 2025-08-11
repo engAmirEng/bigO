@@ -289,6 +289,27 @@ class InboundTypeModelAdmin(SimpleHistoryAdmin, admin.ModelAdmin):
     inlines = (InboundComboInline, NodeOutboundInline)
 
 
+@admin.register(models.Balancer)
+class BalancerModelAdmin(SimpleHistoryAdmin, admin.ModelAdmin):
+    list_display = ("__str__", )
+
+class ConnectionTunnelOutboundInline(admin.StackedInline):
+    extra = 0
+    model = models.ConnectionTunnelOutbound
+
+
+@admin.register(models.ConnectionTunnel)
+class ConnectionTunnelModelAdmin(SimpleHistoryAdmin, admin.ModelAdmin):
+    list_display = ("__str__", "source_node", "dest_node")
+    inlines = (ConnectionTunnelOutboundInline,)
+    form = forms.ConnectionTunnelModelForm
+
+
+@admin.register(models.LocalTunnelPort)
+class LocalTunnelPortModelAdmin(SimpleHistoryAdmin, admin.ModelAdmin):
+    list_display = ("__str__", )
+
+
 class InboundComboChoiceGroupInline(admin.StackedInline):
     extra = 1
     model = models.InboundComboChoiceGroup
