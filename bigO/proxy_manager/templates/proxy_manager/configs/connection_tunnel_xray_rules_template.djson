@@ -1,0 +1,31 @@
+{
+"type": "field",
+"outboundTag": "blackhole",
+"protocol": [
+  "bittorrent"
+]
+},
+{
+"inboundTag": [
+  "api"
+],
+"outboundTag": "api",
+"type": "field"
+},
+  {
+    "type": "field",
+    "balancerTag": "ir",
+    "outboundTag": null,
+    "domain": ["tld-ir", "regexp:\\.*\\.ir$"]
+  },
+{
+    "type": "field",
+    "outboundTag": null,
+    "inboundTag": "tcp_udp_in",
+    "balancerTag": "hiddy"
+  },
+  {
+    "type": "field",
+    "port": "0-65535",
+    "outboundTag": "blackhole"
+  }

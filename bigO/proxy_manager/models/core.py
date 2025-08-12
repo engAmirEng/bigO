@@ -6,6 +6,7 @@ from simple_history.models import HistoricalRecords
 from solo.models import SingletonModel
 
 from bigO.utils.models import TimeStampedModel
+from django.core.validators import int_list_validator
 from django.db import models
 from django.db.models import OuterRef, Subquery, Sum, UniqueConstraint
 from django.db.models.functions import Coalesce
@@ -38,6 +39,7 @@ class Config(TimeStampedModel, SingletonModel):
     geoip = models.ForeignKey(
         "node_manager.ProgramVersion", related_name="geoip_xrayconfig", on_delete=models.PROTECT, null=True, blank=True
     )
+    tunnel_dest_ports = models.CharField(max_length=255, validators=[int_list_validator], null=True, blank=True)
     history = HistoricalRecords()
 
 
@@ -149,6 +151,7 @@ class ConnectionRule(TimeStampedModel, models.Model):
     def __str__(self):
         return f"{self.pk}-{self.name}"
 
+
 class ConnectionRuleBalancer(TimeStampedModel, models.Model):
     name = models.SlugField(max_length=63)
     connection_rule = models.ForeignKey(ConnectionRule, on_delete=models.CASCADE, related_name="balancers")
@@ -159,7 +162,7 @@ class ConnectionRuleBalancer(TimeStampedModel, models.Model):
             UniqueConstraint(
                 fields=("name", "connection_rule"),
                 name="balancer_unique_name_connection_rule",
-                violation_error_message="already exists with this name for this connection rule"
+                violation_error_message="already exists with this name for this connection rule",
             )
         ]
 
