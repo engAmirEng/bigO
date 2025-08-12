@@ -39,6 +39,10 @@ from . import models, typing
 
 @app.task
 def check_node_latest_sync(*, limit_seconds: int, ignore_node_ids: list[int] | None = None):
+    from bigO.core.models import SiteConfiguration
+    siteconfiguration_obj = SiteConfiguration.objects.get()
+    if siteconfiguration_obj.sync_brake:
+        return "sync_brake is on"
     superuser = User.objects.filter(is_superuser=True, telegram_chat_tid__isnull=False).first()
     if not superuser:
         return "no_superuser_to_send"
