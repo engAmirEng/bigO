@@ -299,16 +299,25 @@ class ConnectionTunnelOutboundInline(admin.StackedInline):
     model = models.ConnectionTunnelOutbound
 
 
+class LocalTunnelPortInline(admin.StackedInline):
+    extra = 0
+    model = models.LocalTunnelPort
+    autocomplete_fields = ("source_node",)
+
+
 @admin.register(models.ConnectionTunnel)
 class ConnectionTunnelModelAdmin(SimpleHistoryAdmin, admin.ModelAdmin):
     list_display = ("__str__", "source_node", "dest_node")
-    inlines = (ConnectionTunnelOutboundInline,)
+    search_fields = ("source_node__name", "dest_node__name")
+    inlines = (LocalTunnelPortInline, ConnectionTunnelOutboundInline, )
     form = forms.ConnectionTunnelModelForm
+    autocomplete_fields = ("source_node", "dest_node")
 
 
 @admin.register(models.LocalTunnelPort)
 class LocalTunnelPortModelAdmin(SimpleHistoryAdmin, admin.ModelAdmin):
     list_display = ("__str__",)
+    autocomplete_fields = ("source_node", "tunnel")
 
 
 class InboundComboChoiceGroupInline(admin.StackedInline):
