@@ -145,7 +145,7 @@ def get_connection_tunnel(node_obj: node_manager_models.Node):
             ),
         ),
     )
-    dest_port_numbers = [int(port_number.strip()) for port_number in config_obj.tunnel_dest_ports.split(",")]
+    dest_port_numbers: list[int] = [int(port_number.strip()) for port_number in config_obj.tunnel_dest_ports.split(",")]
     dokodemo_template = """
         {
             "listen": "0.0.0.0",
@@ -226,6 +226,7 @@ def get_connection_tunnel(node_obj: node_manager_models.Node):
             )
         for portal_reverse in connectiontunnel.portal_reverse_list:
             portal_reverse: models.ConnectionTunnelOutbound
+            balancer_tag = f"tunn_{connectiontunnel.id}"
             if not portal_reverse.weight > 0:
                 continue
             portal_tag = XrayOutBound.get_tunn_portal_outbound_name(
@@ -275,7 +276,8 @@ def get_connection_tunnel(node_obj: node_manager_models.Node):
             bridge_reverse: models.ConnectionTunnelOutbound
             if not bridge_reverse.weight > 0:
                 continue
-            is_reverse_used = False
+            reverse_proxyuser = bridge_reverse.get_proxyuser_balancer_tag()
+            proxyusers.append(reverse_proxyuser)
             bridge_tag, interconn_outbound_tag = XrayOutBound.get_tunn_bridge_outbound_name(
                 connectiontunnel=connectiontunnel,
                 bridge_reverse=bridge_reverse,
@@ -309,8 +311,23 @@ def get_connection_tunnel(node_obj: node_manager_models.Node):
                 }
             )
             bridge_second_rules_parts.append(
-                {"type": "field", "inboundTag": [bridge_tag], "balancerTag": balancer_tag}
+                {"type": "field", "inboundTag": [bridge_tag], "outboundTag": "freedom"}
             )
+
+    to_tunnel_rule_part = """
+    {{
+        "type":"field",
+        "outboundTag": "freedom",
+        "ip": [
+          "geoip:private"
+        ],
+        "port":"{ports}"
+    }}
+    """.format(ports=",".join([str(i) for i in dest_port_numbers]))
+    if rule_parts:
+        rule_parts = rule_parts + ",\n" + to_tunnel_rule_part
+    else:
+        rule_parts = to_tunnel_rule_part
 
     return (
         proxyusers,
@@ -386,27 +403,34 @@ def get_xray_conf_v2(
         tunn_balancer_parts,
         tunn_rule_parts,
     ) = get_connection_tunnel(node_obj=node_obj)
-    if tunn_inbound_parts:
-        if inbound_parts.strip():
-            inbound_parts = inbound_parts + ",\n" + tunn_inbound_parts
-        else:
-            inbound_parts = tunn_inbound_parts
-        if rule_parts.strip():
-            rule_parts = tunn_rule_parts + ",\n" + rule_parts
-        else:
-            rule_parts = tunn_rule_parts
-        if all_balancer_parts.strip():
-            all_balancer_parts = all_balancer_parts + ",\n" + tunn_balancer_parts
-        else:
-            all_balancer_parts = tunn_balancer_parts
-        xray_bridges.extend(tunn_xray_bridges)
-        xray_portals.extend(tunn_xray_portals)
-        portal_rules_parts.extend(tunn_portal_rules_parts)
-        bridge_first_rules_parts.extend(tunn_bridge_first_rules_parts)
-        bridge_second_rules_parts.extend(tunn_bridge_second_rules_parts)
-        all_xray_outbounds.update(tunn_outbounds)
+    if inbound_parts.strip():
+        inbound_parts = inbound_parts + ",\n" + tunn_inbound_parts
+    else:
+        inbound_parts = tunn_inbound_parts
+    if rule_parts.strip():
+        rule_parts = tunn_rule_parts + ",\n" + rule_parts
+    else:
+        rule_parts = tunn_rule_parts
+    if all_balancer_parts.strip():
+        all_balancer_parts = all_balancer_parts + ",\n" + tunn_balancer_parts
+    else:
+        all_balancer_parts = tunn_balancer_parts
+    xray_bridges.extend(tunn_xray_bridges)
+    xray_portals.extend(tunn_xray_portals)
+    portal_rules_parts.extend(tunn_portal_rules_parts)
+    bridge_first_rules_parts.extend(tunn_bridge_first_rules_parts)
+    bridge_second_rules_parts.extend(tunn_bridge_second_rules_parts)
+    all_xray_outbounds.update(tunn_outbounds)
 
     private_rule_parts = """
+    {
+        "type":"field",
+        "outboundTag": "freedom",
+        "ip": [
+          "geoip:private"
+        ],
+        "port": "53,80,443"
+    },
     {
         "type": "field",
         "outboundTag": "blackhole",

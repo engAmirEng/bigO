@@ -82,7 +82,7 @@ class ConnectionTunnelOutbound(TimeStampedModel, models.Model):
 
     def get_proxyuser_balancer_tag(self) -> typing.ProxyUserProtocol:
         email = f"tun{self.tunnel_id}.bnode{self.tunnel.dest_node_id}.pnode{self.tunnel.source_node_id}.reverse{self.id}@love.com"
-        return SimpleNamespace(xray_uuid=uuid.uuid5(self.base_conn_uuid, email), xray_email=lambda: email)
+        return SimpleNamespace(xray_uuid=uuid.uuid5(self.tunnel.base_conn_uuid, email), xray_email=lambda: email)
 
 
 class LocalTunnelPort(TimeStampedModel, models.Model):
