@@ -145,7 +145,9 @@ def get_connection_tunnel(node_obj: node_manager_models.Node):
             ),
         ),
     )
-    dest_port_numbers: list[int] = [int(port_number.strip()) for port_number in config_obj.tunnel_dest_ports.split(",")]
+    dest_port_numbers: list[int] = [
+        int(port_number.strip()) for port_number in config_obj.tunnel_dest_ports.split(",")
+    ]
     dokodemo_template = """
         {
             "listen": "0.0.0.0",
@@ -310,9 +312,7 @@ def get_connection_tunnel(node_obj: node_manager_models.Node):
                     "outboundTag": interconn_outbound_tag,
                 }
             )
-            bridge_second_rules_parts.append(
-                {"type": "field", "inboundTag": [bridge_tag], "outboundTag": "freedom"}
-            )
+            bridge_second_rules_parts.append({"type": "field", "inboundTag": [bridge_tag], "outboundTag": "freedom"})
 
     to_tunnel_rule_part = """
     {{
@@ -323,7 +323,9 @@ def get_connection_tunnel(node_obj: node_manager_models.Node):
         ],
         "port":"{ports}"
     }}
-    """.format(ports=",".join([str(i) for i in dest_port_numbers]))
+    """.format(
+        ports=",".join([str(i) for i in dest_port_numbers])
+    )
     if rule_parts:
         rule_parts = rule_parts + ",\n" + to_tunnel_rule_part
     else:

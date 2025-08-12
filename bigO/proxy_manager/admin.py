@@ -309,7 +309,10 @@ class LocalTunnelPortInline(admin.StackedInline):
 class ConnectionTunnelModelAdmin(SimpleHistoryAdmin, admin.ModelAdmin):
     list_display = ("__str__", "source_node", "dest_node")
     search_fields = ("source_node__name", "dest_node__name")
-    inlines = (LocalTunnelPortInline, ConnectionTunnelOutboundInline, )
+    inlines = (
+        LocalTunnelPortInline,
+        ConnectionTunnelOutboundInline,
+    )
     form = forms.ConnectionTunnelModelForm
     autocomplete_fields = ("source_node", "dest_node")
 
