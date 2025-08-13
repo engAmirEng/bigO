@@ -911,7 +911,7 @@ class XrayOutBound:
     def get_node_tunn_outbound_name(
         *, connectiontunnel: models.ConnectionTunnel, outbound: models.ConnectionTunnelOutbound
     ):
-        return f"tunn_{connectiontunnel.id}_{outbound.to_inbound_type.name if outbound.to_inbound_type else ''}"
+        return f"tunn_{connectiontunnel.id}_{outbound.to_inbound_type.name if outbound.to_inbound_type else ''}_{outbound.name}"
 
     @staticmethod
     def get_bridge_outbound_name(
@@ -960,7 +960,7 @@ class XrayOutBound:
             return reverse_obj
         node_outbound_pattern = r"interconn-tunn_(?P<connectiontunnel_id>\d+)_(?P<to_inbound_type_name>.*)_(?P<bridge_reverse_name>.*)_(?P<source_node_id>\d+)"
         match_res = re.search(node_outbound_pattern, name)
-        if match_res and len(match_res.groups()) == 5:
+        if match_res and len(match_res.groups()) == 4:
             connectiontunnel_id = match_res.group("connectiontunnel_id")
             to_inbound_type_name = match_res.group("to_inbound_type_name")
             bridge_reverse_name = match_res.group("bridge_reverse_name")
@@ -988,7 +988,7 @@ class XrayOutBound:
             return reverse_obj
         node_outbound_pattern = r"reverse-tunn_(?P<connectiontunnel_id>\d+)_(?P<to_inbound_type_name>.*)_(?P<portal_reverse_name>.*)_(?P<dest_node_id>\d+)"
         match_res = re.search(node_outbound_pattern, name)
-        if match_res and len(match_res.groups()) == 5:
+        if match_res and len(match_res.groups()) == 4:
             connectiontunnel_id = match_res.group("connectiontunnel_id")
             to_inbound_type_name = match_res.group("to_inbound_type_name")
             portal_reverse_name = match_res.group("portal_reverse_name")
