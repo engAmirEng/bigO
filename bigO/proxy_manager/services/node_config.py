@@ -249,7 +249,7 @@ def get_connection_tunnel(node_obj: node_manager_models.Node):
             xray_balancers[balancer_tag].append({"tag": portal_tag, "weight": portal_reverse.weight})
         balancer_parts = ",\n".join(
             [
-                '{{"tag": "{0}", "selector": [{1}], "strategy": {2}}}'.format(
+                '{{"tag": "{0}", "selector": [{1}], "strategy": {2}, "fallbackTag": "{3}"}}'.format(
                     tag,
                     ",".join(
                         [
@@ -259,7 +259,7 @@ def get_connection_tunnel(node_obj: node_manager_models.Node):
                             )
                         ]
                     ),
-                    get_strategy_part(balancer_members, balancer_obj=connectiontunnel.balancer),
+                    *get_strategy_part(balancer_members, balancer_obj=connectiontunnel.balancer),
                 )
                 for tag, balancer_members in xray_balancers.items()
             ]
@@ -614,7 +614,7 @@ def get_xray_conf_v2(
 
         balancer_parts = ",\n".join(
             [
-                '{{"tag": "{0}", "selector": [{1}], "strategy": {2}}}'.format(
+                '{{"tag": "{0}", "selector": [{1}], "strategy": {2}, "fallbackTag": "{3}"}}'.format(
                     tag,
                     ",".join(
                         [
@@ -624,7 +624,7 @@ def get_xray_conf_v2(
                             )
                         ]
                     ),
-                    get_strategy_part(
+                    *get_strategy_part(
                         balancer_members,
                         balancer_obj=[i for i in connection_rule.balancers_list if i.name == tag.split("_")[-1]][0]
                         if [i for i in connection_rule.balancers_list if i.name == tag.split("_")[-1]]
@@ -827,7 +827,7 @@ class Balancer(Protocol):
     strategy_template: str | None
 
 
-def get_strategy_part(balancer_members: list[typing.BalancerMemberType], balancer_obj: Balancer | None):
+def get_strategy_part(balancer_members: list[typing.BalancerMemberType], balancer_obj: Balancer | None) -> tuple[str, str]:
     if balancer_obj is not None and balancer_obj.strategy_template:
         strategy_template = balancer_obj.strategy_template
     else:
@@ -844,7 +844,9 @@ def get_strategy_part(balancer_members: list[typing.BalancerMemberType], balance
     strategy_part = django.template.Template(strategy_template).render(
         django.template.Context({"costs_part": costs_part, "node_count": len(balancer_members)})
     )
-    return strategy_part
+    # todo do a proper fallbacktag
+    sorted_balancer_members = sorted(balancer_members, key=lambda x: x["weight"], reverse=True)
+    return strategy_part, sorted_balancer_members[0]["tag"]
 
 
 def get_agent_current_subscriptionperiods_qs(agent: models.Agent):
