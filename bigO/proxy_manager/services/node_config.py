@@ -314,19 +314,20 @@ def get_connection_tunnel(node_obj: node_manager_models.Node):
             )
             bridge_second_rules_parts.append({"type": "field", "inboundTag": [bridge_tag], "outboundTag": "freedom"})
 
-    to_tunnel_rule_part = """
-    {{
-        "type":"field",
-        "outboundTag": "freedom",
-        "user": [{users}]
-    }}
-    """.format(
-        users=",".join([f"{i.xray_email()}" for i in proxyusers])
-    )
-    if rule_parts:
-        rule_parts = rule_parts + ",\n" + to_tunnel_rule_part
-    else:
-        rule_parts = to_tunnel_rule_part
+    if proxyusers:
+        to_tunnel_rule_part = """
+        {{
+            "type":"field",
+            "outboundTag": "freedom",
+            "user": [{users}]
+        }}
+        """.format(
+            users=",".join([f"{i.xray_email()}" for i in proxyusers])
+        )
+        if rule_parts:
+            rule_parts = rule_parts + ",\n" + to_tunnel_rule_part
+        else:
+            rule_parts = to_tunnel_rule_part
 
     return (
         proxyusers,
