@@ -318,13 +318,10 @@ def get_connection_tunnel(node_obj: node_manager_models.Node):
     {{
         "type":"field",
         "outboundTag": "freedom",
-        "ip": [
-          "geoip:private"
-        ],
-        "port":"{ports}"
+        "user": [{users}]
     }}
     """.format(
-        ports=",".join([str(i) for i in dest_port_numbers])
+        users=",".join([i.xray_email() for i in proxyusers])
     )
     if rule_parts:
         rule_parts = rule_parts + ",\n" + to_tunnel_rule_part
