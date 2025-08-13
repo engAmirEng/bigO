@@ -395,6 +395,22 @@ class InboundSpecNodeOutboundInline(admin.StackedInline):
     show_change_link = True
 
 
+class InboundSpecReverseInline(admin.StackedInline):
+    model = models.Reverse
+    extra = 0
+    autocomplete_fields = ("rule", "bridge_node", "portal_node", "inbound_spec")
+    ordering = ("rule", "-created_at")
+    show_change_link = True
+
+
+class InboundSpecConnectionTunnelOutboundInline(admin.StackedInline):
+    model = models.ConnectionTunnelOutbound
+    extra = 0
+    autocomplete_fields = ("tunnel", "inbound_spec")
+    ordering = ("tunnel", "-created_at")
+    show_change_link = True
+
+
 @admin.register(models.InboundSpec)
 class InboundSpecModelAdmin(admin.ModelAdmin):
     list_display = (
@@ -417,7 +433,7 @@ class InboundSpecModelAdmin(admin.ModelAdmin):
         "domain_sni__name",
     )
     autocomplete_fields = ("domain_address", "ip_address", "domain_sni", "domainhost_header", "touch_node")
-    inlines = (InboundSpecNodeOutboundInline, ConnectionRuleInboundSpec)
+    inlines = (InboundSpecConnectionTunnelOutboundInline, ConnectionRuleInboundSpec, InboundSpecNodeOutboundInline, InboundSpecReverseInline, )
 
     @admin.display(ordering="inbound_type")
     def inbound_type_display(self, obj):

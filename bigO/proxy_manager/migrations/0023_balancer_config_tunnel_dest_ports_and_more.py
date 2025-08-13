@@ -73,6 +73,7 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
+        options={"ordering": ["-created_at"]},
         ),
         migrations.CreateModel(
             name="ConnectionTunnelOutbound",
@@ -128,6 +129,7 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
+        options={"ordering": ["-created_at"]}
         ),
         migrations.CreateModel(
             name="LocalTunnelPort",

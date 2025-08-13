@@ -38,6 +38,7 @@ class ConnectionTunnel(TimeStampedModel, models.Model):
     base_conn_uuid = models.UUIDField()
 
     class Meta:
+        ordering = ["-created_at"]
         constraints = [UniqueConstraint(fields=("source_node", "dest_node"), name="unique_tunnel_between_nodes")]
 
     def __str__(self):
@@ -73,6 +74,7 @@ class ConnectionTunnelOutbound(TimeStampedModel, models.Model):
     )
 
     class Meta:
+        ordering = ["-created_at"]
         constraints = [UniqueConstraint(fields=("name", "tunnel"), name="unique_name_tunnel_connectiontunneloutbound")]
 
     def get_domain_for_balancer_tag(self) -> str:
