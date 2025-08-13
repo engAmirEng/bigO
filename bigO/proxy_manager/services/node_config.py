@@ -152,7 +152,7 @@ def get_connection_tunnel(node_obj: node_manager_models.Node):
         {
             "listen": "0.0.0.0",
             "port": {{ local_port }},
-            "protocol": "tunnel",
+            "protocol": "dokodemo-door",  # "tunnel" from 25.8.3
             "settings": {
               "address": "127.0.0.1",
               "port": {{ dest_port }},
