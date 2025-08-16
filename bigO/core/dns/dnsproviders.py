@@ -126,7 +126,7 @@ class AbrArvanDNS(BaseDNSProvider):
         if type == RecordType.TXT:
             value = {"text": content}
         elif type == RecordType.A or type == RecordType.AAAA:
-            value = {"ip": content}
+            value = [{"ip": content}]
         elif type == RecordType.CNAME:
             value = {"host": content}
         else:
@@ -156,7 +156,7 @@ class AbrArvanDNS(BaseDNSProvider):
         if type == RecordType.TXT:
             value = {"text": content}
         elif type == RecordType.A or type == RecordType.AAAA:
-            value = {"ip": content}
+            value = [{"ip": content}]
         elif type == RecordType.CNAME:
             value = {"host": content}
         else:
