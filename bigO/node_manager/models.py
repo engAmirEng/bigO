@@ -3,6 +3,8 @@ from __future__ import annotations
 import logging
 import random
 import urllib.parse
+from datetime import timedelta
+from decimal import Decimal
 from hashlib import sha256
 from typing import Self, TypedDict
 
@@ -13,12 +15,14 @@ from taggit.managers import TaggableManager
 
 import django.template.loader
 from bigO.core import models as core_models
-from bigO.utils.models import TimeStampedModel, async_related_obj_str
+from bigO.utils.models import MakeInterval, TimeStampedModel, async_related_obj_str
 from django.core import validators
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
-from django.db.models import F, OuterRef, Subquery, Sum, UniqueConstraint
+from django.db.models import Case, ExpressionWrapper, F, OuterRef, Q, Subquery, Sum, UniqueConstraint, When
+from django.db.models.functions import Coalesce
 from django.urls import reverse
+from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
@@ -72,8 +76,17 @@ class SystemArchitectureTextChoices(models.TextChoices):
     AMD64 = "amd64"
 
 
+class GenericStatusChoices(models.IntegerChoices):
+    NEVER = 4, "never"
+    ONLINE = 5, "online"
+    ERROR = 1, "error"
+    OFFLINE = 2, "offline"
+    ATTENDED_OFFLINE = 3, "attended offline"
+
+
 class Node(TimeStampedModel, models.Model):
     is_revoked = models.BooleanField(default=False)
+    downtime_attended = models.BooleanField(default=False)
     name = models.SlugField(max_length=255, unique=True)
     is_tunable = models.BooleanField(default=True, help_text="can tuns be created on it?")
     container_spec = models.OneToOneField(
@@ -96,10 +109,63 @@ class Node(TimeStampedModel, models.Model):
         def support_ipv6(self):
             return self.filter(node_nodepublicips__ip__ip__family=6)
 
+        def ann_is_online(self, defualt_interval_sec=20):
+            now = timezone.now()
+            defualt_interval_coefficient = 2
+            return self.annotate(
+                expected_sync_delay=MakeInterval(
+                    ExpressionWrapper(
+                        Coalesce(F("node_nodesyncstat__expected_interval_coefficient"), defualt_interval_coefficient)
+                        * Coalesce(F("o2spec__interval_sec"), defualt_interval_sec),
+                        output_field=models.DurationField(),
+                    )
+                ),
+                is_online=Case(
+                    When(
+                        Q(node_nodesyncstat__initiated_at__isnull=False),
+                        then=ExpressionWrapper(
+                            Q(node_nodesyncstat__initiated_at__gt=now - F("expected_sync_delay")),
+                            output_field=models.BooleanField(),
+                        ),
+                    ),
+                    default=False,
+                ),
+            )
+
+        def ann_generic_status(self):
+            # call ann_is_online first
+            now = timezone.now()
+            defult_acceptable_response_time = timedelta(milliseconds=1_200)
+            return self.annotate(
+                generic_status=Case(
+                    When(
+                        Q(is_online=True, node_nodesyncstat__initiated_at__isnull=True),
+                        then=GenericStatusChoices.ONLINE,
+                    ),
+                    When(
+                        Q(is_online=True, node_nodesyncstat__initiated_at__isnull=False)
+                        & Q(
+                            Q(node_nodesyncstat__respond_at__isnull=True)
+                            | Q(node_nodesyncstat__respond_at__lt=F("node_nodesyncstat__initiated_at"))
+                        )
+                        & Q(node_nodesyncstat__initiated_at__lt=now - defult_acceptable_response_time),
+                        then=GenericStatusChoices.ERROR,
+                    ),
+                    When(is_online=True, then=GenericStatusChoices.ONLINE),
+                    When(
+                        Q(is_online=False)
+                        & Q(Q(node_nodesyncstat__isnull=True) | Q(node_nodesyncstat__initiated_at__isnull=True)),
+                        then=GenericStatusChoices.NEVER,
+                    ),
+                    When(Q(is_online=False, downtime_attended=True), then=GenericStatusChoices.ATTENDED_OFFLINE),
+                    When(Q(is_online=False), then=GenericStatusChoices.OFFLINE),
+                )
+            )
+
     objects = NodeQuerySet.as_manager()
 
     def __str__(self):
-        return f"{'❌' if self.is_revoked else '✅'}{self.pk}-{self.name}"
+        return f"{'❌' if self.is_revoked else ''}{self.pk}-{self.name}"
 
     def get_support_ipv6(self):
         return Node.objects.filter(id=self.id).support_ipv6().exists()
@@ -781,10 +847,12 @@ class NodeInnerProgram(TimeStampedModel):
 
 class NodeLatestSyncStat(TimeStampedModel, models.Model):
     node = models.OneToOneField(Node, on_delete=models.CASCADE, related_name="node_nodesyncstat")
-    agent_spec = models.CharField(max_length=255, null=True, blank=True)
-    initiated_at = models.DateTimeField()
-    config = models.JSONField(null=True)
-    respond_at = models.DateTimeField(null=True)
-    request_headers = models.JSONField()
-    response_payload = models.JSONField(null=True)
+    expected_interval_coefficient = models.DecimalField(max_digits=6, decimal_places=2, default=Decimal(1.5))
+    mean_interval_up_to_now = models.PositiveBigIntegerField(null=True, blank=True)
     count_up_to_now = models.BigIntegerField()
+    agent_spec = models.CharField(max_length=255, null=True, blank=True)
+    initiated_at = models.DateTimeField(null=True, blank=True)
+    config = models.JSONField(null=True, blank=True)
+    respond_at = models.DateTimeField(null=True, blank=True)
+    request_headers = models.JSONField(null=True, blank=True)
+    response_payload = models.JSONField(null=True, blank=True)

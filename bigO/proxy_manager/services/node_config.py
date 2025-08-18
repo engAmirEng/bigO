@@ -825,7 +825,9 @@ class Balancer(Protocol):
     strategy_template: str | None
 
 
-def get_strategy_part(balancer_members: list[typing.BalancerMemberType], balancer_obj: Balancer | None) -> tuple[str, str]:
+def get_strategy_part(
+    balancer_members: list[typing.BalancerMemberType], balancer_obj: Balancer | None
+) -> tuple[str, str]:
     if balancer_obj is not None and balancer_obj.strategy_template:
         strategy_template = balancer_obj.strategy_template
     else:

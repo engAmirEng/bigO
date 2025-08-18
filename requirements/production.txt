@@ -1,6 +1,6 @@
 -i https://pypi.org/simple
 -r base.txt
-anyio==4.9.0; python_version >= '3.9'
+anyio==4.10.0; python_version >= '3.9'
 click==8.2.1; python_version >= '3.10'
 gunicorn==21.2.0; python_version >= '3.5'
 h11==0.16.0; python_version >= '3.8'
