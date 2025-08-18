@@ -10,9 +10,13 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
+from .api import api
+
 urlpatterns = [
     # Django Admin, use {% url 'admin:index' %}
     path(settings.ADMIN_URL, admin.site.urls),
+    # the core apis
+    path("api/", api.urls),
     # Telegram webhook handler
     # path("", include(bigO.telegram_bot.urls)),
     # local apps

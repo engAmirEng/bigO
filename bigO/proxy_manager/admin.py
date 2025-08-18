@@ -433,7 +433,12 @@ class InboundSpecModelAdmin(admin.ModelAdmin):
         "domain_sni__name",
     )
     autocomplete_fields = ("domain_address", "ip_address", "domain_sni", "domainhost_header", "touch_node")
-    inlines = (InboundSpecConnectionTunnelOutboundInline, ConnectionRuleInboundSpec, InboundSpecNodeOutboundInline, InboundSpecReverseInline, )
+    inlines = (
+        InboundSpecConnectionTunnelOutboundInline,
+        ConnectionRuleInboundSpec,
+        InboundSpecNodeOutboundInline,
+        InboundSpecReverseInline,
+    )
 
     @admin.display(ordering="inbound_type")
     def inbound_type_display(self, obj):

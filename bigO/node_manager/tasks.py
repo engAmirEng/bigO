@@ -40,33 +40,39 @@ from . import models, typing
 @app.task
 def check_node_latest_sync(*, limit_seconds: int, ignore_node_ids: list[int] | None = None):
     from bigO.core.models import SiteConfiguration
+
     siteconfiguration_obj = SiteConfiguration.objects.get()
     if siteconfiguration_obj.sync_brake:
         return "sync_brake is on"
     superuser = User.objects.filter(is_superuser=True, telegram_chat_tid__isnull=False).first()
     if not superuser:
         return "no_superuser_to_send"
-    now = timezone.now()
-    limit_seconds = timedelta(seconds=limit_seconds)
     ignore_node_ids = ignore_node_ids or []
-    all_offlines_qs = models.NodeLatestSyncStat.objects.filter(respond_at__lt=now - limit_seconds)
-    reporting_offlines_qs = all_offlines_qs.filter(node__is_revoked=False).exclude(node_id__in=ignore_node_ids)
+    # at least has one successful sync
+    all_problematic_qs = (
+        models.Node.objects.ann_is_online(defualt_interval_sec=limit_seconds)
+        .ann_generic_status()
+        .filter(
+            node__is_revoked=False,
+            generic_status__in=[models.GenericStatusChoices.OFFLINE, models.GenericStatusChoices.ERROR],
+        )
+    )
+    reporting_problematic_qs = all_problematic_qs.exclude(id__in=ignore_node_ids)
     perv_offline_nodes = cache.get("offline_nodes")
-    back_onlines_qs = models.NodeLatestSyncStat.objects.none()
+    back_onlines_qs = models.Node.objects.none()
     if perv_offline_nodes:
         perv_offline_node_ids = json.loads(perv_offline_nodes)
-        back_onlines_qs = models.NodeLatestSyncStat.objects.filter(node_id__in=perv_offline_node_ids).exclude(
-            id__in=Subquery(all_offlines_qs.values("id"))
+        back_onlines_qs = models.Node.objects.filter(id__in=perv_offline_node_ids).exclude(
+            id__in=Subquery(all_problematic_qs.values("id"))
         )
 
-    if reporting_offlines_qs.count() == 0 and not back_onlines_qs.exists():
+    if reporting_problematic_qs.count() == 0 and not back_onlines_qs.exists():
         return "all_good"
 
     message = render_to_string(
         "node_manager/annonces/node_latest_sync.thtml",
         context={
-            "limit_timedelta": limit_seconds,
-            "reporting_offlines_qs": reporting_offlines_qs,
+            "reporting_offlines_qs": reporting_problematic_qs,
             "back_online_qs": back_onlines_qs,
         },
     )
@@ -77,8 +83,8 @@ def check_node_latest_sync(*, limit_seconds: int, ignore_node_ids: list[int] | N
             await bot.send_message(chat_id=superuser.telegram_chat_tid, text=message)
 
     async_to_sync(inner)()
-    cache.set("offline_nodes", json.dumps([i.node_id for i in all_offlines_qs]))
-    return f"{str(reporting_offlines_qs.count())} are down and {str(back_onlines_qs.count())} are back"
+    cache.set("offline_nodes", json.dumps([i.id for i in all_problematic_qs]))
+    return f"{str(reporting_problematic_qs.count())} are down and {str(back_onlines_qs.count())} are back"
 
 
 @app.task

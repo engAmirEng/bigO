@@ -59,18 +59,17 @@ class O2SpecInline(admin.StackedInline):
 @admin.register(models.Node)
 class NodeModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.ModelAdmin):
     list_display = (
-        "__str__",
-        "is_revoked",
+        "node_display",
         "agent_spec_display",
+        "downtime_attended",
         "last_sync_req_display",
         "last_sync_duration_display",
-        "sync_count_display",
         "collect_metrics",
         "collect_logs",
         "public_ips_display",
         "view_supervisor_page_display",
     )
-    list_editable = ["collect_metrics", "collect_logs"]
+    list_editable = ["downtime_attended", "collect_metrics", "collect_logs"]
     search_fields = ("name", "node_nodepublicips__ip__ip")
     actions = ["do_deploy"]
     inlines = [
@@ -145,7 +144,11 @@ class NodeModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.ModelAd
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
-        return qs.select_related("node_nodesyncstat", "supervisorconfig")
+        return qs.select_related("node_nodesyncstat", "supervisorconfig").ann_is_online().ann_generic_status()
+
+    @admin.display(description="node display", ordering="is_revoked")
+    def node_display(self, obj):
+        return str(obj)
 
     @admin.display(description="public ips")
     def public_ips_display(self, obj):
@@ -154,9 +157,19 @@ class NodeModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.ModelAd
     @admin.display(ordering="node_nodesyncstat__initiated_at", description="last sync req")
     def last_sync_req_display(self, obj):
         nodesyncstat = getattr(obj, "node_nodesyncstat", None)
-        if nodesyncstat is None:
-            return "never"
-        return naturaltime(nodesyncstat.initiated_at)
+        match obj.generic_status:
+            case models.GenericStatusChoices.ERROR:
+                return f"🔴 {naturaltime(nodesyncstat.initiated_at)}"
+            case models.GenericStatusChoices.OFFLINE:
+                return f"⚫️ {naturaltime(nodesyncstat.initiated_at)}"
+            case models.GenericStatusChoices.ATTENDED_OFFLINE:
+                return f"🔄 {naturaltime(nodesyncstat.initiated_at)}"
+            case models.GenericStatusChoices.NEVER:
+                return "never"
+            case models.GenericStatusChoices.ONLINE:
+                return f"🟢 {naturaltime(nodesyncstat.initiated_at)}"
+            case _:
+                raise NotImplementedError
 
     @admin.display(ordering="node_nodesyncstat__agent_spec", description="agent spec")
     def agent_spec_display(self, obj):
@@ -174,13 +187,6 @@ class NodeModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.ModelAd
             return "not responded"
         microseconds = (nodesyncstat.respond_at - nodesyncstat.initiated_at).microseconds
         return Decimal(microseconds / 1000000).quantize(Decimal("0.01"), rounding=ROUND_HALF_DOWN)
-
-    @admin.display(ordering="node_nodesyncstat__count_up_to_now", description="sync count")
-    def sync_count_display(self, obj):
-        nodesyncstat = getattr(obj, "node_nodesyncstat", None)
-        if nodesyncstat is None:
-            return 0
-        return nodesyncstat.count_up_to_now
 
     @admin.display(description="view supervisor page")
     def view_supervisor_page_display(self, obj):
