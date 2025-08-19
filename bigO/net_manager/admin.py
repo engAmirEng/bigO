@@ -19,7 +19,7 @@ class DNSRecordModelForm(forms.ModelForm):
 
     def clean(self):
         cleaned_data = super().clean()
-        if cleaned_data.get("verify"):
+        if self.is_valid() and cleaned_data.get("verify"):
             domain: core_models.Domain = cleaned_data["domain"]
             dns_provider_obj: core_models.DNSProvider | None = domain.get_dns_provider()
             if dns_provider_obj is None:
