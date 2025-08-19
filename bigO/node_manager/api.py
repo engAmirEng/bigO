@@ -49,7 +49,7 @@ async def list_nodes(request, filters: NodeFilterSchema = Query(...)):
     return await sync_to_async(list)(nodes)
 
 
-@router.put("/nodes/{node_id}")
+@router.patch("/nodes/{node_id}")
 async def patch_node(request, node_id: int, payload: NodePatchInSchema):
     node = await aget_object_or_404(models.Node, id=node_id)
     for attr, value in payload.dict().items():

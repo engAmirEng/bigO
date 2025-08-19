@@ -53,7 +53,7 @@ def check_node_latest_sync(*, limit_seconds: int, ignore_node_ids: list[int] | N
         models.Node.objects.ann_is_online(defualt_interval_sec=limit_seconds)
         .ann_generic_status()
         .filter(
-            node__is_revoked=False,
+            is_revoked=False,
             generic_status__in=[models.GenericStatusChoices.OFFLINE, models.GenericStatusChoices.ERROR],
         )
     )
