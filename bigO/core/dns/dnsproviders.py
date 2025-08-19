@@ -131,7 +131,7 @@ class AbrArvanDNS(BaseDNSProvider):
             value = {"host": content}
         else:
             raise NotImplementedError
-        name = name.removesuffix(base_domain_name)
+        name = name.removesuffix("." + base_domain_name)
         url = f"{self.BASE_URL}/domains/{base_domain_name}/dns-records"
         data = {"value": value, "type": type.lower(), "name": name, "ttl": 120, "cloud": bool(proxied)}
         async with aiohttp.ClientSession(
@@ -161,19 +161,20 @@ class AbrArvanDNS(BaseDNSProvider):
             value = {"host": content}
         else:
             raise NotImplementedError
-        name = name.removesuffix(base_domain_name)
+        name = name.removesuffix("." + base_domain_name)
         url = f"{self.BASE_URL}/domains/{base_domain_name}/dns-records/{record_id}"
         data = {"value": value, "type": type.lower(), "name": name, "ttl": 120, "cloud": bool(proxied)}
         async with aiohttp.ClientSession(
             headers={"Authorization": self.args.api_key, "Content-type": "application/json"}
         ) as session:
             async with session.put(url, json=data) as response:
-                if response.status != 201:
+                if response.status != 200:
                     raise Exception(await response.text())
                 response_dict = await response.json()
                 return response_dict["data"]["id"]
 
     async def get_record_id(self, base_domain_name: str, name: str):
+        name = name.removesuffix("." + base_domain_name)
         url = f"{self.BASE_URL}/domains/{base_domain_name}/dns-records"
         params = {"search": name}
         async with aiohttp.ClientSession(
