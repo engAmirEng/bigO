@@ -38,7 +38,7 @@ from . import models, typing
 
 
 @app.task
-def check_node_latest_sync(*, limit_seconds: int, ignore_node_ids: list[int] | None = None):
+def check_node_latest_sync(*, limit_seconds: int, responsetime_miliseconds: int = 1_200, ignore_node_ids: list[int] | None = None):
     from bigO.core.models import SiteConfiguration
 
     siteconfiguration_obj = SiteConfiguration.objects.get()
@@ -51,7 +51,7 @@ def check_node_latest_sync(*, limit_seconds: int, ignore_node_ids: list[int] | N
     # at least has one successful sync
     all_problematic_qs = (
         models.Node.objects.ann_is_online(defualt_interval_sec=limit_seconds)
-        .ann_generic_status()
+        .ann_generic_status(default_acceptable_response_time=timedelta(microseconds=responsetime_miliseconds))
         .filter(
             is_revoked=False,
             generic_status__in=[models.GenericStatusChoices.OFFLINE, models.GenericStatusChoices.ATTENDED_OFFLINE, models.GenericStatusChoices.ERROR],

@@ -132,10 +132,9 @@ class Node(TimeStampedModel, models.Model):
                 ),
             )
 
-        def ann_generic_status(self):
+        def ann_generic_status(self, default_acceptable_response_time=timedelta(milliseconds=1_200)):
             # call ann_is_online first
             now = timezone.now()
-            defult_acceptable_response_time = timedelta(milliseconds=1_200)
             return self.annotate(
                 generic_status=Case(
                     When(
@@ -148,7 +147,7 @@ class Node(TimeStampedModel, models.Model):
                             Q(node_nodesyncstat__respond_at__isnull=True)
                             | Q(node_nodesyncstat__respond_at__lt=F("node_nodesyncstat__initiated_at"))
                         )
-                        & Q(node_nodesyncstat__initiated_at__lt=now - defult_acceptable_response_time),
+                        & Q(node_nodesyncstat__initiated_at__lt=now - default_acceptable_response_time),
                         then=GenericStatusChoices.ERROR,
                     ),
                     When(is_online=True, then=GenericStatusChoices.ONLINE),
