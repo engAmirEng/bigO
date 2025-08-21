@@ -69,6 +69,7 @@ class NodeModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.ModelAd
         "public_ips_display",
         "view_supervisor_page_display",
     )
+    ordering = ("is_revoked", "-created_at")
     list_editable = ["downtime_attended", "collect_metrics", "collect_logs"]
     search_fields = ("name", "node_nodepublicips__ip__ip")
     actions = ["do_deploy"]
