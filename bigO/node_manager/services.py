@@ -8,18 +8,19 @@ import re
 import tomllib
 import zoneinfo
 from collections import defaultdict
+from collections.abc import Callable, Iterator
 from datetime import timedelta
 from hashlib import sha256
+from typing import TypedDict
 
 import pydantic
 import sentry_sdk
 from asgiref.sync import sync_to_async
 
+import bigO.utils.metals
 import django.template
 from bigO.core import models as core_models
 from bigO.proxy_manager import models as proxy_manager_models
-from bigO.proxy_manager import services as proxy_manager_services
-from bigO.proxy_manager import tasks as proxy_manager_tasks
 from config import settings
 from django.core.cache import cache
 from django.db import transaction
@@ -32,6 +33,62 @@ from . import models, tasks, typing
 from .typing import FileSchema
 
 logger = logging.getLogger(__name__)
+
+Getter = Callable[[models.Node, pathlib.Path, str, list[dict]], tuple[str, list, dict | None]]
+
+
+class ConfigGetter(TypedDict):
+    key: str
+    getter: Getter
+    satisfies: set
+
+
+class ProcessConf(metaclass=bigO.utils.metals.Singleton):
+    def __init__(self):
+        self.config_getters: dict[str, ConfigGetter] = {}
+        self._ordered_keys = None
+
+    def register_getter(self, key: str, satisfies: set | None = None):
+        satisfies = satisfies or set()
+
+        def wrapper(func: Getter):
+            self.config_getters[key] = {"key": key, "getter": func, "satisfies": satisfies}
+            self._ordered_keys = None
+            return func
+
+        return wrapper
+
+    @property
+    def getters(self) -> Iterator[ConfigGetter]:
+        if not self._ordered_keys:
+            sorted_keys = []
+            graph = [v for k, v in self.config_getters.items()]
+            remained_keys = [i["key"] for i in graph]
+
+            ProcessConf.sorter(remained_keys=remained_keys, sorted_keys=sorted_keys, graph=graph)
+            self._ordered_keys = sorted_keys
+        for i in self._ordered_keys:
+            yield self.config_getters[i]
+
+    @staticmethod
+    def sorter(remained_keys: list[str], sorted_keys: list[str], graph: list[ConfigGetter]):
+        while remained_keys:
+            for element in graph:
+                if element["key"] not in remained_keys:
+                    continue
+                earlier_graphs = [
+                    j for j in graph if (element["key"] in j["satisfies"]) and (j["key"] not in sorted_keys)
+                ]
+                if earlier_graphs:
+                    ProcessConf.sorter(remained_keys, sorted_keys, earlier_graphs)
+                else:
+                    sorted_keys.append(element["key"])
+                    remained_keys.remove(element["key"])
+            if not [i for i in graph if i["key"] not in sorted_keys]:
+                break
+
+
+process_conf = ProcessConf()
 
 
 def node_spec_create(*, node: models.Node, ip_a: str):
@@ -143,6 +200,8 @@ def node_process_stats(
     smallo1_logs: typing.SupervisorProcessTailLogSerializerSchema | None = None,
     smallo2_logs: typing.SupervisorProcessTailLogSerializerSchema | None = None,
 ):
+    from bigO.proxy_manager import tasks as proxy_manager_tasks
+
     streams: list[typing.LokiStram] = []
     configs_states = configs_states or []
     base_labels = {"service_name": "bigo", "node_id": node_obj.id, "node_name": node_obj.name}
@@ -374,14 +433,21 @@ def create_default_cert_for_node(node: models.Node) -> core_models.Certificate:
     return certificate_obj
 
 
+HAPROXY_KEY = "haproxy"
+
+
+@process_conf.register_getter(key=HAPROXY_KEY, satisfies=set())
 def get_global_haproxy_conf_v2(
-    node_obj,
-    xray_backends_parts: list,
-    xray_80_matchers_parts: list,
-    xray_443_matchers_parts: list,
-    node_work_dir: pathlib.Path,
-    base_url: str,
-) -> tuple[str, list[typing.FileSchema]] | None:
+    node_obj, node_work_dir: pathlib.Path, base_url: str, kwargs_list: list[dict]
+) -> tuple[str, list[typing.FileSchema], None] | None:
+    xray_backends_parts = []
+    xray_80_matchers_parts = []
+    xray_443_matchers_parts = []
+    for i in kwargs_list:
+        xray_backends_parts.extend(i["backends_parts"])
+        xray_80_matchers_parts.extend(i["80_matchers_parts"])
+        xray_443_matchers_parts.extend(i["443_matchers_parts"])
+
     site_config: core_models.SiteConfiguration = core_models.SiteConfiguration.objects.get()
     if site_config.main_haproxy is None:
         logger.critical("no program set for global_haproxy_conf")
@@ -518,10 +584,12 @@ autostart=true
 autorestart=true
 priority=10
 """
-    return supervisor_config, files
+    return supervisor_config, files, None
 
 
 def get_global_nginx_conf_v1(node: models.Node) -> tuple[str, str, dict] | None:
+    from bigO.proxy_manager import services as proxy_manager_services
+
     usage = False
     deps = {}
     http_part = ""
@@ -570,12 +638,19 @@ http {
     return run_opt, res, deps
 
 
+NGINX_KEY = "nginx"
+
+
+@process_conf.register_getter(key=NGINX_KEY, satisfies=set())
 def get_global_nginx_conf_v2(
-    node_obj,
-    xray_path_matchers_parts: list,
-    node_work_dir: pathlib.Path,
-    base_url: str,
-) -> tuple[str, list[typing.FileSchema]] | None:
+    node_obj, node_work_dir: pathlib.Path, base_url: str, kwargs_list: list[dict]
+) -> tuple[str, list[typing.FileSchema], None] | None:
+    from bigO.proxy_manager import services as proxy_manager_services
+
+    xray_path_matchers_parts = []
+    for i in kwargs_list:
+        xray_path_matchers_parts.extend(i["path_matchers_parts"])
+
     site_config: core_models.SiteConfiguration = core_models.SiteConfiguration.objects.get()
     if site_config.main_nginx is None:
         logger.critical("no program set for global_nginc_conf")
@@ -673,7 +748,7 @@ autostart=true
 autorestart=true
 priority=10
     """
-    return supervisor_config, files
+    return supervisor_config, files, None
 
 
 def get_supervisor_nginx_conf_v1(node: models.Node) -> tuple[str, dict] | None:
@@ -1011,9 +1086,13 @@ priority=10
     return supervisor_config, files
 
 
+TELEGRAF_KEY = "telegraf"
+
+
+@process_conf.register_getter(key=TELEGRAF_KEY)
 async def get_telegraf(
-    node_obj: models.Node, node_work_dir: pathlib.Path, base_url: str
-) -> tuple[str, list[FileSchema]] | None:
+    node_obj: models.Node, node_work_dir: pathlib.Path, base_url: str, kwargs_list: list[dict]
+) -> tuple[str, list[FileSchema], None] | None:
     site_config: core_models.SiteConfiguration = await core_models.SiteConfiguration.objects.select_related(
         "main_telegraf"
     ).aget()
@@ -1085,12 +1164,16 @@ autostart=true
 autorestart=true
 priority=10
 """
-    return supervisor_config, files
+    return supervisor_config, files, None
 
 
+GOINGTO_KEY = "going_to"
+
+
+@process_conf.register_getter(key=GOINGTO_KEY)
 async def get_goingto_conf(
-    node_obj: models.Node, node_work_dir: pathlib.Path, base_url: str
-) -> tuple[str, list[FileSchema]] | None:
+    node_obj: models.Node, node_work_dir: pathlib.Path, base_url: str, kwargs_list: list[dict]
+) -> tuple[str, list[FileSchema], None] | None:
     site_config: core_models.SiteConfiguration = await core_models.SiteConfiguration.objects.select_related(
         "main_goingto"
     ).aget()
@@ -1148,7 +1231,7 @@ autostart=true
 autorestart=true
 priority=10
 """
-    return supervisor_config, files
+    return supervisor_config, files, None
 
 
 def change_node_config_to(new_config: typing.ConfigSchema, node: models.Node):

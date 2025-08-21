@@ -3,7 +3,9 @@ import logging
 import socket
 import ssl
 import tomllib
+from collections import defaultdict
 from hashlib import sha256
+from inspect import iscoroutinefunction
 from urllib.parse import urlparse
 
 import aiohttp.client_exceptions
@@ -14,7 +16,6 @@ from asgiref.sync import sync_to_async
 import bigO.utils.exceptions
 import bigO.utils.http
 from bigO.core import models as core_models
-from bigO.proxy_manager import services as proxy_manager_services
 from bigO.utils.decorators import xframe_options_sameorigin
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.core.exceptions import PermissionDenied
@@ -362,76 +363,31 @@ async def node_base_sync_v2(request: HttpRequest):
             continue
         supervisor_config += "\n" + supervisor_part
         files.extend(part_files)
-    telegraf = await services.get_telegraf(
-        node_obj=node_obj, node_work_dir=node_config.working_dir, base_url=next_base_url
-    )
-    if telegraf:
-        supervisor_config += telegraf[0]
-        files.extend(telegraf[1])
 
-    haproxy_xray_backends_parts = []
-    haproxy_xray_80_matchers_parts = []
-    haproxy_xray_443_matchers_parts = []
-    nginx_xray_path_matchers_parts = []
-    try:
-        xray = await sync_to_async(proxy_manager_services.get_xray_conf_v2)(
-            node_obj=node_obj, node_work_dir=node_config.working_dir, base_url=next_base_url
-        )
-    except services.ProgramNotFound as e:
-        logger.critical(f"no program of {e.program_version=} found for {node_obj=}")
-        pass
-    else:
-        if xray:
-            supervisor_config += xray[0]
-            files.extend(xray[1])
-            haproxy_xray_backends_parts = xray[2]["haproxy_backends_parts"]
-            haproxy_xray_80_matchers_parts = xray[2]["haproxy_80_matchers_parts"]
-            haproxy_xray_443_matchers_parts = xray[2]["haproxy_443_matchers_parts"]
-            nginx_xray_path_matchers_parts = xray[2]["nginx_path_matchers_parts"]
-
-    try:
-        haproxy = await sync_to_async(services.get_global_haproxy_conf_v2)(
-            node_obj=node_obj,
-            xray_backends_parts=haproxy_xray_backends_parts,
-            xray_80_matchers_parts=haproxy_xray_80_matchers_parts,
-            xray_443_matchers_parts=haproxy_xray_443_matchers_parts,
-            node_work_dir=node_config.working_dir,
-            base_url=next_base_url,
-        )
-    except services.ProgramNotFound as e:
-        logger.critical(f"no program of {e.program_version=} found for {node_obj=}")
-        pass
-    else:
-        if haproxy:
-            supervisor_config += haproxy[0]
-            files.extend(haproxy[1])
-
-    try:
-        nginx = await sync_to_async(services.get_global_nginx_conf_v2)(
-            node_obj=node_obj,
-            xray_path_matchers_parts=nginx_xray_path_matchers_parts,
-            node_work_dir=node_config.working_dir,
-            base_url=next_base_url,
-        )
-    except services.ProgramNotFound as e:
-        logger.critical(f"no program of {e.program_version=} found for {node_obj=}")
-        pass
-    else:
-        if nginx:
-            supervisor_config += nginx[0]
-            files.extend(nginx[1])
-
-    try:
-        goingto = await services.get_goingto_conf(
-            node_obj=node_obj, node_work_dir=node_config.working_dir, base_url=next_base_url
-        )
-    except services.ProgramNotFound as e:
-        logger.critical(f"no program of {e.program_version=} found for {node_obj=}")
-        pass
-    else:
-        if goingto:
-            supervisor_config += goingto[0]
-            files.extend(goingto[1])
+    config_argument_registery: dict[str, list[dict]] = defaultdict(list)
+    for config_getter in services.process_conf.getters:
+        kwargs_list: list[dict] = config_argument_registery.get(config_getter["key"], [])
+        if iscoroutinefunction(config_getter["getter"]):
+            fn = config_getter["getter"]
+        else:
+            fn = sync_to_async(config_getter["getter"])
+        try:
+            r = await fn(
+                node_obj=node_obj,
+                node_work_dir=node_config.working_dir,
+                base_url=next_base_url,
+                kwargs_list=kwargs_list,
+            )
+        except services.ProgramNotFound as e:
+            logger.critical(f"no program of {e.program_version=} found for {node_obj=}")
+            pass
+        else:
+            if r:
+                supervisor_config += r[0]
+                files.extend(r[1])
+                if r[2] is not None:
+                    for k, v in r[2].items():
+                        config_argument_registery[k].append(v)
 
     supervisorconfigschema = SupervisorConfigSchema(config_content=supervisor_config)
     output_schema = NodeBaseSyncV2OutputSchema(

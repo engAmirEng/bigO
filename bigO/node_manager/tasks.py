@@ -38,7 +38,9 @@ from . import models, typing
 
 
 @app.task
-def check_node_latest_sync(*, limit_seconds: int, responsetime_miliseconds: int = 1_200, ignore_node_ids: list[int] | None = None):
+def check_node_latest_sync(
+    *, limit_seconds: int, responsetime_miliseconds: int = 1_200, ignore_node_ids: list[int] | None = None
+):
     from bigO.core.models import SiteConfiguration
 
     siteconfiguration_obj = SiteConfiguration.objects.get()
@@ -54,10 +56,16 @@ def check_node_latest_sync(*, limit_seconds: int, responsetime_miliseconds: int 
         .ann_generic_status(default_acceptable_response_time=timedelta(microseconds=responsetime_miliseconds))
         .filter(
             is_revoked=False,
-            generic_status__in=[models.GenericStatusChoices.OFFLINE, models.GenericStatusChoices.ATTENDED_OFFLINE, models.GenericStatusChoices.ERROR],
+            generic_status__in=[
+                models.GenericStatusChoices.OFFLINE,
+                models.GenericStatusChoices.ATTENDED_OFFLINE,
+                models.GenericStatusChoices.ERROR,
+            ],
         )
     )
-    reporting_problematic_qs = all_problematic_qs.filter(generic_status=~models.GenericStatusChoices.ATTENDED_OFFLINE).exclude(id__in=ignore_node_ids)
+    reporting_problematic_qs = all_problematic_qs.filter(
+        generic_status=~models.GenericStatusChoices.ATTENDED_OFFLINE
+    ).exclude(id__in=ignore_node_ids)
     perv_offline_nodes = cache.get("offline_nodes")
     back_onlines_qs = models.Node.objects.none()
     if perv_offline_nodes:

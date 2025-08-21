@@ -1,5 +1,5 @@
-from asyncio import iscoroutinefunction
 from functools import wraps
+from inspect import iscoroutinefunction
 
 from django.http import HttpResponseNotAllowed
 from django.utils.log import log_response

@@ -343,9 +343,13 @@ def get_connection_tunnel(node_obj: node_manager_models.Node):
     )
 
 
+XRAY_KEY = "xray"
+
+
+@node_manager_services.process_conf.register_getter(key=XRAY_KEY, satisfies={node_manager_services.HAPROXY_KEY})
 def get_xray_conf_v2(
-    node_obj, node_work_dir: pathlib.Path, base_url: str
-) -> tuple[str, list[node_manager_typing.FileSchema], dict[str, list]] | None:
+    node_obj, node_work_dir: pathlib.Path, base_url: str, kwargs_list: list[dict]
+) -> tuple[str, list[node_manager_typing.FileSchema], dict[str, dict]] | None:
     site_config: core_models.SiteConfiguration = core_models.SiteConfiguration.objects.get()
     if not node_obj.tmp_xray:
         return None
@@ -813,10 +817,12 @@ priority=10
         supervisor_config,
         files,
         {
-            "haproxy_backends_parts": haproxy_backends_parts,
-            "haproxy_80_matchers_parts": haproxy_80_matchers_parts,
-            "haproxy_443_matchers_parts": haproxy_443_matchers_parts,
-            "nginx_path_matchers_parts": nginx_path_matchers_parts,
+            node_manager_services.HAPROXY_KEY: {
+                "backends_parts": haproxy_backends_parts,
+                "80_matchers_parts": haproxy_80_matchers_parts,
+                "443_matchers_parts": haproxy_443_matchers_parts,
+            },
+            node_manager_services.NGINX_KEY: {"path_matchers_parts": nginx_path_matchers_parts},
         },
     )
 
