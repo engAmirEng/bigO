@@ -65,13 +65,13 @@ class O2SpecInline(admin.StackedInline):
 class NodeModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.ModelAdmin):
     list_display = (
         "node_display",
-        "agent_spec_display",
-        "downtime_attended",
         "last_sync_req_display",
+        "downtime_attended",
+        "public_ips_display",
+        "agent_spec_display",
         "last_sync_duration_display",
         "collect_metrics",
         "collect_logs",
-        "public_ips_display",
         "view_supervisor_page_display",
     )
     ordering = ("is_revoked", "-created_at")
