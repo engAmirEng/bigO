@@ -59,14 +59,12 @@ def check_node_latest_sync(
             is_revoked=False,
             generic_status__in=[
                 models.GenericStatusChoices.OFFLINE,
-                models.GenericStatusChoices.ATTENDED_OFFLINE,
-                models.GenericStatusChoices.ERROR,
+                models.GenericStatusChoices.ATTENDED_OFFLINE
             ],
         )
     )
-    reporting_problematic_qs = all_problematic_qs.filter(
-        generic_status=~models.GenericStatusChoices.ATTENDED_OFFLINE
-    ).exclude(id__in=ignore_node_ids)
+    reporting_problematic_qs = all_problematic_qs.exclude(
+        id__in=ignore_node_ids).exclude(generic_status=models.GenericStatusChoices.ATTENDED_OFFLINE)
     perv_offline_nodes = cache.get("offline_nodes")
     back_onlines_qs = models.Node.objects.none()
     if perv_offline_nodes:
