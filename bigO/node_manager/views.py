@@ -108,7 +108,7 @@ class NodeBaseSyncAPIView(APIView):
         services.node_process_stats(
             node_obj=node_obj, configs_states=input_data.configs_states, smallo1_logs=input_data.smallo1_logs
         )
-        services.node_spec_create(node=node_obj, ip_a=input_data.metrics.ip_a)
+        services.node_spec_create(node=node_obj, node_sync_stat_obj=node_sync_stat_obj, ip_a=input_data.metrics.ip_a)
 
         site_config: core_models.SiteConfiguration = core_models.SiteConfiguration.objects.get()
 
