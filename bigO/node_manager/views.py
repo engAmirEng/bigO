@@ -329,7 +329,9 @@ async def node_base_sync_v2(request: HttpRequest):
         smallo1_logs=None,
         smallo2_logs=input_data.self_logs,
     )
-    await sync_to_async(services.node_spec_create)(node=node_obj, ip_a=input_data.metrics.ip_a)
+    node_sync_stat_obj = await sync_to_async(services.node_spec_create)(
+        node=node_obj, node_sync_stat_obj=node_sync_stat_obj, ip_a=input_data.metrics.ip_a
+    )
 
     supervisor_config = ""
     files = []

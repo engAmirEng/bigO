@@ -56,6 +56,16 @@ class ContainerSpec(TimeStampedModel):
     )
 
 
+class NetplanConfiguration(TimeStampedModel, models.Model):
+    name = models.SlugField(unique=True)
+    template = models.ForeignKey("Snippet", on_delete=models.PROTECT, related_name="+")
+    dnsv4 = models.CharField(max_length=255)
+    dnsv6 = models.CharField(max_length=255, null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.id}-{self.name}"
+
+
 class O2Spec(TimeStampedModel, models.Model):
     node = models.OneToOneField("Node", on_delete=models.CASCADE, related_name="o2spec")
     program = models.ForeignKey("ProgramVersion", on_delete=models.PROTECT, related_name="program_o2spec")
@@ -91,6 +101,9 @@ class Node(TimeStampedModel, models.Model):
     is_tunable = models.BooleanField(default=True, help_text="can tuns be created on it?")
     container_spec = models.OneToOneField(
         ContainerSpec, related_name="containerspec_nodes", on_delete=models.PROTECT, null=True, blank=True
+    )
+    netplan_config = models.ForeignKey(
+        NetplanConfiguration, on_delete=models.PROTECT, related_name="+", null=True, blank=True
     )
     architecture = models.CharField(max_length=63, choices=SystemArchitectureTextChoices.choices)
     default_cert = models.ForeignKey("core.Certificate", on_delete=models.SET_NULL, null=True, blank=True)
@@ -341,15 +354,32 @@ class PublicIP(TimeStampedModel):
 
 
 class NodePublicIP(TimeStampedModel):
+    class StatusChoices(models.IntegerChoices):
+        UNKNOWN = 1, "unknown"
+        OK = 2, "ok"
+        PROBLEM = 3, "problem"
+
     node = models.ForeignKey(Node, on_delete=models.CASCADE, related_name="node_nodepublicips")
     ip = models.ForeignKey(PublicIP, on_delete=models.CASCADE, related_name="ip_nodepublicips")
+    status = models.PositiveSmallIntegerField(choices=StatusChoices.choices, default=StatusChoices.UNKNOWN)
+    last_status_check = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["-created_at"]
         constraints = [UniqueConstraint(fields=("ip", "node"), name="unique_node_ip")]
 
     def __str__(self):
-        return f"{self.pk}-{self.node}|{self.ip}"
+        return f"{self.pk}-{self.node}|{self.mark}{self.ip}"
+
+    @property
+    def mark(self):
+        return (
+            "❕"
+            if self.status == NodePublicIP.StatusChoices.UNKNOWN
+            else "⚠️"
+            if self.status == NodePublicIP.StatusChoices.PROBLEM
+            else ""
+        )
 
 
 class Snippet(TimeStampedModel, models.Model):
@@ -855,3 +885,4 @@ class NodeLatestSyncStat(TimeStampedModel, models.Model):
     respond_at = models.DateTimeField(null=True, blank=True)
     request_headers = models.JSONField(null=True, blank=True)
     response_payload = models.JSONField(null=True, blank=True)
+    ip_a = models.TextField(null=True, blank=True)

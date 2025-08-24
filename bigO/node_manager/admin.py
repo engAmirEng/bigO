@@ -47,6 +47,11 @@ class ContainerSpecModelAdmin(admin.ModelAdmin):
     pass
 
 
+@admin.register(models.NetplanConfiguration)
+class NetplanConfigurationModelAdmin(admin.ModelAdmin):
+    search_fields = ("name",)
+
+
 class NodeSupervisorConfigInline(admin.StackedInline):
     model = models.NodeSupervisorConfig
 
@@ -79,7 +84,7 @@ class NodeModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.ModelAd
         NodeInnerProgramInline,
         NodeLatestSyncStatInline,
     ]
-    autocomplete_fields = ("ansible_deploy_snippet", "ssh_public_keys")
+    autocomplete_fields = ("netplan_config", "default_cert", "ansible_deploy_snippet", "ssh_public_keys")
 
     @admin.action(description="Do Deploy")
     def do_deploy(self, request, queryset: QuerySet[models.Node]):
@@ -152,7 +157,7 @@ class NodeModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.ModelAd
 
     @admin.display(description="public ips")
     def public_ips_display(self, obj):
-        return ", ".join([str(i.ip) for i in obj.node_nodepublicips.all()])
+        return ", ".join([i.mark + str(i.ip) for i in obj.node_nodepublicips.all()])
 
     @admin.display(ordering="node_nodesyncstat__initiated_at", description="last sync req")
     def last_sync_req_display(self, obj):
