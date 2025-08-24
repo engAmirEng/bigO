@@ -1,4 +1,5 @@
 import datetime
+import ipaddress
 import json
 import os
 import pathlib
@@ -38,7 +39,9 @@ from . import models, typing
 
 
 @app.task
-def check_node_latest_sync(*, limit_seconds: int, responsetime_miliseconds: int = 1_200, ignore_node_ids: list[int] | None = None):
+def check_node_latest_sync(
+    *, limit_seconds: int, responsetime_miliseconds: int = 1_200, ignore_node_ids: list[int] | None = None
+):
     from bigO.core.models import SiteConfiguration
 
     siteconfiguration_obj = SiteConfiguration.objects.get()
@@ -54,10 +57,14 @@ def check_node_latest_sync(*, limit_seconds: int, responsetime_miliseconds: int 
         .ann_generic_status(default_acceptable_response_time=timedelta(microseconds=responsetime_miliseconds))
         .filter(
             is_revoked=False,
-            generic_status__in=[models.GenericStatusChoices.OFFLINE, models.GenericStatusChoices.ATTENDED_OFFLINE],
+            generic_status__in=[
+                models.GenericStatusChoices.OFFLINE,
+                models.GenericStatusChoices.ATTENDED_OFFLINE
+            ],
         )
     )
-    reporting_problematic_qs = all_problematic_qs.exclude(id__in=ignore_node_ids).exclude(generic_status=models.GenericStatusChoices.ATTENDED_OFFLINE)
+    reporting_problematic_qs = all_problematic_qs.exclude(
+        id__in=ignore_node_ids).exclude(generic_status=models.GenericStatusChoices.ATTENDED_OFFLINE)
     perv_offline_nodes = cache.get("offline_nodes")
     back_onlines_qs = models.Node.objects.none()
     if perv_offline_nodes:
@@ -264,6 +271,49 @@ def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str,
             )
         ) as _write_client:
             _write_client.write(settings.INFLUX_BUCKET, settings.INFLUX_ORG, points)
+
+
+@app.task
+def handle_netmanager(node_id: int, netmanager_lines: str):
+    latest_states = {}
+    pattern = r"^(?P<timestamp_part>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) (?P<status>Successful|Unsuccessful)[ ]ping[ ]using[ ](?P<ip>[0-9a-fA-F:.]+)$"
+    for line in netmanager_lines.split("\n"):
+        match_res = re.search(pattern, line)
+        if match_res is None:
+            continue
+        if len(match_res.groups()) != 3:
+            continue
+        timestamp = datetime.datetime.strptime(match_res.group("timestamp_part"), "%Y-%m-%d %H:%M:%S").replace(
+            tzinfo=ZoneInfo("UTC")
+        )
+        ip = match_res.group("ip")
+        status = match_res.group("status")
+        latest_state = latest_states.get(ip, None)
+        if latest_state is None:
+            latest_states[ip] = {"timestamp": timestamp, "status": status}
+        else:
+            if latest_state["timestamp"] > timestamp:
+                continue
+            else:
+                latest_states[ip] = {"timestamp": timestamp, "status": status}
+    nodepublicip_list = list(models.NodePublicIP.objects.filter(node_id=node_id).select_related("ip"))
+    updating_records = []
+    for ip, v in latest_states.items():
+        ip = ipaddress.ip_interface(ip)
+        nodepublicip = [i for i in nodepublicip_list if i.ip.ip == ip]
+        if not nodepublicip:
+            sentry_sdk.capture_message(f"ip not found for node, {ip=} for {node_id=}")
+            continue
+        nodepublicip = nodepublicip[0]
+        if nodepublicip.last_status_check is None or nodepublicip.last_status_check < v["timestamp"]:
+            nodepublicip.last_status_check = v["timestamp"]
+            nodepublicip.status = (
+                models.NodePublicIP.StatusChoices.OK
+                if v["status"] == "Successful"
+                else models.NodePublicIP.StatusChoices.PROBLEM
+            )
+            updating_records.append(nodepublicip)
+    models.NodePublicIP.objects.bulk_update(updating_records, fields=["last_status_check", "status"])
 
 
 @app.task

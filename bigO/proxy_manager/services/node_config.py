@@ -1,4 +1,3 @@
-import datetime
 import json
 import logging
 import pathlib
@@ -343,9 +342,13 @@ def get_connection_tunnel(node_obj: node_manager_models.Node):
     )
 
 
+XRAY_KEY = "xray"
+
+
+@node_manager_services.process_conf.register_getter(key=XRAY_KEY, satisfies={node_manager_services.HAPROXY_KEY})
 def get_xray_conf_v2(
-    node_obj, node_work_dir: pathlib.Path, base_url: str
-) -> tuple[str, list[node_manager_typing.FileSchema], dict[str, list]] | None:
+    node_obj, node_work_dir: pathlib.Path, base_url: str, kwargs_list: list[dict]
+) -> tuple[str, list[node_manager_typing.FileSchema], dict[str, dict]] | None:
     site_config: core_models.SiteConfiguration = core_models.SiteConfiguration.objects.get()
     if not node_obj.tmp_xray:
         return None
@@ -813,10 +816,12 @@ priority=10
         supervisor_config,
         files,
         {
-            "haproxy_backends_parts": haproxy_backends_parts,
-            "haproxy_80_matchers_parts": haproxy_80_matchers_parts,
-            "haproxy_443_matchers_parts": haproxy_443_matchers_parts,
-            "nginx_path_matchers_parts": nginx_path_matchers_parts,
+            node_manager_services.HAPROXY_KEY: {
+                "backends_parts": haproxy_backends_parts,
+                "80_matchers_parts": haproxy_80_matchers_parts,
+                "443_matchers_parts": haproxy_443_matchers_parts,
+            },
+            node_manager_services.NGINX_KEY: {"path_matchers_parts": nginx_path_matchers_parts},
         },
     )
 
@@ -847,52 +852,6 @@ def get_strategy_part(
     # todo do a proper fallbacktag
     sorted_balancer_members = sorted(balancer_members, key=lambda x: x["weight"], reverse=True)
     return strategy_part, sorted_balancer_members[0]["tag"]
-
-
-def get_agent_current_subscriptionperiods_qs(agent: models.Agent):
-    return models.SubscriptionPeriod.objects.filter(profile__initial_agency_id=agent.agency_id)
-
-
-def set_profile_last_stat(
-    sub_profile_id: str, sub_profile_period_id: str, collect_time: datetime.datetime
-) -> models.SubscriptionPeriod | None:
-    subscriptionperiod = models.SubscriptionPeriod.objects.filter(
-        id=sub_profile_period_id, profile_id=sub_profile_id
-    ).first()
-    if subscriptionperiod is None:
-        logger.critical(f"no SubscriptionPeriod found with {sub_profile_id=} and {sub_profile_period_id=}")
-        return None
-    if subscriptionperiod.first_usage_at is None:
-        subscriptionperiod.first_usage_at = collect_time
-    if subscriptionperiod.first_usage_at > collect_time:
-        subscriptionperiod.first_usage_at = collect_time
-
-    if subscriptionperiod.last_usage_at is None:
-        subscriptionperiod.last_usage_at = collect_time
-    if subscriptionperiod.last_usage_at < collect_time:
-        subscriptionperiod.last_usage_at = collect_time
-    subscriptionperiod.save()
-    return subscriptionperiod
-
-
-def set_internal_user_last_stat(
-    rule_id: str, node_user_id: str, collect_time: datetime.datetime
-) -> models.InternalUser | None:
-    internaluser = models.InternalUser.objects.filter(connection_rule_id=rule_id, node_id=node_user_id).first()
-    if internaluser is None:
-        logger.critical(f"no InternalUser found with {rule_id=} and {node_user_id=}")
-        return
-    if internaluser.first_usage_at is None:
-        internaluser.first_usage_at = collect_time
-    if internaluser.first_usage_at > collect_time:
-        internaluser.first_usage_at = collect_time
-
-    if internaluser.last_usage_at is None:
-        internaluser.last_usage_at = collect_time
-    if internaluser.last_usage_at < collect_time:
-        internaluser.last_usage_at = collect_time
-    internaluser.save()
-    return internaluser
 
 
 class OutboundProtocol(Protocol):

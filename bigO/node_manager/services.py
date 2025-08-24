@@ -8,18 +8,19 @@ import re
 import tomllib
 import zoneinfo
 from collections import defaultdict
+from collections.abc import Callable, Iterator
 from datetime import timedelta
 from hashlib import sha256
+from typing import TypedDict
 
 import pydantic
 import sentry_sdk
 from asgiref.sync import sync_to_async
 
+import bigO.utils.metals
 import django.template
 from bigO.core import models as core_models
 from bigO.proxy_manager import models as proxy_manager_models
-from bigO.proxy_manager import services as proxy_manager_services
-from bigO.proxy_manager import tasks as proxy_manager_tasks
 from config import settings
 from django.core.cache import cache
 from django.db import transaction
@@ -33,11 +34,69 @@ from .typing import FileSchema
 
 logger = logging.getLogger(__name__)
 
+Getter = Callable[[models.Node, pathlib.Path, str, list[dict]], tuple[str, list, dict | None]]
 
-def node_spec_create(*, node: models.Node, ip_a: str):
+
+class ConfigGetter(TypedDict):
+    key: str
+    getter: Getter
+    satisfies: set
+
+
+class ProcessConf(metaclass=bigO.utils.metals.Singleton):
+    def __init__(self):
+        self.config_getters: dict[str, ConfigGetter] = {}
+        self._ordered_keys = None
+
+    def register_getter(self, key: str, satisfies: set | None = None):
+        satisfies = satisfies or set()
+
+        def wrapper(func: Getter):
+            self.config_getters[key] = {"key": key, "getter": func, "satisfies": satisfies}
+            self._ordered_keys = None
+            return func
+
+        return wrapper
+
+    @property
+    def getters(self) -> Iterator[ConfigGetter]:
+        if not self._ordered_keys:
+            sorted_keys = []
+            graph = [v for k, v in self.config_getters.items()]
+            remained_keys = [i["key"] for i in graph]
+
+            ProcessConf.sorter(remained_keys=remained_keys, sorted_keys=sorted_keys, graph=graph)
+            self._ordered_keys = sorted_keys
+        for i in self._ordered_keys:
+            yield self.config_getters[i]
+
+    @staticmethod
+    def sorter(remained_keys: list[str], sorted_keys: list[str], graph: list[ConfigGetter]):
+        while remained_keys:
+            for element in graph:
+                if element["key"] not in remained_keys:
+                    continue
+                earlier_graphs = [
+                    j for j in graph if (element["key"] in j["satisfies"]) and (j["key"] not in sorted_keys)
+                ]
+                if earlier_graphs:
+                    ProcessConf.sorter(remained_keys, sorted_keys, earlier_graphs)
+                else:
+                    sorted_keys.append(element["key"])
+                    remained_keys.remove(element["key"])
+            if not [i for i in graph if i["key"] not in sorted_keys]:
+                break
+
+
+process_conf = ProcessConf()
+
+
+def node_spec_create(*, node: models.Node, node_sync_stat_obj: models.NodeLatestSyncStat, ip_a: str):
     """
     makes decisions based on the node current state(spec)
     """
+    node_sync_stat_obj.ip_a = ip_a
+    node_sync_stat_obj.save()
     if container_spec := node.container_spec:
         if ipv4_extractor := node.container_spec.ip_a_container_ipv4_extractor:
             res = ipv4_extractor.extract(ip_a)
@@ -54,6 +113,7 @@ def node_spec_create(*, node: models.Node, ip_a: str):
             else:
                 container_spec.ipv6 = res
         container_spec.save()
+    return node_sync_stat_obj
 
 
 def process_process_state(supervisorprocessinfo_list: list[typing.SupervisorProcessInfoSchema], node: models.Node):
@@ -143,6 +203,8 @@ def node_process_stats(
     smallo1_logs: typing.SupervisorProcessTailLogSerializerSchema | None = None,
     smallo2_logs: typing.SupervisorProcessTailLogSerializerSchema | None = None,
 ):
+    from bigO.proxy_manager import tasks as proxy_manager_tasks
+
     streams: list[typing.LokiStram] = []
     configs_states = configs_states or []
     base_labels = {"service_name": "bigo", "node_id": node_obj.id, "node_name": node_obj.name}
@@ -187,6 +249,9 @@ def node_process_stats(
         elif service_name == "goingto_conf" and i.stdout.bytes and getattr(settings, "INFLUX_URL", False):
             handle_goingto = tasks.handle_goingto if settings.DEBUG else tasks.handle_goingto.delay
             handle_goingto(node_obj.id, goingto_json_lines=i.stdout.bytes, base_labels=base_labels)
+        elif service_name == "netmanager_conf" and i.stdout.bytes:
+            handle_netmanager = tasks.handle_netmanager if settings.DEBUG else tasks.handle_netmanager.delay
+            handle_netmanager(node_obj.id, netmanager_lines=i.stdout.bytes)
         elif service_name == "xray_conf" and i.stderr.bytes and getattr(settings, "INFLUX_URL", False):
             handle_xray_conf = (
                 proxy_manager_tasks.handle_xray_conf if settings.DEBUG else proxy_manager_tasks.handle_xray_conf.delay
@@ -374,14 +439,21 @@ def create_default_cert_for_node(node: models.Node) -> core_models.Certificate:
     return certificate_obj
 
 
+HAPROXY_KEY = "haproxy"
+
+
+@process_conf.register_getter(key=HAPROXY_KEY, satisfies=set())
 def get_global_haproxy_conf_v2(
-    node_obj,
-    xray_backends_parts: list,
-    xray_80_matchers_parts: list,
-    xray_443_matchers_parts: list,
-    node_work_dir: pathlib.Path,
-    base_url: str,
-) -> tuple[str, list[typing.FileSchema]] | None:
+    node_obj, node_work_dir: pathlib.Path, base_url: str, kwargs_list: list[dict]
+) -> tuple[str, list[typing.FileSchema], None] | None:
+    xray_backends_parts = []
+    xray_80_matchers_parts = []
+    xray_443_matchers_parts = []
+    for i in kwargs_list:
+        xray_backends_parts.extend(i["backends_parts"])
+        xray_80_matchers_parts.extend(i["80_matchers_parts"])
+        xray_443_matchers_parts.extend(i["443_matchers_parts"])
+
     site_config: core_models.SiteConfiguration = core_models.SiteConfiguration.objects.get()
     if site_config.main_haproxy is None:
         logger.critical("no program set for global_haproxy_conf")
@@ -518,10 +590,12 @@ autostart=true
 autorestart=true
 priority=10
 """
-    return supervisor_config, files
+    return supervisor_config, files, None
 
 
 def get_global_nginx_conf_v1(node: models.Node) -> tuple[str, str, dict] | None:
+    from bigO.proxy_manager import services as proxy_manager_services
+
     usage = False
     deps = {}
     http_part = ""
@@ -570,12 +644,19 @@ http {
     return run_opt, res, deps
 
 
+NGINX_KEY = "nginx"
+
+
+@process_conf.register_getter(key=NGINX_KEY, satisfies=set())
 def get_global_nginx_conf_v2(
-    node_obj,
-    xray_path_matchers_parts: list,
-    node_work_dir: pathlib.Path,
-    base_url: str,
-) -> tuple[str, list[typing.FileSchema]] | None:
+    node_obj, node_work_dir: pathlib.Path, base_url: str, kwargs_list: list[dict]
+) -> tuple[str, list[typing.FileSchema], None] | None:
+    from bigO.proxy_manager import services as proxy_manager_services
+
+    xray_path_matchers_parts = []
+    for i in kwargs_list:
+        xray_path_matchers_parts.extend(i["path_matchers_parts"])
+
     site_config: core_models.SiteConfiguration = core_models.SiteConfiguration.objects.get()
     if site_config.main_nginx is None:
         logger.critical("no program set for global_nginc_conf")
@@ -673,7 +754,7 @@ autostart=true
 autorestart=true
 priority=10
     """
-    return supervisor_config, files
+    return supervisor_config, files, None
 
 
 def get_supervisor_nginx_conf_v1(node: models.Node) -> tuple[str, dict] | None:
@@ -1011,9 +1092,13 @@ priority=10
     return supervisor_config, files
 
 
+TELEGRAF_KEY = "telegraf"
+
+
+@process_conf.register_getter(key=TELEGRAF_KEY)
 async def get_telegraf(
-    node_obj: models.Node, node_work_dir: pathlib.Path, base_url: str
-) -> tuple[str, list[FileSchema]] | None:
+    node_obj: models.Node, node_work_dir: pathlib.Path, base_url: str, kwargs_list: list[dict]
+) -> tuple[str, list[FileSchema], None] | None:
     site_config: core_models.SiteConfiguration = await core_models.SiteConfiguration.objects.select_related(
         "main_telegraf"
     ).aget()
@@ -1085,12 +1170,16 @@ autostart=true
 autorestart=true
 priority=10
 """
-    return supervisor_config, files
+    return supervisor_config, files, None
 
 
+GOINGTO_KEY = "going_to"
+
+
+@process_conf.register_getter(key=GOINGTO_KEY)
 async def get_goingto_conf(
-    node_obj: models.Node, node_work_dir: pathlib.Path, base_url: str
-) -> tuple[str, list[FileSchema]] | None:
+    node_obj: models.Node, node_work_dir: pathlib.Path, base_url: str, kwargs_list: list[dict]
+) -> tuple[str, list[FileSchema], None] | None:
     site_config: core_models.SiteConfiguration = await core_models.SiteConfiguration.objects.select_related(
         "main_goingto"
     ).aget()
@@ -1148,7 +1237,7 @@ autostart=true
 autorestart=true
 priority=10
 """
-    return supervisor_config, files
+    return supervisor_config, files, None
 
 
 def change_node_config_to(new_config: typing.ConfigSchema, node: models.Node):
@@ -1169,3 +1258,125 @@ def get_change_node_config_to(node: models.Node) -> typing.ConfigSchema | None:
 
 def delete_node_config_to(node: models.Node):
     cache.delete(f"change_node_config_to_{node.id}")
+
+
+NETMANAGER_KEY = "netmanager"
+
+
+@process_conf.register_getter(key=NETMANAGER_KEY)
+def get_netmanager_conf(
+    node_obj, node_work_dir: pathlib.Path, base_url: str, kwargs_list: list[dict]
+) -> tuple[str, list[typing.FileSchema], None] | None:
+    if node_obj.netplan_config is None:
+        return None
+    node_nodesyncstat = getattr(node_obj, "node_nodesyncstat", None)
+    if node_nodesyncstat is None or node_nodesyncstat.ip_a is None:
+        return None
+    nodepublicips_qs = node_obj.node_nodepublicips.select_related("ip").all()
+    if not nodepublicips_qs:
+        return None
+    ipv4s: list[ipaddress.IPv4Interface] = []
+    ipv6s: list[ipaddress.IPv6Interface] = []
+    for i in nodepublicips_qs:
+        i: models.NodePublicIP
+        if i.ip.ip.ip.version == 4:
+            ipv4s.append(i.ip.ip)
+        elif i.ip.ip.ip.version == 6:
+            ipv6s.append(i.ip.ip)
+        else:
+            raise NotImplementedError
+    dns_ipv4s = node_obj.netplan_config.dnsv4.split(",") if node_obj.netplan_config.dnsv4 else []
+    dns_ipv4s = [ipaddress.IPv4Interface(i).ip for i in dns_ipv4s]
+    dns_ipv6s = node_obj.netplan_config.dnsv6.split(",") if node_obj.netplan_config.dnsv6 else []
+    dns_ipv6s = [ipaddress.IPv6Interface(i).ip for i in dns_ipv6s]
+
+    ipa_section_pattern = re.compile(r"(\d+: [^\n]*\n(?: {4}.*\n)+)", re.MULTILINE)
+
+    ipa_blocks = ipa_section_pattern.findall(node_nodesyncstat.ip_a)
+    main_ipa_block = None
+    for ipa_block in ipa_blocks:
+        if main_ipa_block:
+            break
+        for ip in [*ipv4s, *ipv6s]:
+            if str(ip.ip) in ipa_block:
+                main_ipa_block = ipa_block
+                break
+    if not main_ipa_block:
+        sentry_sdk.capture_message(f"no main_ipa_block found for {node_obj=}")
+        return None
+    iface_match = re.search(r"^\d+: (?P<main_interface_name>[^:]+):", main_ipa_block, re.MULTILINE)
+    main_interface_name = iface_match.group(1) if iface_match else None
+    macaddr_match = re.search(r"link/ether (?P<mac_address>[0-9a-f:]{17})", main_ipa_block, re.MULTILINE)
+    macaddr = macaddr_match.group(1) if macaddr_match else None
+
+    context = django.template.Context(
+        {
+            "ipv4s": [i for i in ipv4s],
+            "ipv6s": [i for i in ipv6s],
+            "dns_ipv4s": [i for i in dns_ipv4s],
+            "dns_ipv6s": [i for i in dns_ipv6s],
+            "main_interface_name": main_interface_name,
+            "macaddress": f"{macaddr}",
+        }
+    )
+    netplan_template = node_obj.netplan_config.template.template
+    netplan_content = django.template.Template(netplan_template).render(context)
+
+    # language: bash
+    network_manager_template = """
+#!/bin/bash
+
+# Declare IPv4 and IPv6 addresses
+ipv4_list=({% for i in ipv4s %}{{ i.ip|safe }} {% endfor %})
+ipv6_list=({% for i in ipv6s %}{{ i.ip|safe }} {% endfor %})
+
+# Netplan configuration as a string
+netplan_config=$(cat <<'EOF'
+{{ netplan_content|safe }}
+EOF
+)
+
+ping_destination="google.com"
+
+while true; do
+    for ip in "${ipv4_list[@]}" "${ipv6_list[@]}"; do
+        # Determine if IP is IPv6 or IPv4
+        if [[ $ip == *":"* ]]; then
+            ping_cmd="ping6 -c 2 -I $ip $ping_destination"
+        else
+            ping_cmd="ping -c 2 -I $ip $ping_destination"
+        fi
+
+        echo "Pinging $ping_destination using $ip..."
+        if $ping_cmd > /dev/null 2>&1; then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') Successful ping using $ip"
+        else
+            echo "$(date '+%Y-%m-%d %H:%M:%S') Unsuccessful ping using $ip"
+            echo "Applying new Netplan configuration..."
+            echo "$netplan_config" | sudo tee /etc/netplan/999-my-netplan.yaml > /dev/null
+            sudo netplan apply
+        fi
+
+        sleep 5
+    done
+done
+
+"""
+    context["netplan_content"] = netplan_content
+    network_manager_bash_content = django.template.Template(network_manager_template).render(context)
+    netmanager_conf_hash = sha256(network_manager_bash_content.encode("utf-8")).hexdigest()
+    network_manager_program_file = typing.FileSchema(
+        dest_path=node_work_dir.joinpath("conf", f"netmanager_{netmanager_conf_hash[:6]}"),
+        permission=all_permission,
+        content=network_manager_bash_content,
+        hash=netmanager_conf_hash,
+    )
+    supervisor_config = f"""
+# config={timezone.now()}
+[program:netmanager_conf]
+command=bash {network_manager_program_file.dest_path}
+autostart=true
+autorestart=true
+priority=10
+    """
+    return supervisor_config, [network_manager_program_file], None
