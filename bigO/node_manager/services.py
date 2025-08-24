@@ -1267,8 +1267,6 @@ NETMANAGER_KEY = "netmanager"
 def get_netmanager_conf(
     node_obj, node_work_dir: pathlib.Path, base_url: str, kwargs_list: list[dict]
 ) -> tuple[str, list[typing.FileSchema], None] | None:
-    if node_obj.netplan_config is None:
-        return None
     node_nodesyncstat = getattr(node_obj, "node_nodesyncstat", None)
     if node_nodesyncstat is None or node_nodesyncstat.ip_a is None:
         return None
@@ -1285,11 +1283,6 @@ def get_netmanager_conf(
             ipv6s.append(i.ip.ip)
         else:
             raise NotImplementedError
-    dns_ipv4s = node_obj.netplan_config.dnsv4.split(",") if node_obj.netplan_config.dnsv4 else []
-    dns_ipv4s = [ipaddress.IPv4Interface(i).ip for i in dns_ipv4s]
-    dns_ipv6s = node_obj.netplan_config.dnsv6.split(",") if node_obj.netplan_config.dnsv6 else []
-    dns_ipv6s = [ipaddress.IPv6Interface(i).ip for i in dns_ipv6s]
-
     ipa_section_pattern = re.compile(r"(\d+: [^\n]*\n(?: {4}.*\n)+)", re.MULTILINE)
 
     ipa_blocks = ipa_section_pattern.findall(node_nodesyncstat.ip_a)
@@ -1309,6 +1302,20 @@ def get_netmanager_conf(
     macaddr_match = re.search(r"link/ether (?P<mac_address>[0-9a-f:]{17})", main_ipa_block, re.MULTILINE)
     macaddr = macaddr_match.group(1) if macaddr_match else None
 
+    if node_obj.netplan_config:
+        do_netplan = "true"
+        dns_ipv4s = node_obj.netplan_config.dnsv4.split(",") if node_obj.netplan_config.dnsv4 else []
+        dns_ipv4s = [ipaddress.IPv4Interface(i).ip for i in dns_ipv4s]
+        dns_ipv6s = node_obj.netplan_config.dnsv6.split(",") if node_obj.netplan_config.dnsv6 else []
+        dns_ipv6s = [ipaddress.IPv6Interface(i).ip for i in dns_ipv6s]
+        netplan_template = node_obj.netplan_config.template.template
+    else:
+        do_netplan = "false"
+        dns_ipv4s = []
+        dns_ipv6s = []
+        netplan_template = ""
+
+
     context = django.template.Context(
         {
             "ipv4s": [i for i in ipv4s],
@@ -1317,11 +1324,11 @@ def get_netmanager_conf(
             "dns_ipv6s": [i for i in dns_ipv6s],
             "main_interface_name": main_interface_name,
             "macaddress": f"{macaddr}",
+            "do_netplan": do_netplan
         }
     )
-    netplan_template = node_obj.netplan_config.template.template
     netplan_content = django.template.Template(netplan_template).render(context)
-
+    context["netplan_content"] = netplan_content
     # language: bash
     network_manager_template = """
 #!/bin/bash
@@ -1335,6 +1342,8 @@ netplan_config=$(cat <<'EOF'
 {{ netplan_content|safe }}
 EOF
 )
+
+do_netplan={{ do_netplan }}
 
 ping_destination="google.com"
 
@@ -1352,9 +1361,11 @@ while true; do
             echo "$(date '+%Y-%m-%d %H:%M:%S') Successful ping using $ip"
         else
             echo "$(date '+%Y-%m-%d %H:%M:%S') Unsuccessful ping using $ip"
-            echo "Applying new Netplan configuration..."
-            echo "$netplan_config" | sudo tee /etc/netplan/999-my-netplan.yaml > /dev/null
-            sudo netplan apply
+            if [ "$do_netplan" = true ]; then
+                echo "Applying new Netplan configuration..."
+                echo "$netplan_config" | sudo tee /etc/netplan/999-my-netplan.yaml > /dev/null
+                sudo netplan apply
+            fi
         fi
 
         sleep 5
@@ -1362,7 +1373,6 @@ while true; do
 done
 
 """
-    context["netplan_content"] = netplan_content
     network_manager_bash_content = django.template.Template(network_manager_template).render(context)
     netmanager_conf_hash = sha256(network_manager_bash_content.encode("utf-8")).hexdigest()
     network_manager_program_file = typing.FileSchema(
