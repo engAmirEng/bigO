@@ -17,7 +17,7 @@ import pydantic
 import sentry_sdk
 from asgiref.sync import sync_to_async
 
-import bigO.utils.metals
+import bigO.utils.py_helpers
 import django.template
 from bigO.core import models as core_models
 from bigO.proxy_manager import models as proxy_manager_models
@@ -43,7 +43,7 @@ class ConfigGetter(TypedDict):
     satisfies: set
 
 
-class ProcessConf(metaclass=bigO.utils.metals.Singleton):
+class ProcessConf(metaclass=bigO.utils.py_helpers.Singleton):
     def __init__(self):
         self.config_getters: dict[str, ConfigGetter] = {}
         self._ordered_keys = None
@@ -1318,7 +1318,6 @@ def get_netmanager_conf(
         dns_ipv6s = []
         netplan_template = ""
 
-
     context = django.template.Context(
         {
             "ipv4s": [i for i in ipv4s],
@@ -1327,7 +1326,7 @@ def get_netmanager_conf(
             "dns_ipv6s": [i for i in dns_ipv6s],
             "main_interface_name": main_interface_name,
             "macaddress": f"{macaddr}",
-            "do_netplan": do_netplan
+            "do_netplan": do_netplan,
         }
     )
     netplan_content = django.template.Template(netplan_template).render(context)

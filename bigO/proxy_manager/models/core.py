@@ -130,14 +130,6 @@ class ConnectionRule(TimeStampedModel, models.Model):
         Region, on_delete=models.CASCADE, related_name="destinationregion_connectionrules"
     )
     xray_rules_template = models.TextField(help_text="[RuleObject], {{ node, subscriptionperiods, inbound_tags }}")
-
-    inboundcombogroup = models.ForeignKey(
-        "InboundComboGroup",
-        on_delete=models.PROTECT,
-        related_name="inboundcombogroup_connectionrules",
-        null=True,
-        blank=True,
-    )
     inbound_remarks_prefix = models.CharField(max_length=255, null=True, blank=True)
     INBOUND_CHOOSE_RULE_SCHEMA = typing.InboundChooseRuleSchema.model_json_schema()
     inbound_choose_rule = django_jsonform.models.fields.JSONField(
