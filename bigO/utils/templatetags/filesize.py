@@ -1,4 +1,4 @@
-import humanize.filesize
+import humanize
 
 from django.template import Library
 

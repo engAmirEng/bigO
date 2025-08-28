@@ -1,5 +1,7 @@
 import uuid
 
+import humanize
+from django.utils.translation import gettext
 from django_jsonform.forms.fields import JSONFormField
 
 from django import forms
@@ -71,6 +73,14 @@ class SubscriptionPeriodModelForm(forms.ModelForm):
                 self.fields["plan_args"] = JSONFormField(
                     schema=self.instance.plan.plan_provider_cls.PlanArgsModel.model_json_schema()
                 )
+            for i in [
+                models.SubscriptionPeriod.current_download_bytes.field.name,
+                models.SubscriptionPeriod.current_upload_bytes.field.name,
+                models.SubscriptionPeriod.flow_download_bytes.field.name,
+                models.SubscriptionPeriod.flow_upload_bytes.field.name,
+            ]:
+                current_bytes = getattr(self.instance, i)
+                self.fields[i].help_text = gettext("current value is: {0}").format(humanize.naturalsize(current_bytes))
         if self.data.get("plan"):
             plan = models.SubscriptionPlan.objects.filter(id=self.data.get("plan")).first()
             if plan and plan.plan_provider_cls.PlanArgsModel:
