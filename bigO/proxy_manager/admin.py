@@ -383,3 +383,12 @@ class InboundSpecModelAdmin(admin.ModelAdmin):
             reverse("admin:proxy_manager_inboundtype_change", args=[obj.inbound_type.id]),
             str(obj.inbound_type),
         )
+
+@admin.register(models.IPProxyUsageSpec)
+class IPProxyUsageSpecModelAdmin(admin.ModelAdmin):
+    list_display = ("__str__",)
+
+
+@admin.register(models.DomainProxyUsageSpec)
+class DomainProxyUsageSpecModelAdmin(admin.ModelAdmin):
+    list_display = ("__str__",)

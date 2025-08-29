@@ -53,18 +53,7 @@ class ConnectionTunnelOutbound(TimeStampedModel, models.Model):
     name = models.SlugField()
     tunnel = models.ForeignKey(ConnectionTunnel, on_delete=models.CASCADE, related_name="tunnel_outbounds")
     weight = models.PositiveSmallIntegerField()
-    is_reverse = models.BooleanField(default=False)
     tags = TaggableManager(related_name="tags_connectiontunneloutbounds", blank=True)
-    to_inbound_type = models.ForeignKey(
-        "InboundType",
-        on_delete=models.CASCADE,
-        related_name="toinboundtype_connectiontunneloutbounds",
-        null=True,
-        blank=True,
-    )
-    xray_outbound_template = models.TextField(
-        help_text="{{ source_node, dest_node, tag, nodeinternaluser, combo_stat: {'address', 'port', 'sni', 'domainhostheader', 'touch_node'} }}"
-    )
     inbound_spec = models.ForeignKey(
         "InboundSpec",
         on_delete=models.PROTECT,
@@ -72,6 +61,9 @@ class ConnectionTunnelOutbound(TimeStampedModel, models.Model):
         null=True,
         blank=True,
     )
+    custom_spec = models.JSONField(null=True, blank=True)
+    is_managed = models.BooleanField(default=False, help_text="Is managed by the engine?")
+    template = models.ForeignKey("ConnectionTemplate", on_delete=models.PROTECT, related_name="+")
 
     class Meta:
         ordering = ["-created_at"]
@@ -86,6 +78,25 @@ class ConnectionTunnelOutbound(TimeStampedModel, models.Model):
         email = f"tun{self.tunnel_id}.bnode{self.tunnel.dest_node_id}.pnode{self.tunnel.source_node_id}.reverse{self.id}@love.com"
         return SimpleNamespace(xray_uuid=uuid.uuid5(self.tunnel.base_conn_uuid, email), xray_email=lambda: email)
 
+
+class RelayType(TimeStampedModel, models.Model):
+    name = models.SlugField()
+
+
+class RelayXray(RelayType):
+    is_reverse = models.BooleanField(default=False)
+    to_inbound_type = models.ForeignKey(
+        "InboundType",
+        on_delete=models.CASCADE,
+        related_name="+",
+        null=True,
+        blank=True,
+    )
+    xray_outbound_template = models.TextField(
+        help_text="{{ source_node, dest_node, tag, nodeinternaluser, combo_stat: {'address', 'port', 'sni', 'domainhostheader', 'touch_node'} }}"
+    )
+
+# class
 
 class LocalTunnelPort(TimeStampedModel, models.Model):
     source_node = models.ForeignKey("node_manager.Node", on_delete=models.CASCADE, related_name="+")

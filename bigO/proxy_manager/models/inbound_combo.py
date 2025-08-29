@@ -1,7 +1,67 @@
+from django.db.models import UniqueConstraint
+
 from bigO.utils.models import TimeStampedModel
 from django.db import models
 
 from .. import typing
+
+
+class DomainProxyUsageSpec(TimeStampedModel, models.Model):
+    domain = models.ForeignKey("core.Domain", on_delete=models.CASCADE)
+    include_subs = models.BooleanField(default=True)
+    perspective_region = models.ForeignKey("proxy_manager.Region", on_delete=models.PROTECT, related_name="+")
+    out_clf = models.DecimalField(max_digits=4, decimal_places=2)
+    in_clf = models.DecimalField(max_digits=4, decimal_places=2)
+    out_any = models.DecimalField(max_digits=4, decimal_places=2)
+    in_any = models.DecimalField(max_digits=4, decimal_places=2)
+
+    class Meta:
+        constraints = [
+            UniqueConstraint(
+                fields=("domain", "perspective_region"),
+                name="unique_domainproxyusagespec_per_domain_region",
+                violation_error_message="already exists with this perspective_region for this domain",
+            )
+        ]
+
+
+class IPProxyUsageSpec(models.Model):
+    public_ip = models.ForeignKey("node_manager.PublicIP", on_delete=models.CASCADE)
+    perspective_region = models.ForeignKey("proxy_manager.Region", on_delete=models.PROTECT, related_name="+")
+    out_clf = models.DecimalField(max_digits=4, decimal_places=2)
+    in_clf = models.DecimalField(max_digits=4, decimal_places=2)
+    out_any = models.DecimalField(max_digits=4, decimal_places=2)
+    in_any = models.DecimalField(max_digits=4, decimal_places=2)
+
+
+    class Meta:
+        constraints = [
+            UniqueConstraint(
+                fields=("public_ip", "perspective_region"),
+                name="unique_domainproxyusagespec_per_public_ip_region",
+                violation_error_message="already exists with this perspective_region for this public_ip",
+            )
+        ]
+
+#
+#
+# class XrayCommonRelayType(RelayType):
+#     inbound_type = models.ForeignKey("InboundType", on_delete=models.PROTECT, related_name="+", null=True, blank=True)
+#     sni = models.BooleanField()
+#
+# class Xrayjhj(models.Model):
+#     address = models.CharField
+#
+#
+# class XrayXhttpRelayType(RelayType):
+#     inbound_type = models.ForeignKey("InboundType", on_delete=models.PROTECT, related_name="+")
+#     up_domain = models.ForeignKey("core.Domain", on_delete=models.PROTECT, related_name="+")
+#     down_domain = models.ForeignKey("core.Domain", on_delete=models.PROTECT, related_name="+")
+#
+#
+# class Variant(models.Model):
+#     type = models.ForeignKey(ConnectionType, on_delete=models.CASCADE, related_name="+")
+#
 
 
 class InboundSpec(TimeStampedModel, models.Model):
