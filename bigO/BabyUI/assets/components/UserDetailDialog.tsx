@@ -238,7 +238,7 @@ export default function UserDetailDialog({
                   size={'medium'}
                   color="secondary"
                   aria-label="add"
-                  onClick={() => handleCopy(user.sublink.normal)}
+                  onClick={() => handleCopy(user.sublink.b64)}
                 >
                   <ContentCopyTwoToneIcon />
                 </Fab>
@@ -252,7 +252,7 @@ export default function UserDetailDialog({
                   maxWidth: '60dvh',
                   mx: 'auto',
                 }}
-                image={qr}
+                image={b64qr}
               />
             </Card>
           </TabPanel>

@@ -34,11 +34,19 @@ export default function UsersDataGrid({ users_list_page }: Props) {
       flex: 0.2,
       minWidth: 50,
       renderCell: (params) => {
-        let res: number =
+        let res: number
+        if (users_list_page.pagination) {
+          res =
           users_list_page.pagination.num_per_page *
             (users_list_page.pagination.current_page_num - 1) +
           params.api.getRowIndexRelativeToVisibleRows(params.id) +
           1;
+        } else {
+          res =
+          params.api.getRowIndexRelativeToVisibleRows(params.id) +
+          1;
+        }
+
         return res;
       },
     },

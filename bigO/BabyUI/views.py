@@ -328,7 +328,7 @@ async def dashboard_users(request):
 
         creatable_plans_qs = renewuser_form.fields["plan"].queryset
         normal_sublink = await sync_to_async(selected_user.profile.get_sublink)()
-        b64_sublink = normal_sublink + "base64=true"
+        b64_sublink = normal_sublink + "?base64=true"
         if request.GET and request.POST.get("action") == "suspend":
             await sync_to_async(services.suspend_user)(selected_user.profile, agentuser=request.user)
             return redirect(request.get_full_path())

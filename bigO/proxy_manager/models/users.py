@@ -236,7 +236,7 @@ class SubscriptionProfile(TimeStampedModel, models.Model):
             domain = self.initial_agency.sublink_host.name
         else:
             raise ValueError("sublink_host not set")
-        return f"https://{domain}/sub/{self.uuid}"
+        return f"https://{domain}/sub/{self.uuid}/"
 
 
 class SubscriptionEvent(TimeStampedModel, models.Model):
