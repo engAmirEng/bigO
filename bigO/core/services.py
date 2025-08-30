@@ -303,9 +303,9 @@ def certbot_init_renew(certbotinfo_obj: models.CertbotInfo) -> tuple[bool, str]:
     cert = x509.load_pem_x509_certificate(cert_content)
     parent_cert = x509.load_pem_x509_certificate(parent_cert_content)
 
-    if isinstance(private_key, rsa.RSAPublicKey):
+    if isinstance(private_key, rsa.RSAPrivateKey):
         algorithm = models.AbstractCryptographicObject.AlgorithmChoices.RSA
-    elif isinstance(private_key, ec.EllipticCurvePublicKey):
+    elif isinstance(private_key, ec.EllipticCurvePrivateKey):
         algorithm = models.AbstractCryptographicObject.AlgorithmChoices.ECDSA
     else:
         raise NotImplementedError
