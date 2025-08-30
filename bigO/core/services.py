@@ -253,12 +253,12 @@ def certbot_init_renew(certbotinfo_obj: models.CertbotInfo) -> tuple[bool, str]:
         certificatetask_obj.is_closed = True
         certificatetask_obj.save()
         return False, certbot_err
-    if "failed" in certbot_res:
+    elif "failed" in certbot_res:
         certificatetask_obj.is_success = False
         certificatetask_obj.is_closed = True
         certificatetask_obj.save()
         return False, certbot_res
-    if "Certificate not yet due for renewal" in certbot_res:
+    elif "Certificate not yet due for renewal" in certbot_res:
         now = timezone.now()
         match = re.search(r"\d{4}-\d{2}-\d{2}", certbot_res)
         if match:
@@ -277,7 +277,10 @@ def certbot_init_renew(certbotinfo_obj: models.CertbotInfo) -> tuple[bool, str]:
             certificatetask_obj.is_closed = True
             certificatetask_obj.save()
             return False, certbot_res
-    if "was successful" not in certbot_res:
+    elif ("was successful" not in certbot_res) and ("Congratulations" not in certbot_res):
+        certificatetask_obj.is_success = False
+        certificatetask_obj.is_closed = True
+        certificatetask_obj.save()
         return False, certbot_res
 
     certbot_cert_dir = get_certbot_cert_dir(cert_name)
