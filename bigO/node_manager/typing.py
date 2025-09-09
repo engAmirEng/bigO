@@ -25,6 +25,22 @@ class GoingtoXrayRawTrafficV1JsonOutPut(pydantic.BaseModel):
     stats: list[GoingtoXrayRawTrafficV1Stat]
 
 
+class XrayObservatoryResult(pydantic.BaseModel):
+    alive: bool | None = None
+    delay: int  # millisecond
+    last_error_reason: str | None = None
+    outbound_tag: str
+    last_try_time: int
+    last_seen_time: int | None = None
+
+
+class GoingtoXrayRawMetricsV1JsonOutPut(pydantic.BaseModel):
+    observatory: dict[str, XrayObservatoryResult] | None = None
+      #  cmdline
+      #  memstats
+      #  stats {inbound, outbound, user}
+
+
 class LokiStram(TypedDict):
     stream: dict[str, str]
     values: list[list[str, str]]

@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"github.com/BurntSushi/toml"
 	"go.uber.org/zap"
+	"io"
+	"net/http"
 	"os"
 	"time"
 )
@@ -40,20 +42,36 @@ func main() {
 	}
 
 	logger.Debug(fmt.Sprintf("Configuration Loaded:\n%+v\n", config))
-	xrayapi := xray.XrayAPI{}
-	err := xrayapi.Init(config.Xray.APIPort)
-	defer xrayapi.Close()
-	if err != nil {
-		panic(fmt.Sprintf("error in initializing xrayapi: %v", err))
+
+	var xrayapi *xray.XrayAPI
+	if config.Xray.Usage != nil && config.Xray.APIHost != "" && config.Xray.APIPort != 0 {
+		xrayapi = &xray.XrayAPI{}
+		logger.Info("initializing Xray API")
+		err := xrayapi.Init(config.Xray.APIPort)
+		defer xrayapi.Close()
+		if err != nil {
+			panic(fmt.Sprintf("error in initializing xrayapi: %v", err))
+		}
 	}
+
 	for {
 		logger.Debug("getting usage")
-		DoTrafficStats(&xrayapi, &config, output, logger)
+		DoTrafficStats(xrayapi, &config, output, logger)
+		DoMetrics(&config, output, logger)
 		time.Sleep(time.Duration(config.Xray.Usage.Interval) * time.Second)
 	}
 }
 
 func DoTrafficStats(x *xray.XrayAPI, config *configs.Config, output *zap.Logger, logger *zap.Logger) {
+	if config.Xray.Usage != nil {
+		if x == nil {
+			logger.Error("xrayapi is not initialized")
+			return
+		}
+	} else {
+		logger.Info("skipping trafficstats")
+		return
+	}
 	rawTraffic, err := x.GetTrafficRaw(config.Xray.Usage.Reset, logger)
 	if err != nil {
 		logger.Error("Error getting raw traffic", zap.Error(err))
@@ -81,4 +99,39 @@ func DoTrafficStats(x *xray.XrayAPI, config *configs.Config, output *zap.Logger,
 		panic(fmt.Sprintf("error in marshalling raw trafic to json: %v", err))
 	}
 	output.Info(string(jsonResult), zap.String("result_type", "xray_raw_traffic_v1"))
+}
+
+func DoMetrics(config *configs.Config, output *zap.Logger, logger *zap.Logger) {
+	if config.Xray.Metrics != nil {
+		if config.Xray.MetricsUrl == "" {
+			logger.Error("MetricsUrl is nil")
+			return
+		}
+	} else {
+		logger.Info("skipping metrics")
+		return
+	}
+
+	req, err := http.NewRequest("GET", config.Xray.MetricsUrl, nil)
+	if err != nil {
+		logger.Error("Error calling metrics", zap.Error(err))
+		return
+	}
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		logger.Error("Error calling metrics", zap.Error(err))
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		logger.Error(fmt.Sprint("Error metrics response code is %d", resp.StatusCode))
+		return
+	}
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		logger.Error("Error in reading metrics", zap.Error(err))
+		return
+	}
+	output.Info(string(bodyBytes), zap.String("result_type", "xray_raw_metrics_v1"))
 }

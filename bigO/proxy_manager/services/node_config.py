@@ -847,7 +847,7 @@ def get_strategy_part(
         ]
     )
     strategy_part = django.template.Template(strategy_template).render(
-        django.template.Context({"costs_part": costs_part, "node_count": len(balancer_members)})
+        django.template.Context({"costs_part": costs_part, "node_count": max(1, int(0.4 * len(balancer_members)))})
     )
     # todo do a proper fallbacktag
     sorted_balancer_members = sorted(balancer_members, key=lambda x: x["weight"], reverse=True)
