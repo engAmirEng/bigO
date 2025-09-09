@@ -96,8 +96,9 @@ def check_node_latest_sync(
 
 @app.task
 def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str, Any]):
-    from bigO.proxy_manager.services import set_internal_user_last_stat, set_profile_last_stat
+    from bigO.proxy_manager.services import set_internal_user_last_stat, set_profile_last_stat, set_outbound_delay_tags
 
+    node_obj = models.Node.objects.get(id=node_id)
     points: list[influxdb_client.Point] = []
     for line in goingto_json_lines.split("\n"):
         if not line:
@@ -117,8 +118,8 @@ def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str,
                 internal_user_points: dict[str, influxdb_client.Point] = {}
                 inbound_points: dict[str, influxdb_client.Point] = {}
                 outbound_points: dict[str, influxdb_client.Point] = {}
-                res = typing.GoingtoXrayRawTrafficV1JsonOutPut(**json.loads(res["msg"]))
-                for stat in res.stats:
+                traffic_res = typing.GoingtoXrayRawTrafficV1JsonOutPut(**json.loads(res["msg"]))
+                for stat in traffic_res.stats:
                     if not stat.name or not stat.value:
                         continue
                     user_traffic_regex = r"user>>>period(\d+)\.profile(\d+)[^>]+>>>traffic>>>(downlink|uplink)"
@@ -252,6 +253,22 @@ def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str,
                         *outbound_points.values(),
                     ]
                 )
+            elif res["result_type"] == "xray_raw_metrics_v1":
+                metrics_res = typing.GoingtoXrayRawMetricsV1JsonOutPut(**json.loads(res["msg"]))
+                point = influxdb_client.Point("connection_health")
+                for outbound_tag, observatory_result in metrics_res.observatory.items():
+                    time_ = datetime.datetime.fromtimestamp(observatory_result.last_try_time, ZoneInfo("UTC"))
+                    point.time(
+                        time_,
+                        write_precision=influxdb_client.domain.write_precision.WritePrecision.S,
+                    )
+                    set_outbound_delay_tags(point=point, node=node_obj, outbound_name=outbound_tag)
+                    if observatory_result.delay == 99999999 or observatory_result.alive is None:
+                        point.field("status", "timeout")
+                    else:
+                        point.field("status", "ok")
+                        point.field("delay", observatory_result.delay)
+                    points.append(point)
 
     if not points:
         return "no points!!!"

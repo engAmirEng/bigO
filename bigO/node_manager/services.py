@@ -1213,10 +1213,13 @@ async def get_goingto_conf(
 [xray]
 api_port = 6582
 api_host = "127.0.0.1"
+metrics_url = "http://127.0.0.1:6583/debug/vars"
 
 [xray.usage]
 interval = 15
 reset = true
+
+[xray.metric]
 """
     goingto_conf_content = django.template.Template(cnfg_template).render(
         context=django.template.Context(template_context)
