@@ -57,6 +57,7 @@ func main() {
 	for {
 		logger.Debug("getting usage")
 		DoTrafficStats(xrayapi, &config, output, logger)
+		logger.Debug("getting metrics")
 		DoMetrics(&config, output, logger)
 		time.Sleep(time.Duration(config.Xray.Usage.Interval) * time.Second)
 	}
