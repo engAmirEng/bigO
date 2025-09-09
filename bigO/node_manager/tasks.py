@@ -267,7 +267,9 @@ def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str,
                         point.field("status", "timeout")
                     else:
                         point.field("status", "ok")
-                        point.field("delay", observatory_result.delay)
+                        point.field(
+                            "delay", float(observatory_result.delay)
+                        )  # float because already exists as type float
                     points.append(point)
 
     if not points:
