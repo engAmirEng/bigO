@@ -36,9 +36,9 @@ class XrayObservatoryResult(pydantic.BaseModel):
 
 class GoingtoXrayRawMetricsV1JsonOutPut(pydantic.BaseModel):
     observatory: dict[str, XrayObservatoryResult] | None = None
-      #  cmdline
-      #  memstats
-      #  stats {inbound, outbound, user}
+    #  cmdline
+    #  memstats
+    #  stats {inbound, outbound, user}
 
 
 class LokiStram(TypedDict):

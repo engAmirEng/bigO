@@ -94,7 +94,7 @@ def check_node_latest_sync(
 
 @app.task
 def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str, Any]):
-    from bigO.proxy_manager.services import set_internal_user_last_stat, set_profile_last_stat, set_outbound_delay_tags
+    from bigO.proxy_manager.services import set_internal_user_last_stat, set_outbound_delay_tags, set_profile_last_stat
 
     node_obj = models.Node.objects.get(id=node_id)
     points: list[influxdb_client.Point] = []

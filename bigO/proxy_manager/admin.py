@@ -201,35 +201,33 @@ class SubscriptionPeriodModelAdmin(admin.ModelAdmin):
         return naturaltime(obj.last_sublink_at)
 
 
-@admin.register(models.NodeOutbound)
-class NodeOutboundModelAdmin(SimpleHistoryAdmin):
-    list_display = ("id", "name", "rule", "node", "to_inbound_type", "inbound_spec")
-    search_fields = ("name", "xray_outbound_template")
-    list_filter = ("to_inbound_type", "rule")
+@admin.register(models.OutboundType)
+class OutboundTypeModelAdmin(SimpleHistoryAdmin):
+    list_display = (
+        "id",
+        "name",
+        "to_inbound_type",
+    )
+    search_fields = ("name", "to_inbound_type__name", "xray_outbound_template")
+    list_filter = ("to_inbound_type",)
 
 
-@admin.register(models.Reverse)
-class ReverseModelAdmin(SimpleHistoryAdmin):
-    list_display = ("id", "name", "rule", "bridge_node", "portal_node", "to_inbound_type", "inbound_spec")
-    search_fields = ("name", "xray_outbound_template")
-    list_filter = ("to_inbound_type", "rule")
+@admin.register(models.OutboundConnector)
+class OutboundConnectorModelAdmin(admin.ModelAdmin):
+    list_display = ("id", "is_managed", "outbound_type", "inbound_spec", "dest_node")
+    search_fields = (
+        "outbound_type__name",
+        "outbound_type__to_inbound_type__name",
+        "outbound_type__xray_outbound_template",
+    )
+    list_filter = ("outbound_type__to_inbound_type",)
 
 
-class RuleNodeOutboundInline(admin.StackedInline):
-    extra = 0
-    model = models.NodeOutbound
-    autocomplete_fields = ("rule", "node", "inbound_spec")
-    ordering = ("node", "-created_at")
-    show_change_link = True
-
-
-class ReverseInline(admin.StackedInline):
-    extra = 0
-    model = models.Reverse
-    form = forms.ReverseModelForm
-    autocomplete_fields = ("bridge_node", "portal_node", "inbound_spec")
-    show_change_link = True
-    ordering = ("bridge_node", "portal_node", "-created_at")
+@admin.register(models.ConnectionRuleOutbound)
+class ConnectionRuleOutboundModelAdmin(admin.ModelAdmin):
+    list_display = ("id", "rule", "apply_node", "connector")
+    search_fields = ("connector__outbound_type__name", "connector__outbound_type__xray_outbound_template")
+    list_filter = ("connector__outbound_type__to_inbound_type", "rule")
 
 
 class ConnectionRuleInboundSpecInline(admin.StackedInline):
@@ -243,10 +241,15 @@ class ConnectionRuleBalancerInline(admin.StackedInline):
     model = models.ConnectionRuleBalancer
 
 
+class ConnectionRuleOutboundInline(admin.StackedInline):
+    extra = 0
+    model = models.ConnectionRuleOutbound
+
+
 @admin.register(models.ConnectionRule)
 class ConnectionRuleModelAdmin(SimpleHistoryAdmin):
     list_display = ("__str__", "periods_count_display", "alive_periods_count_display")
-    inlines = (ConnectionRuleInboundSpecInline, ConnectionRuleBalancerInline, RuleNodeOutboundInline, ReverseInline)
+    inlines = (ConnectionRuleInboundSpecInline, ConnectionRuleBalancerInline, ConnectionRuleOutboundInline)
     search_fields = ("name", "xray_rules_template")
 
     def get_queryset(self, request):
@@ -270,18 +273,16 @@ class InternalUserModelAdmin(admin.ModelAdmin):
     autocomplete_fields = ("node", "connection_rule")
 
 
-class NodeOutboundInline(admin.StackedInline):
+class OutboundTypeInline(admin.StackedInline):
     extra = 0
-    model = models.NodeOutbound
-    autocomplete_fields = ("rule", "node", "inbound_spec")
-    ordering = ("rule", "-created_at")
+    model = models.OutboundType
 
 
 @admin.register(models.InboundType)
 class InboundTypeModelAdmin(SimpleHistoryAdmin, admin.ModelAdmin):
     list_display = ("__str__", "is_active", "is_template")
     search_fields = ("name", "inbound_template")
-    inlines = (NodeOutboundInline,)
+    inlines = (OutboundTypeInline,)
 
 
 @admin.register(models.Balancer)
@@ -323,27 +324,11 @@ class ConnectionRuleInboundSpec(admin.StackedInline):
     extra = 0
 
 
-class InboundSpecNodeOutboundInline(admin.StackedInline):
-    model = models.NodeOutbound
+class InboundSpecOutboundConnectorInline(admin.StackedInline):
+    model = models.OutboundConnector
     extra = 0
-    autocomplete_fields = ("rule", "node", "inbound_spec")
-    ordering = ("rule", "-created_at")
-    show_change_link = True
-
-
-class InboundSpecReverseInline(admin.StackedInline):
-    model = models.Reverse
-    extra = 0
-    autocomplete_fields = ("rule", "bridge_node", "portal_node", "inbound_spec")
-    ordering = ("rule", "-created_at")
-    show_change_link = True
-
-
-class InboundSpecConnectionTunnelOutboundInline(admin.StackedInline):
-    model = models.ConnectionTunnelOutbound
-    extra = 0
-    autocomplete_fields = ("tunnel", "inbound_spec")
-    ordering = ("tunnel", "-created_at")
+    autocomplete_fields = ("outbound_type",)
+    ordering = ("created_at",)
     show_change_link = True
 
 
@@ -370,10 +355,8 @@ class InboundSpecModelAdmin(admin.ModelAdmin):
     )
     autocomplete_fields = ("domain_address", "ip_address", "domain_sni", "domainhost_header", "touch_node")
     inlines = (
-        InboundSpecConnectionTunnelOutboundInline,
+        InboundSpecOutboundConnectorInline,
         ConnectionRuleInboundSpec,
-        InboundSpecNodeOutboundInline,
-        InboundSpecReverseInline,
     )
 
     @admin.display(ordering="inbound_type")
@@ -383,3 +366,13 @@ class InboundSpecModelAdmin(admin.ModelAdmin):
             reverse("admin:proxy_manager_inboundtype_change", args=[obj.inbound_type.id]),
             str(obj.inbound_type),
         )
+
+
+# @admin.register(models.IPProxyUsageSpec)
+# class IPProxyUsageSpecModelAdmin(admin.ModelAdmin):
+#     list_display = ("__str__",)
+#
+#
+# @admin.register(models.DomainProxyUsageSpec)
+# class DomainProxyUsageSpecModelAdmin(admin.ModelAdmin):
+#     list_display = ("__str__",)
