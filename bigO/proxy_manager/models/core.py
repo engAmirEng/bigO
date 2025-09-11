@@ -68,6 +68,11 @@ class ConnectionRuleOutbound(TimeStampedModel, models.Model):
     base_conn_uuid = models.UUIDField()
 
     def __str__(self):
+        if self.connector.inbound_spec:
+            o = f"({self.connector.outbound_type.name}({self.connector.inbound_spec.id}))"
+        else:
+            o = f"({self.connector.outbound_type.name}(-))"
+        connector_str = f"{o}->{self.connector.dest_node.name if self.connector.dest_node else '?'}"
         if self.is_reverse:
             try:
                 portal_node_str = self.get_portal_node()
@@ -77,12 +82,12 @@ class ConnectionRuleOutbound(TimeStampedModel, models.Model):
                 bridge_node_str = self.get_bridge_node()
             except Exception as e:
                 bridge_node_str = f"error-{str(e)}"
-            return f"{self.id}|◀️{portal_node_str}->{bridge_node_str}"
+            return f"{self.id}|({connector_str})◀️{portal_node_str}->{bridge_node_str}"
         else:
             if self.connector.dest_node:
-                return f"{self.id}|▶️{self.apply_node}->{self.connector.dest_node}"
+                return f"{self.id}|({connector_str})▶️{self.apply_node}->{self.connector.dest_node}"
             else:
-                return f"{self.id}|{self.apply_node}"
+                return f"{self.id}|({connector_str}){self.apply_node}"
 
     def get_bridge_node(self):
         assert self.is_reverse

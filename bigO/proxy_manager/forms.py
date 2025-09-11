@@ -97,3 +97,13 @@ class ConnectionTunnelModelForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["base_conn_uuid"].initial = uuid.uuid4()
+
+
+class ConnectionRuleOutboundModelForm(forms.ModelForm):
+    class Meta:
+        model = models.ConnectionRuleOutbound
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["base_conn_uuid"].initial = uuid.uuid4()
