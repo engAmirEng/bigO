@@ -879,7 +879,16 @@ class XrayOutBound:
     def get_node_outbound_name(*, connection_rule: models.ConnectionRule, nodeoutbound: models.ConnectionRuleOutbound):
         assert not nodeoutbound.is_reverse
         to_inbound_type = nodeoutbound.connector.outbound_type.to_inbound_type
-        return f"{connection_rule.id}_{to_inbound_type.name if to_inbound_type else ''}_{nodeoutbound.id}"
+        # return f"{connection_rule.id}_{to_inbound_type.name if to_inbound_type else ''}_{nodeoutbound.id}"
+        return (
+            f"rule{connection_rule.id}_"
+            f"connector{nodeoutbound.connector.id}_"
+            f"connectionruleoutbound{nodeoutbound.id}"
+            f"inbound_type{nodeoutbound.connector.inbound_spec.id}_"
+            f"inbound_type{nodeoutbound.connector.dest_node.id}_"
+            f"outbound_type{nodeoutbound.connector.outbound_type.id}_"
+            f"inbound_type{nodeoutbound.connector.outbound_type.to_inbound_type.id}_"
+        )
 
     @staticmethod
     def get_node_tunn_outbound_name(
@@ -887,7 +896,16 @@ class XrayOutBound:
     ):
         assert not outbound.is_reverse
         to_inbound_type = outbound.connector.outbound_type.to_inbound_type
-        return f"tunn_{connectiontunnel.id}_{to_inbound_type.name if to_inbound_type else ''}_{outbound.id}"
+        # return f"tunn_{connectiontunnel.id}_{to_inbound_type.name if to_inbound_type else ''}_{outbound.id}"
+        return (
+            f"tunn{connectiontunnel.id}_"
+            f"connector{outbound.connector.id}_"
+            f"connectiontunneloutbound{outbound.id}"
+            f"inbound_type{outbound.connector.inbound_spec.id}_"
+            f"inbound_type{outbound.connector.dest_node.id}_"
+            f"outbound_type{outbound.connector.outbound_type.id}_"
+            f"inbound_type{outbound.connector.outbound_type.to_inbound_type.id}_"
+        )
 
     @staticmethod
     def get_bridge_outbound_name(
