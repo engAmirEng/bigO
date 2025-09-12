@@ -19,7 +19,7 @@ def populate(apps, schema_editor):
     for i in NodeOutbound.objects.all():
         ot = OutboundType()
         ot.name = f"rule{i.rule_id}id{i.id}name{i.name}"
-        ot.to_inbound_type = i.to_inbound_type
+        ot.to_inbound_type = i.to_inbound_type if i.to_inbound_type else i.inbound_spec.inbound_type if i.inbound_spec else None
         ot.xray_outbound_template = i.xray_outbound_template
         oc = OutboundConnector()
         oc.outbound_type = ot
@@ -38,7 +38,7 @@ def populate(apps, schema_editor):
     for i in Reverse.objects.all():
         ot = OutboundType()
         ot.name = f"reverse-rule{i.rule_id}id{i.id}name{i.name}"
-        ot.to_inbound_type = i.to_inbound_type
+        ot.to_inbound_type = i.to_inbound_type if i.to_inbound_type else i.inbound_spec.inbound_type if i.inbound_spec else None
         ot.xray_outbound_template = i.xray_outbound_template
         oc = OutboundConnector()
         oc.outbound_type = ot
@@ -58,7 +58,7 @@ def populate(apps, schema_editor):
         if cto.is_reverse:
             ot = OutboundType()
             ot.name = f"reverse-tunn{cto.tunnel_id}id{cto.id}name{cto.name}"
-            ot.to_inbound_type = cto.to_inbound_type
+            ot.to_inbound_type = cto.to_inbound_type if cto.to_inbound_type else cto.inbound_spec.inbound_type if cto.inbound_spec else None
             ot.xray_outbound_template = cto.xray_outbound_template
             oc = OutboundConnector()
             oc.outbound_type = ot
@@ -68,7 +68,7 @@ def populate(apps, schema_editor):
         else:
             ot = OutboundType()
             ot.name = f"tunn{cto.tunnel_id}id{cto.id}name{cto.name}"
-            ot.to_inbound_type = cto.to_inbound_type
+            ot.to_inbound_type = cto.to_inbound_type if cto.to_inbound_type else cto.inbound_spec.inbound_type if cto.inbound_spec else None
             ot.xray_outbound_template = cto.xray_outbound_template
             oc = OutboundConnector()
             oc.outbound_type = ot

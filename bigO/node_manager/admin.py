@@ -424,11 +424,11 @@ class EasyTierNodeModelAdmin(admin.ModelAdmin):
 
 @admin.register(models.ProgramBinary)
 class ProgramBinaryModelAdmin(admin.ModelAdmin):
-    form = forms.ProgramBinaryModelForm
-    readonly_fields = ["hash"]
-    autocomplete_fields = ("program_version",)
-    list_display = ("__str__", "file_size_display")
+    list_display = ("__str__", "program_version__program__name", "program_version__version", "file_size_display")
     search_fields = ("hash", "program_version__program__name")
+    form = forms.ProgramBinaryModelForm
+    readonly_fields = ("hash",)
+    autocomplete_fields = ("program_version",)
 
     @admin.display(description="file size")
     def file_size_display(self, obj: models.ProgramBinary):

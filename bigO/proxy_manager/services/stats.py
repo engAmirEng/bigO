@@ -63,34 +63,38 @@ def set_outbound_delay_tags(*, point: influxdb_client.Point, node: node_manager_
     if res is None:
         sentry_sdk.capture_message(f"could not find {outbound_name=}")
     elif isinstance(res, models.ConnectionRuleOutbound):
+        point.tag("connection_rule_id", str(res.rule_id))
         if res.is_reverse:
-            if str(res.connector.dest_node_id) == str(node.id):
+            bridge_node = res.get_bridge_node()
+            portal_node = res.get_portal_node()
+            if bridge_node == node:
                 point.tag("connection_type", "reverse_interconn")
-                point.tag("source_node_id", str(res.connector.dest_node_id))
-                point.tag("dest_node_id", str(res.portal_node_id))
-            elif str(res.portal_node_id) == str(node.id):
+                point.tag("source_node_id", str(bridge_node.id))
+                point.tag("dest_node_id", str(portal_node.id))
+            elif portal_node == node:
                 point.tag("connection_type", "reverse")
-                point.tag("source_node_id", str(res.portal_node_id))
-                point.tag("dest_node_id", str(res.connector.dest_node_id))
+                point.tag("source_node_id", str(portal_node.id))
+                point.tag("dest_node_id", str(bridge_node.id))
             else:
                 raise NotImplementedError
-
-            point.tag("connection_rule_id", str(res.rule_id))
         else:
             point.tag("connection_type", "node_outbound")
-            point.tag("source_node_id", str(res.portal_node_id))
-            point.tag("connection_rule_id", str(res.rule_id))
+            point.tag("source_node_id", str(res.apply_node_id))
+            if res.connector.dest_node:
+                point.tag("dest_node_id", str(res.connector.dest_node_id))
     elif isinstance(res, models.ConnectionTunnelOutbound):
         point.tag("connectiontunnel_id", str(res.tunnel_id))
         if res.is_reverse:
-            if res.tunnel.dest_node == node:
+            bridge_node = res.get_bridge_node()
+            portal_node = res.get_portal_node()
+            if bridge_node == node:
                 point.tag("connection_type", "tunnel_reverse_interconn")
-                point.tag("source_node_id", str(res.tunnel.dest_node_id))
-                point.tag("dest_node_id", str(res.tunnel.source_node_id))
-            elif res.tunnel.source_node == node:
+                point.tag("source_node_id", str(bridge_node.id))
+                point.tag("dest_node_id", str(portal_node.id))
+            elif portal_node == node:
                 point.tag("connection_type", "tunnel_reverse")
-                point.tag("source_node_id", str(res.tunnel.source_node_id))
-                point.tag("dest_node_id", str(res.connector.dest_node_id))
+                point.tag("source_node_id", str(portal_node.id))
+                point.tag("dest_node_id", str(bridge_node.id))
                 # == point.tag("dest_node_id", str(res.tunnel.dest_node_id))
             else:
                 raise NotImplementedError

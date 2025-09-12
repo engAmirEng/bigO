@@ -34,6 +34,7 @@ class AgentInline(admin.StackedInline):
     extra = 1
     model = models.Agent
     autocomplete_fields = ("user",)
+    ordering = ("created_at",)
 
 
 @admin.register(models.Agency)
@@ -78,6 +79,7 @@ class AgencyPlanSpecInline(admin.StackedInline):
     model = models.AgencyPlanSpec
     extra = 0
     autocomplete_fields = ("agency",)
+    ordering = ("created_at",)
 
 
 @admin.register(models.SubscriptionPlan)
@@ -206,6 +208,7 @@ class OutboundConnectorInline(admin.StackedInline):
     extra = 0
     model = models.OutboundConnector
     autocomplete_fields = ("outbound_type", "inbound_spec", "dest_node")
+    ordering = ("created_at",)
     show_change_link = True
 
 
@@ -232,14 +235,26 @@ class OutboundTypeModelAdmin(SimpleHistoryAdmin):
 class ConnectionTunnelOutboundInline(admin.StackedInline):
     extra = 0
     model = models.ConnectionTunnelOutbound
-    autocomplete_fields = ("tunnel",)
+    autocomplete_fields = ("tunnel", "connector")
+    ordering = ("created_at",)
     show_change_link = True
+
+    def get_queryset(self, request):
+        return (
+            super()
+            .get_queryset(request)
+            .select_related(
+                "connector__outbound_type", "connector__inbound_spec", "connector__dest_node"
+            )
+        )
 
 
 class ConnectionRuleOutboundInline(admin.StackedInline):
     extra = 0
     model = models.ConnectionRuleOutbound
+    form = forms.ConnectionRuleOutboundModelForm
     autocomplete_fields = "rule", "connector", "apply_node"
+    ordering = ("created_at",)
     show_change_link = True
 
     def get_queryset(self, request):
@@ -337,11 +352,13 @@ class ConnectionRuleInboundSpecInline(admin.StackedInline):
     extra = 0
     model = models.ConnectionRuleInboundSpec
     autocomplete_fields = ("spec",)
+    ordering = ("created_at",)
 
 
 class ConnectionRuleBalancerInline(admin.StackedInline):
     extra = 0
     model = models.ConnectionRuleBalancer
+    ordering = ("created_at",)
 
 
 @admin.register(models.ConnectionRule)
@@ -374,6 +391,7 @@ class InternalUserModelAdmin(admin.ModelAdmin):
 class OutboundTypeInline(admin.StackedInline):
     extra = 0
     model = models.OutboundType
+    ordering = ("created_at",)
     show_change_link = True
 
 
@@ -387,7 +405,6 @@ class InboundTypeModelAdmin(SimpleHistoryAdmin, admin.ModelAdmin):
 @admin.register(models.Balancer)
 class BalancerModelAdmin(SimpleHistoryAdmin, admin.ModelAdmin):
     list_display = ("__str__",)
-
 
 
 @admin.register(models.ConnectionTunnelOutbound)
@@ -416,6 +433,7 @@ class LocalTunnelPortInline(admin.StackedInline):
     extra = 0
     model = models.LocalTunnelPort
     autocomplete_fields = ("source_node",)
+    ordering = ("created_at",)
 
 
 @admin.register(models.ConnectionTunnel)
@@ -439,6 +457,7 @@ class LocalTunnelPortModelAdmin(SimpleHistoryAdmin, admin.ModelAdmin):
 class ConnectionRuleInboundSpec(admin.StackedInline):
     model = models.ConnectionRuleInboundSpec
     extra = 0
+    ordering = ("created_at",)
 
 
 class InboundSpecOutboundConnectorInline(admin.StackedInline):

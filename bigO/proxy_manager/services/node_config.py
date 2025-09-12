@@ -452,31 +452,29 @@ def get_xray_conf_v2(
 
     connectionrule_qs = (
         models.ConnectionRule.objects.filter(
-            Q(rule_nodeoutbounds__node=node_obj)
-            | Q(rule_reverses__bridge_node=node_obj)
-            | Q(rule_reverses__portal_node=node_obj)
-        )
+            Q(rule_outbounds__apply_node=node_obj) | Q(rule_outbounds__connector__dest_node=node_obj)
+        )  # just to filter down the results count
         .prefetch_related(
             Prefetch(
                 "rule_outbounds",
                 to_attr="node_connection_outbounds",
                 queryset=models.ConnectionRuleOutbound.objects.filter(
                     apply_node=node_obj, is_reverse=False
-                ).select_related("connector"),
+                ).select_related("connector__outbound_type", "connector__inbound_spec"),
             ),
             Prefetch(
                 "rule_outbounds",
                 to_attr="bridge_connection_outbounds",
                 queryset=models.ConnectionRuleOutbound.objects.filter(
                     apply_node=node_obj, is_reverse=True
-                ).select_related("connector"),
+                ).select_related("connector__outbound_type", "connector__inbound_spec"),
             ),
             Prefetch(
                 "rule_outbounds",
                 to_attr="portal_connection_outbounds",
                 queryset=models.ConnectionRuleOutbound.objects.filter(
                     connector__dest_node=node_obj, is_reverse=True
-                ).select_related("inbound_spec"),
+                ).select_related("connector__outbound_type", "connector__inbound_spec"),
             ),
             Prefetch(
                 "balancers",
@@ -518,7 +516,7 @@ def get_xray_conf_v2(
         xray_outbounds = {}
         xray_balancers: dict[str, list[typing.BalancerMemberType]] = defaultdict(list)
         for connection_outbound in connection_rule.node_connection_outbounds:
-            assert not portal_connection_outbound.is_reverse
+            assert not connection_outbound.is_reverse
             is_outbound_used = False
             connection_outbound: models.ConnectionRuleOutbound
             outbound_tag = XrayOutBound.get_node_outbound_name(
@@ -579,6 +577,7 @@ def get_xray_conf_v2(
                 )
 
         for bridge_connection_outbound in connection_rule.bridge_connection_outbounds:
+            assert bridge_connection_outbound.is_reverse
             bridge_connection_outbound: models.ConnectionRuleOutbound
             balancer_allocations = bridge_connection_outbound.get_balancer_allocations()
             for balancer_allocation in balancer_allocations:
