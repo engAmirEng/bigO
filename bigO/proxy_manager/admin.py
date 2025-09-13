@@ -2,6 +2,7 @@ import humanize.filesize
 from simple_history.admin import SimpleHistoryAdmin
 from solo.admin import SingletonModelAdmin
 
+from bigO.utils.admin import admin_obj_change_url
 from django.contrib import admin
 from django.contrib.humanize.templatetags.humanize import naturaltime
 from django.urls import reverse
@@ -33,6 +34,7 @@ class AgentInline(admin.StackedInline):
     extra = 1
     model = models.Agent
     autocomplete_fields = ("user",)
+    ordering = ("created_at",)
 
 
 @admin.register(models.Agency)
@@ -77,6 +79,7 @@ class AgencyPlanSpecInline(admin.StackedInline):
     model = models.AgencyPlanSpec
     extra = 0
     autocomplete_fields = ("agency",)
+    ordering = ("created_at",)
 
 
 @admin.register(models.SubscriptionPlan)
@@ -106,9 +109,9 @@ class SubscriptionPlanModelAdmin(admin.ModelAdmin):
 
     @admin.display(ordering="connection_rule")
     def connection_rule_display(self, obj):
-        return format_html(
+        return obj.connection_rule and format_html(
             "<a href='{}'>{}</a>",
-            reverse("admin:proxy_manager_connectionrule_change", args=[obj.connection_rule.id]),
+            admin_obj_change_url(obj.connection_rule),
             str(obj.connection_rule),
         )
 
@@ -152,17 +155,17 @@ class SubscriptionPeriodModelAdmin(admin.ModelAdmin):
 
     @admin.display(ordering="profile")
     def profile_display(self, obj):
-        return format_html(
+        return obj.profile and format_html(
             "<a href='{}'>{}</a>",
-            reverse("admin:proxy_manager_subscriptionprofile_change", args=[obj.profile.id]),
+            admin_obj_change_url(obj.profile),
             str(obj.profile),
         )
 
     @admin.display(ordering="plan")
     def plan_display(self, obj):
-        return format_html(
+        return obj.plan and format_html(
             "<a href='{}'>{}</a>",
-            reverse("admin:proxy_manager_subscriptionplan_change", args=[obj.plan.id]),
+            admin_obj_change_url(obj.plan),
             str(obj.plan),
         )
 
@@ -201,52 +204,167 @@ class SubscriptionPeriodModelAdmin(admin.ModelAdmin):
         return naturaltime(obj.last_sublink_at)
 
 
-@admin.register(models.NodeOutbound)
-class NodeOutboundModelAdmin(SimpleHistoryAdmin):
-    list_display = ("id", "name", "rule", "node", "to_inbound_type", "inbound_spec")
-    search_fields = ("name", "xray_outbound_template")
-    list_filter = ("to_inbound_type", "rule")
-
-
-@admin.register(models.Reverse)
-class ReverseModelAdmin(SimpleHistoryAdmin):
-    list_display = ("id", "name", "rule", "bridge_node", "portal_node", "to_inbound_type", "inbound_spec")
-    search_fields = ("name", "xray_outbound_template")
-    list_filter = ("to_inbound_type", "rule")
-
-
-class RuleNodeOutboundInline(admin.StackedInline):
+class OutboundConnectorInline(admin.StackedInline):
     extra = 0
-    model = models.NodeOutbound
-    autocomplete_fields = ("rule", "node", "inbound_spec")
-    ordering = ("node", "-created_at")
+    model = models.OutboundConnector
+    autocomplete_fields = ("outbound_type", "inbound_spec", "dest_node")
+    ordering = ("created_at",)
     show_change_link = True
 
 
-class ReverseInline(admin.StackedInline):
+@admin.register(models.OutboundType)
+class OutboundTypeModelAdmin(SimpleHistoryAdmin):
+    list_display = (
+        "id",
+        "name",
+        "to_inbound_type_display",
+    )
+    search_fields = ("name", "to_inbound_type__name", "xray_outbound_template")
+    list_filter = ("to_inbound_type",)
+    inlines = (OutboundConnectorInline,)
+
+    @admin.display(ordering="to_inbound_type")
+    def to_inbound_type_display(self, obj):
+        return obj.to_inbound_type and format_html(
+            "<a href='{}'>{}</a>",
+            admin_obj_change_url(obj.to_inbound_type),
+            str(obj.to_inbound_type),
+        )
+
+
+class ConnectionTunnelOutboundInline(admin.StackedInline):
     extra = 0
-    model = models.Reverse
-    form = forms.ReverseModelForm
-    autocomplete_fields = ("bridge_node", "portal_node", "inbound_spec")
+    model = models.ConnectionTunnelOutbound
+    autocomplete_fields = ("tunnel", "connector")
+    ordering = ("created_at",)
     show_change_link = True
-    ordering = ("bridge_node", "portal_node", "-created_at")
+
+    def get_queryset(self, request):
+        return (
+            super()
+            .get_queryset(request)
+            .select_related(
+                "connector__outbound_type", "connector__inbound_spec", "connector__dest_node"
+            )
+        )
+
+
+class ConnectionRuleOutboundInline(admin.StackedInline):
+    extra = 0
+    model = models.ConnectionRuleOutbound
+    form = forms.ConnectionRuleOutboundModelForm
+    autocomplete_fields = "rule", "connector", "apply_node"
+    ordering = ("created_at",)
+    show_change_link = True
+
+    def get_queryset(self, request):
+        return (
+            super()
+            .get_queryset(request)
+            .select_related(
+                "apply_node", "connector__outbound_type", "connector__inbound_spec", "connector__dest_node"
+            )
+        )
+
+
+@admin.register(models.OutboundConnector)
+class OutboundConnectorModelAdmin(admin.ModelAdmin):
+    list_display = ("id", "is_managed", "outbound_type_display", "inbound_spec_display", "dest_node_display")
+    search_fields = (
+        "outbound_type__name",
+        "outbound_type__to_inbound_type__name",
+        "outbound_type__xray_outbound_template",
+    )
+    list_filter = ("outbound_type__to_inbound_type",)
+    autocomplete_fields = "outbound_type", "inbound_spec", "dest_node"
+    inlines = (ConnectionRuleOutboundInline, ConnectionTunnelOutboundInline)
+
+    @admin.display(ordering="outbound_type")
+    def outbound_type_display(self, obj):
+        return obj.outbound_type and format_html(
+            "<a href='{}'>{}</a>",
+            admin_obj_change_url(obj.outbound_type),
+            str(obj.outbound_type),
+        )
+
+    @admin.display(ordering="inbound_spec")
+    def inbound_spec_display(self, obj):
+        return obj.inbound_spec and format_html(
+            "<a href='{}'>{}</a>",
+            admin_obj_change_url(obj.inbound_spec),
+            str(obj.inbound_spec),
+        )
+
+    @admin.display(ordering="dest_node")
+    def dest_node_display(self, obj):
+        return obj.dest_node and format_html(
+            "<a href='{}'>{}</a>",
+            admin_obj_change_url(obj.dest_node),
+            str(obj.dest_node),
+        )
+
+
+@admin.register(models.ConnectionRuleOutbound)
+class ConnectionRuleOutboundModelAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "rule_display",
+        "apply_node_display",
+        "connector_display",
+        "is_reverse",
+        "balancer_allocation_str",
+    )
+    search_fields = (
+        "connector__outbound_type__name",
+        "connector__outbound_type__xray_outbound_template",
+        "balancer_allocation_str",
+    )
+    list_filter = ("is_reverse", "connector__outbound_type__to_inbound_type", "rule")
+    autocomplete_fields = ("rule", "connector", "apply_node")
+    form = forms.ConnectionRuleOutboundModelForm
+
+    @admin.display(ordering="rule")
+    def rule_display(self, obj):
+        return obj.rule and format_html(
+            "<a href='{}'>{}</a>",
+            admin_obj_change_url(obj.rule),
+            str(obj.rule),
+        )
+
+    @admin.display(ordering="connector")
+    def connector_display(self, obj):
+        return obj.connector and format_html(
+            "<a href='{}'>{}</a>",
+            admin_obj_change_url(obj.connector),
+            str(obj.connector),
+        )
+
+    @admin.display(ordering="apply_node")
+    def apply_node_display(self, obj):
+        return obj.apply_node and format_html(
+            "<a href='{}'>{}</a>",
+            admin_obj_change_url(obj.apply_node),
+            str(obj.apply_node),
+        )
 
 
 class ConnectionRuleInboundSpecInline(admin.StackedInline):
     extra = 0
     model = models.ConnectionRuleInboundSpec
     autocomplete_fields = ("spec",)
+    ordering = ("created_at",)
 
 
 class ConnectionRuleBalancerInline(admin.StackedInline):
     extra = 0
     model = models.ConnectionRuleBalancer
+    ordering = ("created_at",)
 
 
 @admin.register(models.ConnectionRule)
 class ConnectionRuleModelAdmin(SimpleHistoryAdmin):
     list_display = ("__str__", "periods_count_display", "alive_periods_count_display")
-    inlines = (ConnectionRuleInboundSpecInline, ConnectionRuleBalancerInline, RuleNodeOutboundInline, ReverseInline)
+    inlines = (ConnectionRuleInboundSpecInline, ConnectionRuleBalancerInline, ConnectionRuleOutboundInline)
     search_fields = ("name", "xray_rules_template")
 
     def get_queryset(self, request):
@@ -270,23 +388,18 @@ class InternalUserModelAdmin(admin.ModelAdmin):
     autocomplete_fields = ("node", "connection_rule")
 
 
-class InboundComboInline(admin.StackedInline):
+class OutboundTypeInline(admin.StackedInline):
     extra = 0
-    model = models.InboundCombo
-
-
-class NodeOutboundInline(admin.StackedInline):
-    extra = 0
-    model = models.NodeOutbound
-    autocomplete_fields = ("rule", "node", "inbound_spec")
-    ordering = ("rule", "-created_at")
+    model = models.OutboundType
+    ordering = ("created_at",)
+    show_change_link = True
 
 
 @admin.register(models.InboundType)
 class InboundTypeModelAdmin(SimpleHistoryAdmin, admin.ModelAdmin):
     list_display = ("__str__", "is_active", "is_template")
     search_fields = ("name", "inbound_template")
-    inlines = (InboundComboInline, NodeOutboundInline)
+    inlines = (OutboundTypeInline,)
 
 
 @admin.register(models.Balancer)
@@ -294,15 +407,33 @@ class BalancerModelAdmin(SimpleHistoryAdmin, admin.ModelAdmin):
     list_display = ("__str__",)
 
 
-class ConnectionTunnelOutboundInline(admin.StackedInline):
-    extra = 0
-    model = models.ConnectionTunnelOutbound
+@admin.register(models.ConnectionTunnelOutbound)
+class ConnectionTunnelOutboundModelAdmin(admin.ModelAdmin):
+    list_display = ("id", "tunnel_display", "connector_display", "is_reverse", "weight")
+    autocomplete_fields = ("tunnel", "connector")
+
+    @admin.display(ordering="tunnel")
+    def tunnel_display(self, obj):
+        return obj.tunnel and format_html(
+            "<a href='{}'>{}</a>",
+            admin_obj_change_url(obj.tunnel),
+            str(obj.tunnel),
+        )
+
+    @admin.display(ordering="connector")
+    def connector_display(self, obj):
+        return obj.connector and format_html(
+            "<a href='{}'>{}</a>",
+            admin_obj_change_url(obj.connector),
+            str(obj.connector),
+        )
 
 
 class LocalTunnelPortInline(admin.StackedInline):
     extra = 0
     model = models.LocalTunnelPort
     autocomplete_fields = ("source_node",)
+    ordering = ("created_at",)
 
 
 @admin.register(models.ConnectionTunnel)
@@ -323,91 +454,17 @@ class LocalTunnelPortModelAdmin(SimpleHistoryAdmin, admin.ModelAdmin):
     autocomplete_fields = ("source_node", "tunnel")
 
 
-class InboundComboChoiceGroupInline(admin.StackedInline):
-    extra = 1
-    model = models.InboundComboChoiceGroup
-    autocomplete_fields = ("combo",)
-
-
-@admin.register(models.InboundComboGroup)
-class InboundComboGroupModelAdmin(admin.ModelAdmin):
-    list_display = ("__str__",)
-    inlines = (InboundComboChoiceGroupInline,)
-
-
-class InboundComboDomainAddressInline(admin.TabularInline):
-    extra = 0
-    model = models.InboundComboDomainAddress
-    autocomplete_fields = ("domain",)
-
-
-class InboundComboIPAddressInline(admin.TabularInline):
-    extra = 0
-    model = models.InboundComboIPAddress
-    autocomplete_fields = ("ip",)
-
-
-class InboundComboDomainSniInline(admin.TabularInline):
-    extra = 0
-    model = models.InboundComboDomainSni
-    autocomplete_fields = ("domain",)
-
-
-class InboundComboDomainHostHeaderInline(admin.TabularInline):
-    extra = 0
-    model = models.InboundComboDomainHostHeader
-    autocomplete_fields = ("domain",)
-
-
-@admin.register(models.InboundCombo)
-class InboundComboModelAdmin(admin.ModelAdmin):
-    list_display = ("__str__", "inbound_type_display", "ports")
-    list_select_related = ("inbound_type",)
-    list_filter = ("inbound_type",)
-    search_fields = ("name", "inbound_type__name")
-    autocomplete_fields = ("inbound_type",)
-    inlines = (
-        InboundComboDomainAddressInline,
-        InboundComboIPAddressInline,
-        InboundComboDomainSniInline,
-        InboundComboDomainHostHeaderInline,
-    )
-
-    @admin.display(ordering="inbound_type")
-    def inbound_type_display(self, obj):
-        return format_html(
-            "<a href='{}'>{}</a>",
-            reverse("admin:proxy_manager_inboundtype_change", args=[obj.inbound_type.id]),
-            str(obj.inbound_type),
-        )
-
-
 class ConnectionRuleInboundSpec(admin.StackedInline):
     model = models.ConnectionRuleInboundSpec
     extra = 0
+    ordering = ("created_at",)
 
 
-class InboundSpecNodeOutboundInline(admin.StackedInline):
-    model = models.NodeOutbound
+class InboundSpecOutboundConnectorInline(admin.StackedInline):
+    model = models.OutboundConnector
     extra = 0
-    autocomplete_fields = ("rule", "node", "inbound_spec")
-    ordering = ("rule", "-created_at")
-    show_change_link = True
-
-
-class InboundSpecReverseInline(admin.StackedInline):
-    model = models.Reverse
-    extra = 0
-    autocomplete_fields = ("rule", "bridge_node", "portal_node", "inbound_spec")
-    ordering = ("rule", "-created_at")
-    show_change_link = True
-
-
-class InboundSpecConnectionTunnelOutboundInline(admin.StackedInline):
-    model = models.ConnectionTunnelOutbound
-    extra = 0
-    autocomplete_fields = ("tunnel", "inbound_spec")
-    ordering = ("tunnel", "-created_at")
+    autocomplete_fields = ("outbound_type",)
+    ordering = ("created_at",)
     show_change_link = True
 
 
@@ -434,16 +491,24 @@ class InboundSpecModelAdmin(admin.ModelAdmin):
     )
     autocomplete_fields = ("domain_address", "ip_address", "domain_sni", "domainhost_header", "touch_node")
     inlines = (
-        InboundSpecConnectionTunnelOutboundInline,
+        InboundSpecOutboundConnectorInline,
         ConnectionRuleInboundSpec,
-        InboundSpecNodeOutboundInline,
-        InboundSpecReverseInline,
     )
 
     @admin.display(ordering="inbound_type")
     def inbound_type_display(self, obj):
-        return format_html(
+        return obj.inbound_type and format_html(
             "<a href='{}'>{}</a>",
             reverse("admin:proxy_manager_inboundtype_change", args=[obj.inbound_type.id]),
             str(obj.inbound_type),
         )
+
+
+# @admin.register(models.IPProxyUsageSpec)
+# class IPProxyUsageSpecModelAdmin(admin.ModelAdmin):
+#     list_display = ("__str__",)
+#
+#
+# @admin.register(models.DomainProxyUsageSpec)
+# class DomainProxyUsageSpecModelAdmin(admin.ModelAdmin):
+#     list_display = ("__str__",)

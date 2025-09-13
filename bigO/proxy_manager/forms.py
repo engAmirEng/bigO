@@ -1,10 +1,10 @@
 import uuid
 
 import humanize
-from django.utils.translation import gettext
 from django_jsonform.forms.fields import JSONFormField
 
 from django import forms
+from django.utils.translation import gettext
 
 from . import models
 from .subscription import AVAILABLE_SUBSCRIPTION_PLAN_PROVIDERS
@@ -89,9 +89,9 @@ class SubscriptionPeriodModelForm(forms.ModelForm):
                 )
 
 
-class ReverseModelForm(forms.ModelForm):
+class ConnectionTunnelModelForm(forms.ModelForm):
     class Meta:
-        model = models.Reverse
+        model = models.ConnectionTunnel
         fields = "__all__"
 
     def __init__(self, *args, **kwargs):
@@ -99,9 +99,9 @@ class ReverseModelForm(forms.ModelForm):
         self.fields["base_conn_uuid"].initial = uuid.uuid4()
 
 
-class ConnectionTunnelModelForm(forms.ModelForm):
+class ConnectionRuleOutboundModelForm(forms.ModelForm):
     class Meta:
-        model = models.ConnectionTunnel
+        model = models.ConnectionRuleOutbound
         fields = "__all__"
 
     def __init__(self, *args, **kwargs):

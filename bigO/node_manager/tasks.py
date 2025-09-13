@@ -57,14 +57,12 @@ def check_node_latest_sync(
         .ann_generic_status(default_acceptable_response_time=timedelta(microseconds=responsetime_miliseconds))
         .filter(
             is_revoked=False,
-            generic_status__in=[
-                models.GenericStatusChoices.OFFLINE,
-                models.GenericStatusChoices.ATTENDED_OFFLINE
-            ],
+            generic_status__in=[models.GenericStatusChoices.OFFLINE, models.GenericStatusChoices.ATTENDED_OFFLINE],
         )
     )
-    reporting_problematic_qs = all_problematic_qs.exclude(
-        id__in=ignore_node_ids).exclude(generic_status=models.GenericStatusChoices.ATTENDED_OFFLINE)
+    reporting_problematic_qs = all_problematic_qs.exclude(id__in=ignore_node_ids).exclude(
+        generic_status=models.GenericStatusChoices.ATTENDED_OFFLINE
+    )
     perv_offline_nodes = cache.get("offline_nodes")
     back_onlines_qs = models.Node.objects.none()
     if perv_offline_nodes:
@@ -96,7 +94,7 @@ def check_node_latest_sync(
 
 @app.task
 def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str, Any]):
-    from bigO.proxy_manager.services import set_internal_user_last_stat, set_profile_last_stat, set_outbound_delay_tags
+    from bigO.proxy_manager.services import set_internal_user_last_stat, set_outbound_delay_tags, set_profile_last_stat
 
     node_obj = models.Node.objects.get(id=node_id)
     points: list[influxdb_client.Point] = []

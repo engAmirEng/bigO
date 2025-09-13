@@ -1,55 +1,45 @@
 from bigO.utils.models import TimeStampedModel
-from django.core import validators
 from django.db import models
+from django.db.models import UniqueConstraint
 
 from .. import typing
 
-
-class InboundComboGroup(TimeStampedModel, models.Model):
-    name = models.SlugField(unique=True)
-
-    def __str__(self):
-        return f"{self.pk}-{self.name}"
-
-
-class InboundComboChoiceGroup(TimeStampedModel, models.Model):
-    group = models.ForeignKey(InboundComboGroup, on_delete=models.CASCADE, related_name="+")
-    combo = models.ForeignKey("InboundCombo", on_delete=models.PROTECT, related_name="+")
-    count = models.PositiveSmallIntegerField()
-    ordering = models.PositiveSmallIntegerField()
-
-
-class InboundCombo(TimeStampedModel, models.Model):
-    name = models.SlugField(unique=True)
-    inbound_type = models.ForeignKey("InboundType", on_delete=models.CASCADE, related_name="inboundtype_combos")
-    ports = models.CharField(max_length=255, validators=[validators.validate_comma_separated_integer_list])
-
-    def __str__(self):
-        return f"{self.pk}-{self.name}"
-
-
-class InboundComboDomainAddress(TimeStampedModel, models.Model):
-    combo = models.ForeignKey(InboundCombo, on_delete=models.CASCADE, related_name="domainaddresses")
-    domain = models.ForeignKey("core.Domain", on_delete=models.CASCADE, related_name="+")
-    weight = models.PositiveSmallIntegerField()
-
-
-class InboundComboIPAddress(TimeStampedModel, models.Model):
-    combo = models.ForeignKey(InboundCombo, on_delete=models.CASCADE, related_name="ipaddresses")
-    ip = models.ForeignKey("node_manager.PublicIP", on_delete=models.CASCADE, related_name="+")
-    weight = models.PositiveSmallIntegerField()
-
-
-class InboundComboDomainSni(TimeStampedModel, models.Model):
-    combo = models.ForeignKey(InboundCombo, on_delete=models.CASCADE, related_name="domainsnis")
-    domain = models.ForeignKey("core.Domain", on_delete=models.CASCADE, related_name="+")
-    weight = models.PositiveSmallIntegerField()
-
-
-class InboundComboDomainHostHeader(TimeStampedModel, models.Model):
-    combo = models.ForeignKey(InboundCombo, on_delete=models.CASCADE, related_name="domainhostheaders")
-    domain = models.ForeignKey("core.Domain", on_delete=models.CASCADE, related_name="+")
-    weight = models.PositiveSmallIntegerField()
+# class DomainProxyUsageSpec(TimeStampedModel, models.Model):
+#     domain = models.ForeignKey("core.Domain", on_delete=models.CASCADE)
+#     include_subs = models.BooleanField(default=True)
+#     perspective_region = models.ForeignKey("proxy_manager.Region", on_delete=models.PROTECT, related_name="+")
+#     out_clf = models.DecimalField(max_digits=4, decimal_places=2)
+#     in_clf = models.DecimalField(max_digits=4, decimal_places=2)
+#     out_any = models.DecimalField(max_digits=4, decimal_places=2)
+#     in_any = models.DecimalField(max_digits=4, decimal_places=2)
+#
+#     class Meta:
+#         constraints = [
+#             UniqueConstraint(
+#                 fields=("domain", "perspective_region"),
+#                 name="unique_domainproxyusagespec_per_domain_region",
+#                 violation_error_message="already exists with this perspective_region for this domain",
+#             )
+#         ]
+#
+#
+# class IPProxyUsageSpec(models.Model):
+#     public_ip = models.ForeignKey("node_manager.PublicIP", on_delete=models.CASCADE)
+#     perspective_region = models.ForeignKey("proxy_manager.Region", on_delete=models.PROTECT, related_name="+")
+#     out_clf = models.DecimalField(max_digits=4, decimal_places=2)
+#     in_clf = models.DecimalField(max_digits=4, decimal_places=2)
+#     out_any = models.DecimalField(max_digits=4, decimal_places=2)
+#     in_any = models.DecimalField(max_digits=4, decimal_places=2)
+#
+#
+#     class Meta:
+#         constraints = [
+#             UniqueConstraint(
+#                 fields=("public_ip", "perspective_region"),
+#                 name="unique_domainproxyusagespec_per_public_ip_region",
+#                 violation_error_message="already exists with this perspective_region for this public_ip",
+#             )
+#         ]
 
 
 class InboundSpec(TimeStampedModel, models.Model):

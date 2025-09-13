@@ -1,6 +1,7 @@
 import uuid
 from types import SimpleNamespace
 
+from simple_history.models import HistoricalRecords
 from taggit.managers import TaggableManager
 
 from bigO.utils.models import TimeStampedModel
@@ -50,41 +51,99 @@ class ConnectionTunnel(TimeStampedModel, models.Model):
 
 
 class ConnectionTunnelOutbound(TimeStampedModel, models.Model):
-    name = models.SlugField()
     tunnel = models.ForeignKey(ConnectionTunnel, on_delete=models.CASCADE, related_name="tunnel_outbounds")
     weight = models.PositiveSmallIntegerField()
     is_reverse = models.BooleanField(default=False)
-    tags = TaggableManager(related_name="tags_connectiontunneloutbounds", blank=True)
+    connector = models.ForeignKey(
+        "OutboundConnector", on_delete=models.PROTECT, related_name="+", null=True
+    )  # migrate null
+
+    def __str__(self):
+        if self.connector.inbound_spec:
+            o = f"({self.connector.outbound_type.name}({self.connector.inbound_spec.id}))"
+        else:
+            o = f"({self.connector.outbound_type.name}(-))"
+        connector_str = f"{o}->{self.connector.dest_node.name if self.connector.dest_node else '?'}"
+        if self.is_reverse:
+            try:
+                portal_node_str = self.get_portal_node()
+            except Exception as e:
+                portal_node_str = f"error-{str(e)}"
+            try:
+                bridge_node_str = self.get_bridge_node()
+            except Exception as e:
+                bridge_node_str = f"error-{str(e)}"
+            return f"{self.id}|({connector_str})◀️{portal_node_str}->{bridge_node_str}"
+        else:
+            if self.connector.dest_node:
+                return f"{self.id}|({connector_str})▶️{self.tunnel.source_node}->{self.connector.dest_node}"
+            else:
+                return f"{self.id}|({connector_str}){self.tunnel.source_node}"
+
+    def get_bridge_node(self):
+        assert self.is_reverse
+        return self.tunnel.dest_node
+
+    def get_portal_node(self):
+        assert self.is_reverse
+        # return self.connector.dest_node ?=
+        return self.tunnel.source_node
+
+    def get_domain_for_balancer_tag(self) -> str:
+        if not self.is_reverse:
+            raise ValueError("this is not reverse")
+        return f"tun{self.tunnel_id}.bnode{self.get_bridge_node().id}.pnode{self.get_portal_node().id}.reverse{self.id}.like.com"
+
+    def get_proxyuser_balancer_tag(self) -> typing.ProxyUserProtocol:
+        email = f"tun{self.tunnel_id}.bnode{self.get_bridge_node().id}.pnode{self.get_portal_node().id}.reverse{self.id}@love.com"
+        return SimpleNamespace(xray_uuid=uuid.uuid5(self.tunnel.base_conn_uuid, email), xray_email=lambda: email)
+
+
+class OutboundConnector(TimeStampedModel, models.Model):
+    is_managed = models.BooleanField(default=False)  # todo
+    outbound_type = models.ForeignKey("OutboundType", on_delete=models.CASCADE, related_name="variants")
+    inbound_spec = models.ForeignKey("InboundSpec", on_delete=models.CASCADE, related_name="+", null=True, blank=True)
+    dest_node = models.ForeignKey(
+        "node_manager.Node", on_delete=models.CASCADE, related_name="+", null=True, blank=True
+    )
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            UniqueConstraint(
+                fields=("outbound_type", "inbound_spec"), name="unique_outboundtype_inbound_spec_outboundconnector"
+            )
+        ]
+
+    def __str__(self):
+        if self.inbound_spec:
+            o = f"({self.outbound_type.name}({self.inbound_spec.id}))"
+        else:
+            o = f"({self.outbound_type.name}(-))"
+        return f"{self.id}-{o}->{self.dest_node.name if self.dest_node else '?'}"
+
+
+class OutboundType(TimeStampedModel, models.Model):
+    name = models.SlugField(unique=True, max_length=127)
     to_inbound_type = models.ForeignKey(
         "InboundType",
         on_delete=models.CASCADE,
-        related_name="toinboundtype_connectiontunneloutbounds",
+        related_name="+",
         null=True,
         blank=True,
     )
     xray_outbound_template = models.TextField(
         help_text="{{ source_node, dest_node, tag, nodeinternaluser, combo_stat: {'address', 'port', 'sni', 'domainhostheader', 'touch_node'} }}"
     )
-    inbound_spec = models.ForeignKey(
-        "InboundSpec",
-        on_delete=models.PROTECT,
-        related_name="inboundspec_connectiontunneloutbounds",
-        null=True,
-        blank=True,
-    )
+    history = HistoricalRecords()
 
-    class Meta:
-        ordering = ["-created_at"]
-        constraints = [UniqueConstraint(fields=("name", "tunnel"), name="unique_name_tunnel_connectiontunneloutbound")]
-
-    def get_domain_for_balancer_tag(self) -> str:
-        if not self.is_reverse:
-            raise ValueError("this is not reverse")
-        return f"tun{self.tunnel_id}.bnode{self.tunnel.dest_node_id}.pnode{self.tunnel.source_node_id}.reverse{self.id}.like.com"
-
-    def get_proxyuser_balancer_tag(self) -> typing.ProxyUserProtocol:
-        email = f"tun{self.tunnel_id}.bnode{self.tunnel.dest_node_id}.pnode{self.tunnel.source_node_id}.reverse{self.id}@love.com"
-        return SimpleNamespace(xray_uuid=uuid.uuid5(self.tunnel.base_conn_uuid, email), xray_email=lambda: email)
+    def __str__(self):
+        res = f"{self.id}-{self.name}"
+        if self.to_inbound_type:
+            res += f"({self.to_inbound_type.name})"
+        else:
+            res += f"(-)"
+        return res
 
 
 class LocalTunnelPort(TimeStampedModel, models.Model):

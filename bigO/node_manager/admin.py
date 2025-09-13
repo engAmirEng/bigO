@@ -10,6 +10,7 @@ from simple_history.admin import SimpleHistoryAdmin
 
 from bigO.net_manager import models as net_manager_models
 from bigO.proxy_manager import models as proxy_manager_models
+from bigO.utils.admin import admin_obj_change_url
 from config.celery_app import app as celery_app
 from django.conf import settings
 from django.contrib import admin, messages
@@ -414,10 +415,7 @@ class EasyTierNodeModelAdmin(admin.ModelAdmin):
 
     @admin.display(ordering="network", description="Network")
     def network_display(self, obj):
-        url = reverse(
-            f"admin:{obj.network._meta.app_label}_{obj.network._meta.model_name}_change", args=(obj.network.pk,)
-        )
-        return format_html('<a href="{}">{}</a>', url, str(obj.network))
+        return obj.network or format_html('<a href="{}">{}</a>', admin_obj_change_url(obj.network), str(obj.network))
 
     @admin.display()
     def toml_config_display(self, obj):
@@ -426,11 +424,11 @@ class EasyTierNodeModelAdmin(admin.ModelAdmin):
 
 @admin.register(models.ProgramBinary)
 class ProgramBinaryModelAdmin(admin.ModelAdmin):
-    form = forms.ProgramBinaryModelForm
-    readonly_fields = ["hash"]
-    autocomplete_fields = ("program_version",)
-    list_display = ("__str__", "file_size_display")
+    list_display = ("__str__", "program_version__program__name", "program_version__version", "file_size_display")
     search_fields = ("hash", "program_version__program__name")
+    form = forms.ProgramBinaryModelForm
+    readonly_fields = ("hash",)
+    autocomplete_fields = ("program_version",)
 
     @admin.display(description="file size")
     def file_size_display(self, obj: models.ProgramBinary):

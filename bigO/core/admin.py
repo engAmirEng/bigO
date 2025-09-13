@@ -19,6 +19,7 @@ from django.urls import reverse
 from django.utils.html import format_html
 from django.utils.translation import gettext
 
+from ..utils.admin import admin_obj_change_url
 from . import models, tasks
 from .dns import AVAILABLE_DNS_PROVIDERS
 
@@ -219,21 +220,17 @@ class CertificateModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.
 
     @admin.display(ordering="private_key")
     def private_key_display(self, obj):
-        if obj.private_key is None:
-            return None
-        return format_html(
+        return obj.private_key and format_html(
             "<a href='{}'>{}</a>",
-            reverse("admin:core_privatekey_change", args=[obj.private_key.id]),
+            admin_obj_change_url(obj.private_key),
             str(obj.private_key),
         )
 
     @admin.display(ordering="parent_certificate")
     def parent_certificate_display(self, obj):
-        if obj.parent_certificate is None:
-            return None
-        return format_html(
+        return obj.parent_certificate and format_html(
             "<a href='{}'>{}</a>",
-            reverse("admin:core_certificate_change", args=[obj.parent_certificate.id]),
+            admin_obj_change_url(obj.parent_certificate),
             str(obj.parent_certificate),
         )
 
