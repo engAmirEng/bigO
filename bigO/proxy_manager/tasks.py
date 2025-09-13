@@ -151,12 +151,12 @@ def handle_xray_conf(node_id: int, xray_lines: str, base_labels: dict[str, Any])
         observatory_checked = False
         if not line:
             continue
-        point = influxdb_client.Point("connection_health")
         if (
             not observatory_checked
             and (match_res := re.search(alive_outbound_observatory_pattern, line))
             and len(match_res.groups()) == 3
         ):
+            point = influxdb_client.Point("connection_health")
             observatory_checked = True
             datetime_str = match_res.group("datetime_str")
             outbound_name = match_res.group("outbound_name")
@@ -171,12 +171,14 @@ def handle_xray_conf(node_id: int, xray_lines: str, base_labels: dict[str, Any])
             services.set_outbound_delay_tags(point=point, node=node, outbound_name=outbound_name)
             point.field("status", "ok")
             point.field("delay", delay_secs * 1000)
+            points.append(point)
 
         if (
             not observatory_checked
             and (match_res := re.search(dead_outbound_observatory_pattern, line))
             and len(match_res.groups()) == 3
         ):
+            point = influxdb_client.Point("connection_health")
             observatory_checked = True
             datetime_str = match_res.group("datetime_str")
             outbound_name = match_res.group("outbound_name")
@@ -190,7 +192,7 @@ def handle_xray_conf(node_id: int, xray_lines: str, base_labels: dict[str, Any])
             )
             services.set_outbound_delay_tags(point=point, node=node, outbound_name=outbound_name)
             point.field("status", "timeout")
-        points.append(point)
+            points.append(point)
 
     if not points:
         return "no points!!!"

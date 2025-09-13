@@ -253,8 +253,8 @@ def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str,
                 )
             elif res["result_type"] == "xray_raw_metrics_v1":
                 metrics_res = typing.GoingtoXrayRawMetricsV1JsonOutPut(**json.loads(res["msg"]))
-                point = influxdb_client.Point("connection_health")
                 for outbound_tag, observatory_result in metrics_res.observatory.items():
+                    point = influxdb_client.Point("connection_health")
                     time_ = datetime.datetime.fromtimestamp(observatory_result.last_try_time, ZoneInfo("UTC"))
                     point.time(
                         time_,
