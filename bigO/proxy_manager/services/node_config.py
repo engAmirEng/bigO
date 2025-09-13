@@ -117,14 +117,14 @@ def get_connection_tunnel(node_obj: node_manager_models.Node):
             "tunnel_outbounds",
             to_attr="direct_tunnel_outbounds_list",
             queryset=models.ConnectionTunnelOutbound.objects.filter(weight__gt=0, is_reverse=False).select_related(
-                "inbound_spec"
+                "connector__outbound_type", "connector__inbound_spec"
             ),
         ),
         Prefetch(
             "tunnel_outbounds",
             to_attr="portal_reverse_list",
             queryset=models.ConnectionTunnelOutbound.objects.filter(weight__gt=0, is_reverse=True).select_related(
-                "inbound_spec"
+                "connector__outbound_type", "connector__inbound_spec"
             ),
         ),
     )
@@ -133,14 +133,14 @@ def get_connection_tunnel(node_obj: node_manager_models.Node):
             "tunnel_outbounds",
             to_attr="direct_tunnel_outbounds_list",
             queryset=models.ConnectionTunnelOutbound.objects.filter(weight__gt=0, is_reverse=False).select_related(
-                "inbound_spec"
+                "connector__outbound_type", "connector__inbound_spec"
             ),
         ),
         Prefetch(
             "tunnel_outbounds",
             to_attr="bridge_reverse_list",
             queryset=models.ConnectionTunnelOutbound.objects.filter(weight__gt=0, is_reverse=True).select_related(
-                "inbound_spec"
+                "connector__outbound_type", "connector__inbound_spec"
             ),
         ),
     )
@@ -170,6 +170,7 @@ def get_connection_tunnel(node_obj: node_manager_models.Node):
     """
 
     for connectiontunnel in source_node_connectiontunnel_qs:
+        connectiontunnel: models.ConnectionTunnel
         inbound_tags = []
         balancer_tag = f"tunn_{connectiontunnel.id}"
         for dest_port_number in dest_port_numbers:
@@ -934,7 +935,7 @@ class XrayOutBound:
     def parse_outbound_name(
         node: node_manager_models.Node, name: str
     ) -> models.ConnectionRuleOutbound | models.ConnectionTunnelOutbound | None:
-        node_outbound_pattern = r"interconn-(?P<connection_rule_id>\d+)_(?P<to_inbound_type_name>.*)_(?P<bridge_reverse_name>.*)_(?P<portal_node_id>\d+)_(?P<allocation_name>.*)"
+        node_outbound_pattern = r"interconn-(?P<connection_rule_id>\d+)_(?P<to_inbound_type_name>.*)_(?P<bridge_reverse_id>\d+)_(?P<portal_node_id>\d+)_(?P<allocation_name>.*)"
         match_res = re.search(node_outbound_pattern, name)
         if match_res and len(match_res.groups()) == 5:
             connection_rule_id = match_res.group("connection_rule_id")
@@ -950,7 +951,7 @@ class XrayOutBound:
                 id=bridge_reverse_id,
             ).first()
             return reverse_obj
-        node_outbound_pattern = r"interconn-tunn_(?P<connectiontunnel_id>\d+)_(?P<to_inbound_type_name>.*)_(?P<bridge_reverse_id>.*)_(?P<source_node_id>\d+)"
+        node_outbound_pattern = r"interconn-tunn_(?P<connectiontunnel_id>\d+)_(?P<to_inbound_type_name>.*)_(?P<bridge_reverse_id>\d+)_(?P<source_node_id>\d+)"
         match_res = re.search(node_outbound_pattern, name)
         if match_res and len(match_res.groups()) == 4:
             connectiontunnel_id = match_res.group("connectiontunnel_id")
@@ -965,7 +966,7 @@ class XrayOutBound:
                 id=bridge_reverse_id,
             ).first()
             return reverse_obj
-        node_outbound_pattern = r"reverse-(?P<connection_rule_id>\d+)_(?P<to_inbound_type_name>.*)_(?P<portal_reverse_id>.*)_(?P<bridge_node_id>\d+)_(?P<allocation_name>.*)"
+        node_outbound_pattern = r"reverse-(?P<connection_rule_id>\d+)_(?P<to_inbound_type_name>.*)_(?P<portal_reverse_id>\d+)_(?P<bridge_node_id>\d+)_(?P<allocation_name>.*)"
         match_res = re.search(node_outbound_pattern, name)
         if match_res and len(match_res.groups()) == 5:
             connection_rule_id = match_res.group("connection_rule_id")
@@ -977,11 +978,11 @@ class XrayOutBound:
             reverse_obj = models.ConnectionRuleOutbound.objects.filter(
                 apply_node_id=bridge_node_id,
                 rule_id=connection_rule_id,
-                connector__dest_node__dest_node=node,
+                connector__dest_node=node,
                 id=portal_reverse_id,
             ).first()
             return reverse_obj
-        node_outbound_pattern = r"reverse-tunn_(?P<connectiontunnel_id>\d+)_(?P<to_inbound_type_name>.*)_(?P<portal_reverse_id>.*)_(?P<dest_node_id>\d+)"
+        node_outbound_pattern = r"reverse-tunn_(?P<connectiontunnel_id>\d+)_(?P<to_inbound_type_name>.*)_(?P<portal_reverse_id>\d+)_(?P<dest_node_id>\d+)"
         match_res = re.search(node_outbound_pattern, name)
         if match_res and len(match_res.groups()) == 4:
             connectiontunnel_id = match_res.group("connectiontunnel_id")
@@ -997,7 +998,7 @@ class XrayOutBound:
             ).first()
             return reverse_obj
         node_outbound_pattern = (
-            r"tunn_(?P<connectiontunnel_id>\d+)_(?P<to_inbound_type_name>.*)_(?P<connectiontunneloutbound_id>.*)"
+            r"tunn_(?P<connectiontunnel_id>\d+)_(?P<to_inbound_type_name>.*)_(?P<connectiontunneloutbound_id>\d+)"
         )
         match_res = re.search(node_outbound_pattern, name)
         if match_res and len(match_res.groups()) == 3:
@@ -1011,7 +1012,7 @@ class XrayOutBound:
             return nodeoutbound_obj
 
         node_outbound_pattern = (
-            r"(?P<connection_rule_id>\d+)_(?P<to_inbound_type_name>.*)_(?P<connectionruleoutbound_id>.*)"
+            r"(?P<connection_rule_id>\d+)_(?P<to_inbound_type_name>.*)_(?P<connectionruleoutbound_id>\d+)"
         )
         match_res = re.search(node_outbound_pattern, name)
         if match_res and len(match_res.groups()) == 3:
