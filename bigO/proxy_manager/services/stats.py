@@ -1,10 +1,16 @@
 import datetime
+import json
 import logging
+from typing import TypedDict
 
 import influxdb_client
 import sentry_sdk
 
 from bigO.node_manager import models as node_manager_models
+from django.conf import settings
+from django.core.cache import cache
+from django.core.cache.utils import make_template_fragment_key
+from django.utils import timezone
 
 from .. import models
 
@@ -118,3 +124,65 @@ def set_outbound_delay_tags(*, point: influxdb_client.Point, node: node_manager_
             point.tag("dest_node_id", str(res.tunnel.dest_node_id))
     else:
         raise NotImplementedError
+
+
+def get_connection_outbound_latest_delays(
+    _type: type[models.ConnectionRuleOutbound] | type[models.ConnectionTunnelOutbound], ids: list[int] | None = None
+) -> dict[str, dict]:
+    time = timezone.now() - datetime.timedelta(minutes=10)
+    ids = ids or []
+    cache_key = make_template_fragment_key("outbound_delays", [str(_type), *ids])
+    cache_res = cache.get(cache_key)
+    if cache_res:
+        res = json.loads(cache_res)
+        return res
+    ids_filter = ""
+    if ids:
+        ids_filter = "|> filter(fn: (r) => {})".format(
+            " or ".join([f'r["connection_outbound_id"] == "{i}"' for i in ids])
+        )
+    if _type == models.ConnectionRuleOutbound:
+        query = f"""
+from(bucket: "{settings.INFLUX_BUCKET}")
+|> range(start: {time.strftime('%Y-%m-%dT%H:%M:%SZ')})
+|> filter(fn: (r) => r["_measurement"] == "connection_health")
+|> filter(fn: (r) => r["_field"] == "delay")
+|> filter(fn: (r) => r["connection_type"] == "node_outbound" or r["connection_type"] == "reverse")
+{ids_filter}
+"""
+    elif _type == models.ConnectionTunnelOutbound:
+        query = f"""
+        from(bucket: "{settings.INFLUX_BUCKET}")
+        |> range(start: {time.strftime('%Y-%m-%dT%H:%M:%SZ')})
+        |> filter(fn: (r) => r["_measurement"] == "connection_health")
+        |> filter(fn: (r) => r["_field"] == "delay")
+        |> filter(fn: (r) => r["connection_type"] == "tunnel_outbound" or r["connection_type"] == "tunnel_reverse")
+        {ids_filter}
+        """
+    else:
+        raise NotImplementedError
+
+    class _3(TypedDict):
+        connection_name: str
+        _value: float
+
+    class _2:
+        values: _3
+
+    class _1:
+        records: list[_2]
+
+    df: list[_1] = (
+        influxdb_client.InfluxDBClient(url=settings.INFLUX_URL, token=settings.INFLUX_TOKEN, org=settings.INFLUX_ORG)
+        .query_api()
+        .query(query)
+    )
+    res = {}
+    for i in df:
+        j = i.records[0].values
+        res[j["connection_outbound_id"]] = {
+            "id": j["connection_outbound_id"],
+            "delay_list": [int(r.values["_value"]) for r in i.records],
+        }
+    cache.set(cache_key, json.dumps(res), 20)
+    return res

@@ -40,6 +40,7 @@ class Config(TimeStampedModel, SingletonModel):
         "node_manager.ProgramVersion", related_name="geoip_xrayconfig", on_delete=models.PROTECT, null=True, blank=True
     )
     tunnel_dest_ports = models.CharField(max_length=255, validators=[int_list_validator], null=True, blank=True)
+    admin_panel_influx_delays = models.BooleanField(default=True)
     history = HistoricalRecords()
 
 
@@ -66,6 +67,9 @@ class ConnectionRuleOutbound(TimeStampedModel, models.Model):
     connector = models.ForeignKey("OutboundConnector", on_delete=models.PROTECT, related_name="+")
     apply_node = models.ForeignKey("node_manager.Node", on_delete=models.CASCADE, related_name="+")
     base_conn_uuid = models.UUIDField()
+
+    def str_id(self):
+        return str(self.id)
 
     def __str__(self):
         if self.connector.inbound_spec:

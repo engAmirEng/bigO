@@ -58,6 +58,9 @@ class ConnectionTunnelOutbound(TimeStampedModel, models.Model):
         "OutboundConnector", on_delete=models.PROTECT, related_name="+", null=True
     )  # migrate null
 
+    def str_id(self):
+        return str(self.id)
+
     def __str__(self):
         if self.connector.inbound_spec:
             o = f"({self.connector.outbound_type.name}({self.connector.inbound_spec.id}))"
