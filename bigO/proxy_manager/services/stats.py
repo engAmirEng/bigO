@@ -63,7 +63,14 @@ def set_outbound_delay_tags(*, point: influxdb_client.Point, node: node_manager_
     if res is None:
         sentry_sdk.capture_message(f"could not find {outbound_name=}")
     elif isinstance(res, models.ConnectionRuleOutbound):
+        point.tag("connection_outbound_id", str(res.id))
         point.tag("connection_rule_id", str(res.rule_id))
+        point.tag("connector_id", str(res.connector_id))
+        point.tag("outbound_type_id", str(res.connector.outbound_type_id))
+        if res.connector.inbound_spec_id:
+            point.tag("inbound_spec_id", str(res.connector.inbound_spec_id))
+        if res.connector.outbound_type.to_inbound_type_id:
+            point.tag("inbound_type_id", str(res.connector.outbound_type.to_inbound_type_id))
         if res.is_reverse:
             bridge_node = res.get_bridge_node()
             portal_node = res.get_portal_node()
@@ -83,7 +90,14 @@ def set_outbound_delay_tags(*, point: influxdb_client.Point, node: node_manager_
             if res.connector.dest_node:
                 point.tag("dest_node_id", str(res.connector.dest_node_id))
     elif isinstance(res, models.ConnectionTunnelOutbound):
+        point.tag("connection_outbound_id", str(res.id))
         point.tag("connectiontunnel_id", str(res.tunnel_id))
+        point.tag("connector_id", str(res.connector_id))
+        point.tag("outbound_type_id", str(res.connector.outbound_type_id))
+        if res.connector.inbound_spec_id:
+            point.tag("inbound_spec_id", str(res.connector.inbound_spec_id))
+        if res.connector.outbound_type.to_inbound_type_id:
+            point.tag("inbound_type_id", str(res.connector.outbound_type.to_inbound_type_id))
         if res.is_reverse:
             bridge_node = res.get_bridge_node()
             portal_node = res.get_portal_node()
