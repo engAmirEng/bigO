@@ -263,8 +263,10 @@ def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str,
                     set_outbound_delay_tags(point=point, node=node_obj, outbound_name=outbound_tag)
                     if observatory_result.delay == 99999999 or observatory_result.alive is None:
                         point.field("status", "timeout")
+                        point.tag("status", "timeout")
                     else:
                         point.field("status", "ok")
+                        point.tag("status", "ok")
                         point.field(
                             "delay", float(observatory_result.delay)
                         )  # float because already exists as type float

@@ -170,6 +170,7 @@ def handle_xray_conf(node_id: int, xray_lines: str, base_labels: dict[str, Any])
             )
             services.set_outbound_delay_tags(point=point, node=node, outbound_name=outbound_name)
             point.field("status", "ok")
+            point.tag("status", "ok")
             point.field("delay", delay_secs * 1000)
             points.append(point)
 
@@ -192,6 +193,7 @@ def handle_xray_conf(node_id: int, xray_lines: str, base_labels: dict[str, Any])
             )
             services.set_outbound_delay_tags(point=point, node=node, outbound_name=outbound_name)
             point.field("status", "timeout")
+            point.tag("status", "timeout")
             points.append(point)
 
     if not points:
