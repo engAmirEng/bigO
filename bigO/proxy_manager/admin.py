@@ -5,10 +5,11 @@ from solo.admin import SingletonModelAdmin
 from bigO.utils.admin import admin_obj_change_url
 from django.contrib import admin
 from django.contrib.humanize.templatetags.humanize import naturaltime
+from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils.html import format_html
 
-from . import forms, models
+from . import forms, models, services
 
 
 @admin.register(models.Config)
@@ -238,14 +239,13 @@ class ConnectionTunnelOutboundInline(admin.StackedInline):
     autocomplete_fields = ("tunnel", "connector")
     ordering = ("created_at",)
     show_change_link = True
+    template = "proxy_manager/admin/bar_stacked_inline.html"
 
     def get_queryset(self, request):
         return (
             super()
             .get_queryset(request)
-            .select_related(
-                "connector__outbound_type", "connector__inbound_spec", "connector__dest_node"
-            )
+            .select_related("connector__outbound_type", "connector__inbound_spec", "connector__dest_node")
         )
 
 
@@ -256,6 +256,7 @@ class ConnectionRuleOutboundInline(admin.StackedInline):
     autocomplete_fields = "rule", "connector", "apply_node"
     ordering = ("created_at",)
     show_change_link = True
+    template = "proxy_manager/admin/bar_stacked_inline.html"
 
     def get_queryset(self, request):
         return (
@@ -308,6 +309,7 @@ class OutboundConnectorModelAdmin(admin.ModelAdmin):
 class ConnectionRuleOutboundModelAdmin(admin.ModelAdmin):
     list_display = (
         "id",
+        "delay_display",
         "rule_display",
         "apply_node_display",
         "connector_display",
@@ -322,6 +324,27 @@ class ConnectionRuleOutboundModelAdmin(admin.ModelAdmin):
     list_filter = ("is_reverse", "connector__outbound_type__to_inbound_type", "rule")
     autocomplete_fields = ("rule", "connector", "apply_node")
     form = forms.ConnectionRuleOutboundModelForm
+
+    def get_changelist_instance(self, request):
+        changelist_instance = super().get_changelist_instance(request)
+        if models.Config.get_solo().admin_panel_influx_delays:
+            latest_delays = services.get_connection_outbound_latest_delays(
+                _type=models.ConnectionRuleOutbound, ids=[i.id for i in changelist_instance.result_list]
+            )
+            self.latest_delays = latest_delays
+        else:
+            # todo fix this fuck
+            self.latest_delays = None
+        return changelist_instance
+
+    @admin.display()
+    def delay_display(self, obj):
+        if (latest_delays := getattr(self, "latest_delays", None)) is None:
+            return "not active"
+        r = latest_delays.get(str(obj.id), None)
+        if r:
+            return render_to_string("proxy_manager/admin/bars.html", context={"delay_list": r["delay_list"]})
+        return None
 
     @admin.display(ordering="rule")
     def rule_display(self, obj):
@@ -370,6 +393,19 @@ class ConnectionRuleModelAdmin(SimpleHistoryAdmin):
     def get_queryset(self, request):
         return super().get_queryset(request).ann_periods_count()
 
+    def get_object(self, *args, **kwargs):
+        obj = super().get_object(*args, **kwargs)
+        if models.Config.get_solo().admin_panel_influx_delays:
+            latest_delays = services.get_connection_outbound_latest_delays(
+                _type=models.ConnectionRuleOutbound,
+                ids=models.ConnectionRuleOutbound.objects.filter(rule=obj).values_list("id", flat=True),
+            )
+            self.latest_delays = latest_delays
+        else:
+            # todo fix this fuck
+            self.latest_delays = None
+        return obj
+
     @admin.display(ordering="periods_count")
     def periods_count_display(self, obj):
         return obj.periods_count
@@ -409,8 +445,29 @@ class BalancerModelAdmin(SimpleHistoryAdmin, admin.ModelAdmin):
 
 @admin.register(models.ConnectionTunnelOutbound)
 class ConnectionTunnelOutboundModelAdmin(admin.ModelAdmin):
-    list_display = ("id", "tunnel_display", "connector_display", "is_reverse", "weight")
+    list_display = ("id", "delay_display", "tunnel_display", "connector_display", "is_reverse", "weight")
     autocomplete_fields = ("tunnel", "connector")
+
+    def get_changelist_instance(self, request):
+        changelist_instance = super().get_changelist_instance(request)
+        if models.Config.get_solo().admin_panel_influx_delays:
+            latest_delays = services.get_connection_outbound_latest_delays(
+                _type=models.ConnectionTunnelOutbound, ids=[i.id for i in changelist_instance.result_list]
+            )
+            self.latest_delays = latest_delays
+        else:
+            # todo fix this fuck
+            self.latest_delays = None
+        return changelist_instance
+
+    @admin.display()
+    def delay_display(self, obj):
+        if (latest_delays := getattr(self, "latest_delays", None)) is None:
+            return "not active"
+        r = latest_delays.get(str(obj.id), None)
+        if r:
+            return render_to_string("proxy_manager/admin/bars.html", context={"delay_list": r["delay_list"]})
+        return None
 
     @admin.display(ordering="tunnel")
     def tunnel_display(self, obj):
@@ -446,6 +503,19 @@ class ConnectionTunnelModelAdmin(SimpleHistoryAdmin, admin.ModelAdmin):
     )
     form = forms.ConnectionTunnelModelForm
     autocomplete_fields = ("source_node", "dest_node")
+
+    def get_object(self, *args, **kwargs):
+        obj = super().get_object(*args, **kwargs)
+        if models.Config.get_solo().admin_panel_influx_delays:
+            latest_delays = services.get_connection_outbound_latest_delays(
+                _type=models.ConnectionTunnelOutbound,
+                ids=models.ConnectionTunnelOutbound.objects.filter(tunnel=obj).values_list("id", flat=True),
+            )
+            self.latest_delays = latest_delays
+        else:
+            # todo fix this fuck
+            self.latest_delays = None
+        return obj
 
 
 @admin.register(models.LocalTunnelPort)

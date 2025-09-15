@@ -944,12 +944,16 @@ class XrayOutBound:
             portal_node_id = match_res.group("portal_node_id")
             allocation_name = match_res.group("allocation_name")
 
-            reverse_obj = models.ConnectionRuleOutbound.objects.filter(
-                apply_node=node,
-                rule_id=connection_rule_id,
-                connector__dest_node_id=portal_node_id,
-                id=bridge_reverse_id,
-            ).select_related("connector__outbound_type", "connector__dest_node", "apply_node").first()
+            reverse_obj = (
+                models.ConnectionRuleOutbound.objects.filter(
+                    apply_node=node,
+                    rule_id=connection_rule_id,
+                    connector__dest_node_id=portal_node_id,
+                    id=bridge_reverse_id,
+                )
+                .select_related("connector__outbound_type", "connector__dest_node", "apply_node")
+                .first()
+            )
             return reverse_obj
         node_outbound_pattern = r"interconn-tunn_(?P<connectiontunnel_id>\d+)_(?P<to_inbound_type_name>.*)_(?P<bridge_reverse_id>\d+)_(?P<source_node_id>\d+)"
         match_res = re.search(node_outbound_pattern, name)
@@ -959,12 +963,16 @@ class XrayOutBound:
             bridge_reverse_id = match_res.group("bridge_reverse_id")
             source_node_id = match_res.group("source_node_id")
 
-            reverse_obj = models.ConnectionTunnelOutbound.objects.filter(
-                tunnel__dest_node=node,
-                tunnel_id=connectiontunnel_id,
-                tunnel__source_node_id=source_node_id,
-                id=bridge_reverse_id,
-            ).select_related("connector__outbound_type", "connector__dest_node").first()
+            reverse_obj = (
+                models.ConnectionTunnelOutbound.objects.filter(
+                    tunnel__dest_node=node,
+                    tunnel_id=connectiontunnel_id,
+                    tunnel__source_node_id=source_node_id,
+                    id=bridge_reverse_id,
+                )
+                .select_related("connector__outbound_type", "connector__dest_node")
+                .first()
+            )
             return reverse_obj
         node_outbound_pattern = r"reverse-(?P<connection_rule_id>\d+)_(?P<to_inbound_type_name>.*)_(?P<portal_reverse_id>\d+)_(?P<bridge_node_id>\d+)_(?P<allocation_name>.*)"
         match_res = re.search(node_outbound_pattern, name)
@@ -975,12 +983,16 @@ class XrayOutBound:
             bridge_node_id = match_res.group("bridge_node_id")
             allocation_name = match_res.group("allocation_name")
 
-            reverse_obj = models.ConnectionRuleOutbound.objects.filter(
-                apply_node_id=bridge_node_id,
-                rule_id=connection_rule_id,
-                connector__dest_node=node,
-                id=portal_reverse_id,
-            ).select_related("connector__outbound_type", "connector__dest_node", "apply_node").first()
+            reverse_obj = (
+                models.ConnectionRuleOutbound.objects.filter(
+                    apply_node_id=bridge_node_id,
+                    rule_id=connection_rule_id,
+                    connector__dest_node=node,
+                    id=portal_reverse_id,
+                )
+                .select_related("connector__outbound_type", "connector__dest_node", "apply_node")
+                .first()
+            )
             return reverse_obj
         node_outbound_pattern = r"reverse-tunn_(?P<connectiontunnel_id>\d+)_(?P<to_inbound_type_name>.*)_(?P<portal_reverse_id>\d+)_(?P<dest_node_id>\d+)"
         match_res = re.search(node_outbound_pattern, name)
@@ -990,12 +1002,16 @@ class XrayOutBound:
             portal_reverse_id = match_res.group("portal_reverse_id")
             dest_node_id = match_res.group("dest_node_id")
 
-            reverse_obj = models.ConnectionTunnelOutbound.objects.filter(
-                tunnel__source_node=node,
-                tunnel_id=connectiontunnel_id,
-                tunnel__dest_node_id=dest_node_id,
-                id=portal_reverse_id,
-            ).select_related("connector__outbound_type", "connector__dest_node").first()
+            reverse_obj = (
+                models.ConnectionTunnelOutbound.objects.filter(
+                    tunnel__source_node=node,
+                    tunnel_id=connectiontunnel_id,
+                    tunnel__dest_node_id=dest_node_id,
+                    id=portal_reverse_id,
+                )
+                .select_related("connector__outbound_type", "connector__dest_node")
+                .first()
+            )
             return reverse_obj
         node_outbound_pattern = (
             r"tunn_(?P<connectiontunnel_id>\d+)_(?P<to_inbound_type_name>.*)_(?P<connectiontunneloutbound_id>\d+)"
@@ -1006,9 +1022,13 @@ class XrayOutBound:
             to_inbound_type_name = match_res.group("to_inbound_type_name")
             connectiontunneloutbound_id = match_res.group("connectiontunneloutbound_id")
 
-            nodeoutbound_obj = models.ConnectionTunnelOutbound.objects.filter(
-                tunnel__source_node=node, tunnel_id=connectiontunnel_id, id=connectiontunneloutbound_id
-            ).select_related("connector__outbound_type", "connector__dest_node").first()
+            nodeoutbound_obj = (
+                models.ConnectionTunnelOutbound.objects.filter(
+                    tunnel__source_node=node, tunnel_id=connectiontunnel_id, id=connectiontunneloutbound_id
+                )
+                .select_related("connector__outbound_type", "connector__dest_node")
+                .first()
+            )
             return nodeoutbound_obj
 
         node_outbound_pattern = (
@@ -1020,7 +1040,11 @@ class XrayOutBound:
             to_inbound_type_name = match_res.group("to_inbound_type_name")
             connectionruleoutbound_id = match_res.group("connectionruleoutbound_id")
 
-            nodeoutbound_obj = models.ConnectionRuleOutbound.objects.filter(
-                apply_node=node, rule_id=connection_rule_id, id=connectionruleoutbound_id
-            ).select_related("connector__outbound_type", "connector__dest_node", "apply_node").first()
+            nodeoutbound_obj = (
+                models.ConnectionRuleOutbound.objects.filter(
+                    apply_node=node, rule_id=connection_rule_id, id=connectionruleoutbound_id
+                )
+                .select_related("connector__outbound_type", "connector__dest_node", "apply_node")
+                .first()
+            )
             return nodeoutbound_obj

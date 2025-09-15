@@ -1,0 +1,36 @@
+<style>
+  .ping-container {
+    display: flex;
+    position: relative;
+    align-items: flex-end;
+    gap: 2px;
+    height: 35px;
+  }
+  .bar {
+    width: 5px;
+    background: green;
+    transition: height 0.3s, background 0.3s;
+  }
+  .ping-value {
+      position: absolute;
+      top: 40%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 0.8rem;
+      font-weight: bold;
+      color: white;
+      background-color: black;
+      pointer-events: none; /* allow hover tooltips on bars */
+    }
+</style>
+<div class="ping-container" id="pingContainer">
+  {% for i in delay_list %}
+    {% if forloop.last %}
+    <div class="ping-value">{{ i }}ms</div>
+    {% endif %}
+  <div class="bar" title="{{ i }} ms"
+       style="height: 35px; background: {% if i < 200 %}#00ff00{% elif i < 350 %}#66ff33{% elif i < 500 %}#ffff00{% elif i < 650 %}#ff9900{% else %}#ff0000{% endif %};"
+  >
+  </div>
+  {% endfor %}
+</div>
