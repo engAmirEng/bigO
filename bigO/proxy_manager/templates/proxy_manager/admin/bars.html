@@ -29,7 +29,7 @@
     <div class="ping-value">{{ i }}ms</div>
     {% endif %}
   <div class="bar" title="{{ i }} ms"
-       style="height: 35px; background: {% if i < 200 %}#00ff00{% elif i < 350 %}#66ff33{% elif i < 500 %}#ffff00{% elif i < 650 %}#ff9900{% else %}#ff0000{% endif %};"
+       style="height: 35px; background: {% if i < 200 %}#0c6b19{% elif i < 400 %}#66ff33{% elif i < 600 %}#ffff00{% elif i < 800 %}#ff9900{% elif i < 1000 %}#ff5500{% else %}#ff0000{% endif %};"
   >
   </div>
   {% endfor %}

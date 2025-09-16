@@ -324,6 +324,17 @@ class ConnectionRuleOutboundModelAdmin(admin.ModelAdmin):
     list_filter = ("is_reverse", "connector__outbound_type__to_inbound_type", "rule")
     autocomplete_fields = ("rule", "connector", "apply_node")
     form = forms.ConnectionRuleOutboundModelForm
+    change_form_template = "proxy_manager/admin/bar_change_form.html"
+
+    def get_object(self, *args, **kwargs):
+        obj = super().get_object(*args, **kwargs)
+        if models.Config.get_solo().admin_panel_influx_delays:
+            latest_delays = services.get_connection_outbound_latest_delays(
+                _type=models.ConnectionRuleOutbound,
+                ids=[obj.id],
+            )
+            obj.latest_delays = latest_delays.get(str(obj.id))
+        return obj
 
     def get_changelist_instance(self, request):
         changelist_instance = super().get_changelist_instance(request)
@@ -447,6 +458,17 @@ class BalancerModelAdmin(SimpleHistoryAdmin, admin.ModelAdmin):
 class ConnectionTunnelOutboundModelAdmin(admin.ModelAdmin):
     list_display = ("id", "delay_display", "tunnel_display", "connector_display", "is_reverse", "weight")
     autocomplete_fields = ("tunnel", "connector")
+    change_form_template = "proxy_manager/admin/bar_change_form.html"
+
+    def get_object(self, *args, **kwargs):
+        obj = super().get_object(*args, **kwargs)
+        if models.Config.get_solo().admin_panel_influx_delays:
+            latest_delays = services.get_connection_outbound_latest_delays(
+                _type=models.ConnectionTunnelOutbound,
+                ids=[obj.id],
+            )
+            obj.latest_delays = latest_delays.get(str(obj.id))
+        return obj
 
     def get_changelist_instance(self, request):
         changelist_instance = super().get_changelist_instance(request)
