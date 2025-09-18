@@ -268,7 +268,7 @@ def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str,
                                     write_precision=influxdb_client.domain.write_precision.WritePrecision.S,
                                 )
                                 set_outbound_tags(
-                                    point=portal_point, node=ot.get_portal_node(), outbound_name=reverse_outbound_tag
+                                    point=portal_point, node=ot.get_portal_node(), outbound_name=portal_outbound_tag
                                 )
                                 outbound_points[portal_outbound_tag] = portal_point
                         if downlink_or_uplink == "downlink":
@@ -278,7 +278,7 @@ def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str,
                         elif downlink_or_uplink == "uplink":
                             point.field("up_bytes", stat.value)
                             if portal_point:
-                                point.field("dl_bytes", stat.value)
+                                portal_point.field("dl_bytes", stat.value)
                         else:
                             raise AssertionError(f"{stat.value=} is not downlink or uplink")
                     else:
