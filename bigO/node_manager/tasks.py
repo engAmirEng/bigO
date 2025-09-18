@@ -94,7 +94,7 @@ def check_node_latest_sync(
 
 @app.task
 def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str, Any]):
-    from bigO.proxy_manager.services import set_internal_user_last_stat, set_outbound_delay_tags, set_profile_last_stat
+    from bigO.proxy_manager.services import set_internal_user_last_stat, set_outbound_tags, set_profile_last_stat
 
     node_obj = models.Node.objects.get(id=node_id)
     points: list[influxdb_client.Point] = []
@@ -224,16 +224,15 @@ def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str,
                         downlink_or_uplink = outbound_matches[0][1]
                         point = outbound_points.get(outbound_tag)
                         if point is None:
-                            point = influxdb_client.Point("xray_usage")
+                            point = influxdb_client.Point("connection_health")
                             point.time(
                                 collect_time,
                                 write_precision=influxdb_client.domain.write_precision.WritePrecision.S,
                             )
+                            # for tag_name, tag_value in base_labels.items():
+                            #     point.tag(tag_name, tag_value)  todo bring this back
+                            set_outbound_tags(point=point, node=node_obj, outbound_name=outbound_tag)
                             outbound_points[outbound_tag] = point
-                            point.tag("usage_type", "outbound")
-                            point.tag("outbound_tag", outbound_tag)
-                            for tag_name, tag_value in base_labels.items():
-                                point.tag(tag_name, tag_value)
                         if downlink_or_uplink == "downlink":
                             point.field("dl_bytes", stat.value)
                         elif downlink_or_uplink == "uplink":
@@ -260,7 +259,9 @@ def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str,
                         time_,
                         write_precision=influxdb_client.domain.write_precision.WritePrecision.S,
                     )
-                    set_outbound_delay_tags(point=point, node=node_obj, outbound_name=outbound_tag)
+                    # for tag_name, tag_value in base_labels.items():
+                    #     point.tag(tag_name, tag_value)  todo bring this
+                    set_outbound_tags(point=point, node=node_obj, outbound_name=outbound_tag)
                     if observatory_result.delay == 99999999 or observatory_result.alive is None:
                         point.field("status", "timeout")
                         point.tag("status", "timeout")

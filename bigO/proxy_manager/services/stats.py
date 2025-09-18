@@ -59,7 +59,7 @@ def set_internal_user_last_stat(
     return internaluser
 
 
-def set_outbound_delay_tags(*, point: influxdb_client.Point, node: node_manager_models.Node, outbound_name: str):
+def set_outbound_tags(*, point: influxdb_client.Point, node: node_manager_models.Node, outbound_name: str):
     from . import XrayOutBound
 
     res = XrayOutBound.parse_outbound_name(node=node, name=outbound_name)
