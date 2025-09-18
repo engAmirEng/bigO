@@ -94,7 +94,13 @@ def check_node_latest_sync(
 
 @app.task
 def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str, Any]):
-    from bigO.proxy_manager.services import set_internal_user_last_stat, set_outbound_tags, set_profile_last_stat
+    from bigO.proxy_manager.models import ConnectionRuleOutbound, ConnectionTunnelOutbound
+    from bigO.proxy_manager.services import (
+        XrayOutBound,
+        set_internal_user_last_stat,
+        set_outbound_tags,
+        set_profile_last_stat,
+    )
 
     node_obj = models.Node.objects.get(id=node_id)
     points: list[influxdb_client.Point] = []
@@ -116,6 +122,7 @@ def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str,
                 internal_user_points: dict[str, influxdb_client.Point] = {}
                 inbound_points: dict[str, influxdb_client.Point] = {}
                 outbound_points: dict[str, influxdb_client.Point] = {}
+                outbound_bridge_portal_mapping: dict[str, str] = {}
                 traffic_res = typing.GoingtoXrayRawTrafficV1JsonOutPut(**json.loads(res["msg"]))
                 for stat in traffic_res.stats:
                     if not stat.name or not stat.value:
@@ -222,6 +229,10 @@ def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str,
                     elif len(outbound_matches := re.findall(outbound_traffic_regex, stat.name)) == 1:
                         outbound_tag = outbound_matches[0][0]
                         downlink_or_uplink = outbound_matches[0][1]
+                        reverse_outbound_tag = outbound_bridge_portal_mapping.get(outbound_tag)
+                        portal_point: influxdb_client | None = None
+                        if reverse_outbound_tag:
+                            portal_point = outbound_points.get(reverse_outbound_tag)
                         point = outbound_points.get(outbound_tag)
                         if point is None:
                             point = influxdb_client.Point("connection_health")
@@ -231,12 +242,43 @@ def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str,
                             )
                             # for tag_name, tag_value in base_labels.items():
                             #     point.tag(tag_name, tag_value)  todo bring this back
-                            set_outbound_tags(point=point, node=node_obj, outbound_name=outbound_tag)
+                            ot = set_outbound_tags(point=point, node=node_obj, outbound_name=outbound_tag)
                             outbound_points[outbound_tag] = point
+                            if ot and ot.is_reverse:
+                                # this monkey patch is because xray does not provide traffic info about portal tag
+                                # at the time, so we just assume it is equal to bridge
+                                if isinstance(ot, ConnectionRuleOutbound):
+                                    portal_outbound_tag = XrayOutBound.get_portal_outbound_name(
+                                        connection_rule=ot.rule,
+                                        portal_nodeoutbound=ot,
+                                        balancer_allocation_idf=XrayOutBound.get_node_outbound_balancer_allocation_idf(
+                                            outbound_tag
+                                        ),
+                                    )
+                                elif isinstance(ot, ConnectionTunnelOutbound):
+                                    portal_outbound_tag = XrayOutBound.get_tunn_portal_outbound_name(
+                                        connectiontunnel=ot.tunnel, portal_reverse=ot
+                                    )
+                                else:
+                                    raise NotImplementedError
+                                outbound_bridge_portal_mapping[outbound_tag] = portal_outbound_tag
+                                portal_point = influxdb_client.Point("connection_health")
+                                portal_point.time(
+                                    collect_time,
+                                    write_precision=influxdb_client.domain.write_precision.WritePrecision.S,
+                                )
+                                set_outbound_tags(
+                                    point=portal_point, node=ot.get_portal_node(), outbound_name=reverse_outbound_tag
+                                )
+                                outbound_points[portal_outbound_tag] = portal_point
                         if downlink_or_uplink == "downlink":
                             point.field("dl_bytes", stat.value)
+                            if portal_point:
+                                portal_point.field("up_bytes", stat.value)
                         elif downlink_or_uplink == "uplink":
                             point.field("up_bytes", stat.value)
+                            if portal_point:
+                                point.field("dl_bytes", stat.value)
                         else:
                             raise AssertionError(f"{stat.value=} is not downlink or uplink")
                     else:

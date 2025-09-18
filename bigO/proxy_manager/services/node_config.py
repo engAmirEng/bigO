@@ -557,7 +557,7 @@ def get_xray_conf_v2(
                 portal_tag = XrayOutBound.get_portal_outbound_name(
                     connection_rule=connection_rule,
                     portal_nodeoutbound=portal_connection_outbound,
-                    balancer_allocation=balancer_allocation,
+                    balancer_allocation_idf=balancer_allocation[0],
                 )
                 balancer_tag = f"{connection_rule.id}_{balancer_allocation[0]}"
                 if balancer_allocation[1] > 0:
@@ -586,7 +586,7 @@ def get_xray_conf_v2(
                 bridge_tag, interconn_outbound_tag = XrayOutBound.get_bridge_outbound_name(
                     connection_rule=connection_rule,
                     bridge_nodeoutbound=bridge_connection_outbound,
-                    balancer_allocation=balancer_allocation,
+                    balancer_allocation_idf=balancer_allocation[0],
                 )
                 balancer_tag = f"{connection_rule.id}_{balancer_allocation[0]}"
                 for i in range(balancer_allocation[1]):
@@ -890,15 +890,19 @@ class XrayOutBound:
         return f"tunn_{connectiontunnel.id}_{to_inbound_type.name if to_inbound_type else ''}_{outbound.id}"
 
     @staticmethod
+    def get_node_outbound_balancer_allocation_idf(tag: str) -> str:
+        return tag.split("_")[-1]
+
+    @staticmethod
     def get_bridge_outbound_name(
         *,
         connection_rule: models.ConnectionRule,
         bridge_nodeoutbound: models.ConnectionRuleOutbound,
-        balancer_allocation: tuple[str, int],
+        balancer_allocation_idf: str,
     ):
         assert bridge_nodeoutbound.is_reverse
         to_inbound_type = bridge_nodeoutbound.connector.outbound_type.to_inbound_type
-        bridge_tag = f"{connection_rule.id}_{to_inbound_type.name if to_inbound_type else ''}_{bridge_nodeoutbound.id}_{bridge_nodeoutbound.connector.dest_node_id}_{balancer_allocation[0]}"
+        bridge_tag = f"{connection_rule.id}_{to_inbound_type.name if to_inbound_type else ''}_{bridge_nodeoutbound.id}_{bridge_nodeoutbound.connector.dest_node_id}_{balancer_allocation_idf}"
         return bridge_tag, f"interconn-{bridge_tag}"
 
     @staticmethod
@@ -915,11 +919,11 @@ class XrayOutBound:
         *,
         connection_rule: models.ConnectionRule,
         portal_nodeoutbound: models.ConnectionRuleOutbound,
-        balancer_allocation: tuple[str, int],
+        balancer_allocation_idf: str,
     ):
         assert portal_nodeoutbound.is_reverse
         to_inbound_type = portal_nodeoutbound.connector.outbound_type.to_inbound_type
-        portal_tag = f"reverse-{connection_rule.id}_{to_inbound_type.name if to_inbound_type else ''}_{portal_nodeoutbound.id}_{portal_nodeoutbound.apply_node_id}_{balancer_allocation[0]}"
+        portal_tag = f"reverse-{connection_rule.id}_{to_inbound_type.name if to_inbound_type else ''}_{portal_nodeoutbound.id}_{portal_nodeoutbound.apply_node_id}_{balancer_allocation_idf}"
         return portal_tag
 
     @staticmethod

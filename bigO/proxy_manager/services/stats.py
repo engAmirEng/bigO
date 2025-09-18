@@ -59,7 +59,9 @@ def set_internal_user_last_stat(
     return internaluser
 
 
-def set_outbound_tags(*, point: influxdb_client.Point, node: node_manager_models.Node, outbound_name: str):
+def set_outbound_tags(
+    *, point: influxdb_client.Point, node: node_manager_models.Node, outbound_name: str
+) -> models.ConnectionRuleOutbound | models.ConnectionTunnelOutbound | None:
     from . import XrayOutBound
 
     res = XrayOutBound.parse_outbound_name(node=node, name=outbound_name)
@@ -124,6 +126,7 @@ def set_outbound_tags(*, point: influxdb_client.Point, node: node_manager_models
             point.tag("dest_node_id", str(res.tunnel.dest_node_id))
     else:
         raise NotImplementedError
+    return res
 
 
 def get_connection_outbound_latest_delays(
