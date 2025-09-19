@@ -22,7 +22,7 @@ def set_profile_last_stat(
 ) -> models.SubscriptionPeriod | None:
     subscriptionperiod = models.SubscriptionPeriod.objects.filter(
         id=sub_profile_period_id, profile_id=sub_profile_id
-    ).first()
+    ).select_related("plan").first()
     if subscriptionperiod is None:
         logger.critical(f"no SubscriptionPeriod found with {sub_profile_id=} and {sub_profile_period_id=}")
         return None

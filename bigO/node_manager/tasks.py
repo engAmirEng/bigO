@@ -150,7 +150,7 @@ def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str,
                             downlink_or_uplink = user_with_id_matches[0][3]
                         else:
                             raise AssertionError
-                        set_profile_last_stat(
+                        subscriptionperiod = set_profile_last_stat(
                             sub_profile_id=profile_id, sub_profile_period_id=period_id, collect_time=collect_time
                         )
                         key = f"{profile_id}.{period_id}"
@@ -168,6 +168,8 @@ def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str,
                                 point.tag("user_id", user_id)
                             point.tag("profile_id", profile_id)
                             point.tag("period_id", period_id)
+                            if subscriptionperiod:
+                                point.tag("connection_rule_id", subscriptionperiod.plan.connection_rule_id)
                             for tag_name, tag_value in base_labels.items():
                                 point.tag(tag_name, tag_value)
                         if downlink_or_uplink == "downlink":
