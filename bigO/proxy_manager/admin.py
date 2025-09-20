@@ -596,6 +596,14 @@ class InboundSpecModelAdmin(admin.ModelAdmin):
         )
 
 
+class InboundSpecInline(admin.StackedInline):
+    model = models.InboundSpec
+    extra = 0
+    autocomplete_fields = ("domain_address", "ip_address", "domain_sni", "domainhost_header", "touch_node")
+    ordering = ("created_at",)
+    show_change_link = True
+
+
 # @admin.register(models.IPProxyUsageSpec)
 # class IPProxyUsageSpecModelAdmin(admin.ModelAdmin):
 #     list_display = ("__str__",)

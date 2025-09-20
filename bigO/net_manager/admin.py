@@ -2,6 +2,7 @@ from asgiref.sync import async_to_sync
 
 from bigO.core import models as core_models
 from bigO.node_manager import models as node_manager_models
+from bigO.proxy_manager import admin as proxy_manager_admin
 from django import forms
 from django.contrib import admin
 from django.contrib.humanize.templatetags.humanize import naturaltime
@@ -80,6 +81,7 @@ class DNSRecordModelAdmin(admin.ModelAdmin):
     search_fields = ("domain__name", "value_ip__ip", "value_domain__name")
     form = DNSRecordModelForm
     autocomplete_fields = ("domain", "value_ip", "value_domain")
+    inlines = (proxy_manager_admin.InboundSpecInline,)
 
     def delete_queryset(self, request, queryset):
         # TODO delete from provider?!

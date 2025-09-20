@@ -20,9 +20,11 @@ logger = logging.getLogger(__name__)
 def set_profile_last_stat(
     sub_profile_id: str, sub_profile_period_id: str, collect_time: datetime.datetime
 ) -> models.SubscriptionPeriod | None:
-    subscriptionperiod = models.SubscriptionPeriod.objects.filter(
-        id=sub_profile_period_id, profile_id=sub_profile_id
-    ).select_related("plan").first()
+    subscriptionperiod = (
+        models.SubscriptionPeriod.objects.filter(id=sub_profile_period_id, profile_id=sub_profile_id)
+        .select_related("plan")
+        .first()
+    )
     if subscriptionperiod is None:
         logger.critical(f"no SubscriptionPeriod found with {sub_profile_id=} and {sub_profile_period_id=}")
         return None
