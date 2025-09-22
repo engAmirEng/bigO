@@ -34,6 +34,7 @@ def sync_usage(regulate_seconds: int = 1 * 60 * 60):
     )
     if not subscriptionperiod_qs.exists():
         return "nothing to do"
+    config = models.Config.get_solo()
     for subscriptionperiod in subscriptionperiod_qs:
         now = timezone.now()
         if subscriptionperiod.flow_point_at is None:
@@ -69,6 +70,10 @@ from(bucket: "{settings.INFLUX_BUCKET}")
         if new_flow_download_bytes == 0 and new_flow_upload_bytes == 0:
             continue
 
+        if config.usage_correction_factor:
+            new_flow_download_bytes = int(new_flow_download_bytes * config.usage_correction_factor)
+            new_flow_upload_bytes = int(new_flow_upload_bytes * config.usage_correction_factor)
+
         old_flow_download_bytes = subscriptionperiod.flow_download_bytes
         download_flow_diff = new_flow_download_bytes - old_flow_download_bytes
         subscriptionperiod.flow_download_bytes = new_flow_download_bytes
@@ -100,6 +105,7 @@ def forward_flow_point(flow_point_delta_seconds: int = 5 * 24 * 60 * 60):
         )
         if not subscriptionperiod_qs.exists():
             return "nothing to do"
+        config = models.Config.get_solo()
         for subscriptionperiod in subscriptionperiod_qs:
             query = f"""
 from(bucket: "{settings.INFLUX_BUCKET}")
@@ -121,6 +127,10 @@ from(bucket: "{settings.INFLUX_BUCKET}")
             if not df.empty:
                 between_download_bytes = df[df["_field"] == "dl_bytes"].iloc[0].to_dict()["_value"]
                 between_upload_bytes = df[df["_field"] == "up_bytes"].iloc[0].to_dict()["_value"]
+
+                if config.usage_correction_factor:
+                    between_download_bytes = int(between_download_bytes * config.usage_correction_factor)
+                    between_upload_bytes = int(between_upload_bytes * config.usage_correction_factor)
 
                 new_flow_download_bytes = subscriptionperiod.flow_download_bytes - between_download_bytes
                 if new_flow_download_bytes < 0:
