@@ -1,4 +1,5 @@
 import uuid
+from decimal import Decimal
 from types import SimpleNamespace
 
 import django_jsonform.models.fields
@@ -102,12 +103,12 @@ class ConnectionRuleOutbound(TimeStampedModel, models.Model):
         assert self.is_reverse
         return self.connector.dest_node
 
-    def get_balancer_allocations(self) -> list[tuple[str, int]]:
+    def get_balancer_allocations(self) -> list[tuple[str, Decimal]]:
         res = []
         parts = self.balancer_allocation_str.split(",")
         for part in parts:
             balancer_name, weight = part.split(":")
-            res.append((balancer_name, int(weight)))
+            res.append((balancer_name, Decimal(weight)))
         return res
 
     def get_domain_for_balancer_tag(self, balancer_tag: str) -> str:

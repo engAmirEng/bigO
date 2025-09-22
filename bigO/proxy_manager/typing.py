@@ -1,4 +1,5 @@
 import ipaddress
+from decimal import Decimal
 from typing import Protocol, TypedDict
 
 import pydantic
@@ -19,7 +20,7 @@ class InboundChooseRuleSchema(pydantic.BaseModel):
 
 class BalancerMemberType(TypedDict):
     tag: str
-    weight: int
+    weight: Decimal
 
 
 class ComboStat(pydantic.BaseModel):

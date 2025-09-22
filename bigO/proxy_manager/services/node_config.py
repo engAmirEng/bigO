@@ -3,6 +3,7 @@ import logging
 import pathlib
 import re
 from collections import defaultdict
+from decimal import ROUND_HALF_DOWN, Decimal
 from hashlib import sha256
 from typing import Protocol
 
@@ -854,7 +855,12 @@ def get_strategy_part(
     costs_part = ", ".join(
         [
             '{{"match": "{tag}", "value": {val}}}'.format(
-                tag=balancer_member["tag"], val=(weight_summation / balancer_member["weight"])
+                tag=balancer_member["tag"],
+                val=max(
+                    Decimal(
+                        weight_summation / balancer_member["weight"]
+                    ).quantize(Decimal("0.01"), rounding=ROUND_HALF_DOWN),
+                    Decimal(0.01)),
             )
             for balancer_member in balancer_members
         ]
