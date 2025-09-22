@@ -589,7 +589,7 @@ def get_xray_conf_v2(
                     balancer_allocation_idf=balancer_allocation[0],
                 )
                 balancer_tag = f"{connection_rule.id}_{balancer_allocation[0]}"
-                for i in range(balancer_allocation[1]):
+                if balancer_allocation[1] > 0:
                     is_reverse_used = True
                 if not is_reverse_used:
                     continue
