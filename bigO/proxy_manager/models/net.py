@@ -12,6 +12,9 @@ from . import typing
 
 
 class RealitySpec(TimeStampedModel, models.Model):
+    inbound_type = models.ForeignKey(
+        "InboundType", on_delete=models.PROTECT, related_name="+", null=True
+    )  # migrate null
     port = models.PositiveSmallIntegerField()
     for_ip = models.ForeignKey("node_manager.PublicIP", on_delete=models.CASCADE, related_name="+")
     dest_ip = models.ForeignKey(
@@ -22,6 +25,22 @@ class RealitySpec(TimeStampedModel, models.Model):
 
     def __str__(self):
         return f"{self.id}-{self.certificate_domain.name}"
+
+    def get_combo_stat(self):
+        if self.dest_ip:
+            address = str(self.dest_ip.ip.ip)
+        else:
+            address = self.certificate_domain.name
+        sni = self.certificate_domain.name
+        port = self.port
+        return typing.ComboStat(
+            **{
+                "address": address,
+                "port": port,
+                "sni": sni,
+                "domainhostheader": None,
+            }
+        )
 
 
 class Balancer(TimeStampedModel, models.Model):
@@ -136,7 +155,7 @@ class OutboundType(TimeStampedModel, models.Model):
         blank=True,
     )
     xray_outbound_template = models.TextField(
-        help_text="{{ source_node, dest_node, tag, nodeinternaluser, combo_stat: {'address', 'port', 'sni', 'domainhostheader', 'touch_node'} }}"
+        help_text="{{ source_node, dest_node, tag, nodeinternaluser, combo_stat: {'address', 'port', 'sni', 'domainhostheader'} }}"
     )
     history = HistoricalRecords()
 

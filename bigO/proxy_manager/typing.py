@@ -28,7 +28,6 @@ class ComboStat(pydantic.BaseModel):
     port: int | None
     sni: str | None
     domainhostheader: str | None
-    touch_node: node_manager_models.Node | None
 
     class Config:
         arbitrary_types_allowed = True

@@ -66,9 +66,6 @@ class InboundSpec(TimeStampedModel, models.Model):
         null=True,
         blank=True,
     )
-    touch_node = models.ForeignKey(
-        "node_manager.Node", on_delete=models.CASCADE, related_name="+", null=True, blank=True
-    )
 
     def __str__(self):
         return f"{self.pk}-{self.name}|{self.inbound_type}"
@@ -94,6 +91,5 @@ class InboundSpec(TimeStampedModel, models.Model):
                 "port": self.port,
                 "sni": sni,
                 "domainhostheader": domainhost_header,
-                "touch_node": self.touch_node,
             }
         )

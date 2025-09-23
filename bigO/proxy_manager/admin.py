@@ -581,7 +581,7 @@ class InboundSpecModelAdmin(admin.ModelAdmin):
         "ip_address__ip",
         "domain_sni__name",
     )
-    autocomplete_fields = ("domain_address", "ip_address", "domain_sni", "domainhost_header", "touch_node")
+    autocomplete_fields = ("domain_address", "ip_address", "domain_sni", "domainhost_header")
     inlines = (
         InboundSpecOutboundConnectorInline,
         ConnectionRuleInboundSpec,
@@ -599,7 +599,7 @@ class InboundSpecModelAdmin(admin.ModelAdmin):
 class InboundSpecInline(admin.StackedInline):
     model = models.InboundSpec
     extra = 0
-    autocomplete_fields = ("domain_address", "ip_address", "domain_sni", "domainhost_header", "touch_node")
+    autocomplete_fields = ("domain_address", "ip_address", "domain_sni", "domainhost_header")
     ordering = ("created_at",)
     show_change_link = True
 

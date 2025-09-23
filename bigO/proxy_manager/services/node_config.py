@@ -687,8 +687,15 @@ def get_xray_conf_v2(
         rule_parts = reverse_rule_parts + "," + rule_parts
 
     inbound_tags = []
-    for inbound in models.InboundType.objects.filter(is_active=True):
-        inbound_tag = inbound.name
+    inbounds = []
+    for realityspec in models.RealitySpec.objects.filter(
+        inbound_type__is_active=True, for_ip__ip_nodepublicips__node=node_obj
+    ):
+        extra_ctx = {"combo_stat": realityspec.get_combo_stat()}
+        inbounds.append((realityspec.inbound_type, f"{realityspec.inbound_type.name}_rp{realityspec.id}", extra_ctx))
+    for inboundtype in models.InboundType.objects.filter(is_active=True, is_template=True):
+        inbounds.append((inboundtype, f"{inboundtype.name}", {"combo_stat": None}))
+    for inbound, inbound_tag, extra_ctx in inbounds:
         consumers_part = ""
         for proxyuser in [
             *all_subscriptionperiods_obj_list,
@@ -709,11 +716,7 @@ def get_xray_conf_v2(
             consumers_part += consumer_obj
 
         template_context = node_manager_services.NodeTemplateContext(
-            {
-                "node_obj": node_obj,
-                "inbound_tag": inbound_tag,
-                "consumers_part": consumers_part,
-            },
+            {"node_obj": node_obj, "inbound_tag": inbound_tag, "consumers_part": consumers_part, **extra_ctx},
             node_work_dir=node_work_dir,
             base_url=base_url,
         )
@@ -730,27 +733,19 @@ def get_xray_conf_v2(
 
         if inbound.haproxy_backend:
             haproxy_backends_parts.append(
-                django.template.Template(inbound.haproxy_backend).render(
-                    context=django.template.Context({"node_obj": node_obj})
-                )
+                django.template.Template(inbound.haproxy_backend).render(context=template_context)
             )
         if inbound.haproxy_matcher_80:
             haproxy_80_matchers_parts.append(
-                django.template.Template(inbound.haproxy_matcher_80).render(
-                    context=django.template.Context({"node_obj": node_obj})
-                )
+                django.template.Template(inbound.haproxy_matcher_80).render(context=template_context)
             )
         if inbound.haproxy_matcher_443:
             haproxy_443_matchers_parts.append(
-                django.template.Template(inbound.haproxy_matcher_443).render(
-                    context=django.template.Context({"node_obj": node_obj})
-                )
+                django.template.Template(inbound.haproxy_matcher_443).render(context=template_context)
             )
         if inbound.nginx_path_config:
             nginx_path_matchers_parts.append(
-                django.template.Template(inbound.nginx_path_config).render(
-                    context=django.template.Context({"node_obj": node_obj})
-                )
+                django.template.Template(inbound.nginx_path_config).render(context=template_context)
             )
 
     template_context = node_manager_services.NodeTemplateContext(
@@ -872,13 +867,6 @@ def get_strategy_part(
     # todo do a proper fallbacktag
     sorted_balancer_members = sorted(balancer_members, key=lambda x: x["weight"], reverse=True)
     return strategy_part, sorted_balancer_members[0]["tag"]
-
-
-class OutboundProtocol(Protocol):
-    name: str
-    to_inbound_type: models.InboundType
-    xray_outbound_template: str
-    inbound_spec: models.InboundSpec
 
 
 class XrayOutBound:
