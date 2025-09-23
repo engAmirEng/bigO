@@ -125,8 +125,10 @@ from(bucket: "{settings.INFLUX_BUCKET}")
                 .query_data_frame(query=query)
             )
             if not df.empty:
-                between_download_bytes = df[df["_field"] == "dl_bytes"].iloc[0].to_dict()["_value"]
-                between_upload_bytes = df[df["_field"] == "up_bytes"].iloc[0].to_dict()["_value"]
+                dl_df = df[df["_field"] == "dl_bytes"]
+                between_download_bytes = dl_df.iloc[0].to_dict()["_value"] if not dl_df.empty else 0
+                up_df = df[df["_field"] == "up_bytes"]
+                between_upload_bytes = up_df.iloc[0].to_dict()["_value"] if not up_df.empty else 0
 
                 if config.usage_correction_factor:
                     between_download_bytes = int(between_download_bytes * config.usage_correction_factor)
