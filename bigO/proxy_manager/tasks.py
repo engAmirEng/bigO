@@ -95,18 +95,25 @@ def forward_flow_point(flow_point_delta_seconds: int = 5 * 24 * 60 * 60):
     if not getattr(settings, "INFLUX_URL", False):
         return "no INFLUX_URL"
     flow_point_delta = timedelta(seconds=flow_point_delta_seconds)
+    flow_point_delta_margin = timedelta(seconds=int(flow_point_delta_seconds * 0.1))
     now = timezone.now()
     new_flow_point = now - flow_point_delta
     with transaction.atomic(using="main"):
         subscriptionperiod_qs = (
-            models.SubscriptionPeriod.objects.filter(flow_point_at__lt=new_flow_point)
+            models.SubscriptionPeriod.objects.filter(
+                flow_point_at__lt=new_flow_point - flow_point_delta_margin,  # not to run on each execution
+                last_usage_at__gt=F("flow_point_at"),  # not bother to run on closed periods
+                flow_point_at__gt=now - timedelta(days=29),  # to insure we won't lose any data
+            )
             .order_by("flow_point_at")[:10]
             .select_for_update()
         )
         if not subscriptionperiod_qs.exists():
             return "nothing to do"
+        period_ids = []
         config = models.Config.get_solo()
         for subscriptionperiod in subscriptionperiod_qs:
+            period_ids.append(subscriptionperiod.id)
             query = f"""
 from(bucket: "{settings.INFLUX_BUCKET}")
 |> range(start: {subscriptionperiod.flow_point_at.strftime('%Y-%m-%dT%H:%M:%SZ')}, stop: {new_flow_point.strftime('%Y-%m-%dT%H:%M:%SZ')})
@@ -137,7 +144,7 @@ from(bucket: "{settings.INFLUX_BUCKET}")
                 new_flow_download_bytes = subscriptionperiod.flow_download_bytes - between_download_bytes
                 if new_flow_download_bytes < 0:
                     sentry_sdk.capture_message(
-                        f"negative for {subscriptionperiod=} flow_download_bytes is {new_flow_download_bytes / 1000} MB"
+                        f"negative for {subscriptionperiod=} flow_download_bytes is {new_flow_download_bytes / (1000 ^ 2)} MB"
                     )
                     subscriptionperiod.current_download_bytes += abs(new_flow_download_bytes)
                     new_flow_download_bytes = 0
@@ -151,6 +158,7 @@ from(bucket: "{settings.INFLUX_BUCKET}")
 
             subscriptionperiod.flow_point_at = new_flow_point
             subscriptionperiod.save()
+        return period_ids
 
 
 @app.task

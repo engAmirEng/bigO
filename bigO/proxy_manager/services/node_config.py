@@ -857,10 +857,11 @@ def get_strategy_part(
             '{{"match": "{tag}", "value": {val}}}'.format(
                 tag=balancer_member["tag"],
                 val=max(
-                    Decimal(
-                        weight_summation / balancer_member["weight"]
-                    ).quantize(Decimal("0.01"), rounding=ROUND_HALF_DOWN),
-                    Decimal(0.01)),
+                    Decimal(weight_summation / balancer_member["weight"]).quantize(
+                        Decimal("0.01"), rounding=ROUND_HALF_DOWN
+                    ),
+                    Decimal(0.01),
+                ),
             )
             for balancer_member in balancer_members
         ]
