@@ -220,17 +220,35 @@ class InboundType(TimeStampedModel, models.Model):
     is_active = models.BooleanField(default=True)
     is_template = models.BooleanField(default=False)
     name = models.SlugField()
-    inbound_template = models.TextField(help_text="{{ node_obj, inbound_tag, consumers_part }}")
+    inbound_template = models.TextField(
+        help_text="{{ node_obj, inbound_tag, consumers_part, combo_stat: {'address', 'port', 'sni', 'domainhostheader'} }}"
+    )
     consumer_obj_template = models.TextField(help_text="{{ subscriptionperiod_obj }}")
     link_template = models.TextField(
         blank=True,
         null=True,
-        help_text="{{ subscriptionperiod_obj, connection_rule, combo_stat: {'address', 'port', 'sni', 'domainhostheader', 'touch_node'}, remark_prefix }}",
+        help_text="{{ subscriptionperiod_obj, connection_rule, combo_stat: {'address', 'port', 'sni', 'domainhostheader'}, remark_prefix }}",
     )
-    nginx_path_config = models.TextField(blank=True, null=True, help_text="{{ node_obj }}")
-    haproxy_backend = models.TextField(blank=True, null=True, help_text="{{ node_obj }}")
-    haproxy_matcher_80 = models.TextField(blank=True, null=True, help_text="{{ node_obj }}")
-    haproxy_matcher_443 = models.TextField(blank=True, null=True, help_text="{{ node_obj }}")
+    nginx_path_config = models.TextField(
+        blank=True,
+        null=True,
+        help_text="{{ node_obj, inbound_tag, combo_stat: {'address', 'port', 'sni', 'domainhostheader'} }}",
+    )
+    haproxy_backend = models.TextField(
+        blank=True,
+        null=True,
+        help_text="{{ node_obj, inbound_tag, combo_stat: {'address', 'port', 'sni', 'domainhostheader'} }}",
+    )
+    haproxy_matcher_80 = models.TextField(
+        blank=True,
+        null=True,
+        help_text="{{ node_obj, inbound_tag, combo_stat: {'address', 'port', 'sni', 'domainhostheader'} }}",
+    )
+    haproxy_matcher_443 = models.TextField(
+        blank=True,
+        null=True,
+        help_text="{{ node_obj, inbound_tag, combo_stat: {'address', 'port', 'sni', 'domainhostheader'} }}",
+    )
 
     history = HistoricalRecords()
 
