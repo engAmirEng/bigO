@@ -1,13 +1,14 @@
 import uuid
 
 import humanize
+from django.db.models import Exists
 from django_jsonform.forms.fields import JSONFormField
 
 from django import forms
 from django.utils.translation import gettext
 
 from . import models
-from .subscription import AVAILABLE_SUBSCRIPTION_PLAN_PROVIDERS
+from .subscription import AVAILABLE_SUBSCRIPTION_PLAN_PROVIDERS, AVAILABLE_SUBSCRIPTION_PLAN_PRICE_PROVIDERS
 
 
 class SubscriptionProfileModelForm(forms.ModelForm):
@@ -41,11 +42,19 @@ class SubscriptionPlanModelForm(forms.ModelForm):
         self.fields["plan_provider_key"] = forms.ChoiceField(
             choices=[(i.TYPE_IDENTIFIER, i.TYPE_IDENTIFIER) for i in AVAILABLE_SUBSCRIPTION_PLAN_PROVIDERS]
         )
+        self.fields["price_provider_key"] = forms.ChoiceField(
+            choices=[(i.TYPE_IDENTIFIER, i.TYPE_IDENTIFIER) for i in AVAILABLE_SUBSCRIPTION_PLAN_PRICE_PROVIDERS]
+        )
+        self.instance: models.SubscriptionPlan
         if self.instance and self.instance.id:
             self.fields["plan_provider_key"].disabled = True
             if self.instance.plan_provider_cls.ProviderArgsModel:
                 self.fields["plan_provider_args"] = JSONFormField(
                     schema=self.instance.plan_provider_cls.ProviderArgsModel.model_json_schema()
+                )
+            if self.instance.plan_provider_price_cls.ProviderArgsModel:
+                self.fields["price_provider_args"] = JSONFormField(
+                    schema=self.instance.plan_provider_price_cls.ProviderArgsModel.model_json_schema()
                 )
         else:
             if self.data.get("plan_provider_key"):
@@ -58,6 +67,16 @@ class SubscriptionPlanModelForm(forms.ModelForm):
                 if plan_provider_cls and plan_provider_cls.ProviderArgsModel:
                     self.fields["plan_provider_args"] = JSONFormField(
                         schema=plan_provider_cls.ProviderArgsModel.model_json_schema()
+                    )
+                plan_provider_price_cls = [
+                    i
+                    for i in AVAILABLE_SUBSCRIPTION_PLAN_PRICE_PROVIDERS
+                    if i.TYPE_IDENTIFIER == self.data.get("price_provider_key")
+                ]
+                plan_provider_price_cls = plan_provider_cls[0] if plan_provider_cls else None
+                if plan_provider_price_cls and plan_provider_price_cls.ProviderArgsModel:
+                    self.fields["price_provider_args"] = JSONFormField(
+                        schema=plan_provider_price_cls.ProviderArgsModel.model_json_schema()
                     )
 
 
@@ -107,3 +126,24 @@ class ConnectionRuleOutboundModelForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["base_conn_uuid"].initial = uuid.uuid4()
+
+class AgencyUserGroupModelForm(forms.ModelForm):
+    class Meta:
+        model = models.AgencyUserGroup
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.data.get()
+        self.fields["users"].queryset = self.fields["users"].queryset.filter(id=1)
+
+    def clean_users(self):
+        users = self.cleaned_data.get("users")
+        agency = self.cleaned_data.get("agency")
+        if users and agency:
+            agencyuser_qs = models.AgencyUser.objects.filter(agency=agency, user_id=OuterRef("id"))
+            invalid_users = users.exclude(Exists(agencyuser_qs))
+            if invalid_users.exists():
+                invalid_users_txt = ", ".join([i.name for i in invalid_users])
+                raise forms.ValidationError(f"{invalid_users_txt} are not related to agency ({agency})")
+        return users

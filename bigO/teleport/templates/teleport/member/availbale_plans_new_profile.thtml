@@ -1,0 +1,4 @@
+پلن های فعال:
+{% for subscriptionplan in subscriptionplans %}
+{{ subscriptionplan.name }}
+{% endfor %}
