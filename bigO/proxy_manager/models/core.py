@@ -7,6 +7,7 @@ from simple_history.models import HistoricalRecords
 from solo.models import SingletonModel
 
 from bigO.utils.models import TimeStampedModel
+from django.core.exceptions import ValidationError
 from django.core.validators import int_list_validator
 from django.db import models
 from django.db.models import OuterRef, Subquery, Sum, UniqueConstraint
@@ -16,6 +17,7 @@ from .. import typing
 
 
 class Config(TimeStampedModel, SingletonModel):
+    sublink_debug = models.BooleanField(default=False, help_text="should be off, will reveal systems fingerprint")
     nginx_config_http_template = models.TextField(
         null=True, blank=False, help_text="{{ node_obj, xray_path_matchers }}"
     )
@@ -184,8 +186,24 @@ class ConnectionRuleBalancer(TimeStampedModel, models.Model):
 class ConnectionRuleInboundSpec(TimeStampedModel, models.Model):
     key = models.CharField(max_length=63)
     rule = models.ForeignKey(ConnectionRule, on_delete=models.CASCADE, related_name="rule_connectionruleinboundspecs")
-    spec = models.ForeignKey("InboundSpec", on_delete=models.CASCADE, related_name="+")
+    spec = models.ForeignKey(
+        "InboundSpec", on_delete=models.CASCADE, related_name="+", null=True, blank=True, help_text="deprecated"
+    )
+    connector = models.ForeignKey(
+        "OutboundConnector", on_delete=models.CASCADE, related_name="+", null=True, blank=True
+    )  # migrate null
     weight = models.PositiveSmallIntegerField(default=0)
+
+    def clean(self):
+        if self.weight > 0 and self.connector and self.spec:
+            raise ValidationError("either connector or spec")
+        if self.weight > 0 and not self.connector and not self.spec:
+            raise ValidationError("either connector or spec")
+        if self.connector:
+            if self.weight > 0 and self.connector.inbound_spec is None:
+                raise ValidationError("connector.inbound_spec is None")
+            if self.weight > 0 and self.connector.outbound_type.to_inbound_type is None:
+                raise ValidationError("connector.outbound_type.to_inbound_type is None")
 
 
 class InternalUser(TimeStampedModel, models.Model):

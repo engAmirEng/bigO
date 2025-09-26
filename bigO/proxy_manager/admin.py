@@ -268,6 +268,14 @@ class ConnectionRuleOutboundInline(admin.StackedInline):
         )
 
 
+class ConnectionRuleInboundSpecInline(admin.TabularInline):
+    extra = 0
+    model = models.ConnectionRuleInboundSpec
+    autocomplete_fields = ("spec", "connector")
+    ordering = ("key", "created_at",)
+    show_change_link = True
+
+
 @admin.register(models.OutboundConnector)
 class OutboundConnectorModelAdmin(admin.ModelAdmin):
     list_display = ("id", "is_managed", "outbound_type_display", "inbound_spec_display", "dest_node_display")
@@ -278,7 +286,7 @@ class OutboundConnectorModelAdmin(admin.ModelAdmin):
     )
     list_filter = ("outbound_type__to_inbound_type",)
     autocomplete_fields = "outbound_type", "inbound_spec", "dest_node"
-    inlines = (ConnectionRuleOutboundInline, ConnectionTunnelOutboundInline)
+    inlines = (ConnectionRuleInboundSpecInline, ConnectionRuleOutboundInline, ConnectionTunnelOutboundInline)
 
     @admin.display(ordering="outbound_type")
     def outbound_type_display(self, obj):
@@ -380,13 +388,6 @@ class ConnectionRuleOutboundModelAdmin(admin.ModelAdmin):
             admin_obj_change_url(obj.apply_node),
             str(obj.apply_node),
         )
-
-
-class ConnectionRuleInboundSpecInline(admin.StackedInline):
-    extra = 0
-    model = models.ConnectionRuleInboundSpec
-    autocomplete_fields = ("spec",)
-    ordering = ("created_at",)
 
 
 class ConnectionRuleBalancerInline(admin.StackedInline):
@@ -546,12 +547,6 @@ class LocalTunnelPortModelAdmin(SimpleHistoryAdmin, admin.ModelAdmin):
     autocomplete_fields = ("source_node", "tunnel")
 
 
-class ConnectionRuleInboundSpec(admin.StackedInline):
-    model = models.ConnectionRuleInboundSpec
-    extra = 0
-    ordering = ("created_at",)
-
-
 class InboundSpecOutboundConnectorInline(admin.StackedInline):
     model = models.OutboundConnector
     extra = 0
@@ -584,7 +579,7 @@ class InboundSpecModelAdmin(admin.ModelAdmin):
     autocomplete_fields = ("domain_address", "ip_address", "domain_sni", "domainhost_header")
     inlines = (
         InboundSpecOutboundConnectorInline,
-        ConnectionRuleInboundSpec,
+        ConnectionRuleInboundSpecInline,
     )
 
     @admin.display(ordering="inbound_type")
