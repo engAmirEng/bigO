@@ -97,6 +97,12 @@ class ConnectionRuleOutbound(TimeStampedModel, models.Model):
             else:
                 return f"{self.id}|({connector_str}){self.apply_node}"
 
+    def clean(self):
+        try:
+            self.get_balancer_allocations()
+        except Exception as e:
+            raise ValidationError(f"balancer_allocation_str is not valid, {str(e)}")
+
     def get_bridge_node(self):
         assert self.is_reverse
         return self.apply_node
@@ -193,6 +199,19 @@ class ConnectionRuleInboundSpec(TimeStampedModel, models.Model):
         "OutboundConnector", on_delete=models.CASCADE, related_name="+", null=True, blank=True
     )  # migrate null
     weight = models.PositiveSmallIntegerField(default=0)
+
+    def __str__(self):
+        if self.spec:
+            return super().__str__()
+        if self.connector.inbound_spec:
+            o = f"({self.connector.outbound_type.name}({self.connector.inbound_spec.id}))"
+        else:
+            o = f"({self.connector.outbound_type.name}(-))"
+        connector_str = f"{o}->{self.connector.dest_node.name if self.connector.dest_node else '?'}"
+        if self.connector.dest_node:
+            return f"{self.id}|({connector_str})▶️{self.rule.name}->{self.connector.dest_node}"
+        else:
+            return f"{self.id}|({connector_str})▶️{self.rule.name}"
 
     def clean(self):
         if self.weight > 0 and self.connector and self.spec:

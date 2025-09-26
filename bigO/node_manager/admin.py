@@ -250,9 +250,10 @@ class NodeAPIKeyModelAdmin(APIKeyModelAdmin):
 class RealitySpecForIPInline(admin.StackedInline):
     model = proxy_manager_models.RealitySpec
     extra = 0
-    autocomplete_fields = ("dest_ip",)
+    autocomplete_fields = ("dest_ip", "certificate_domain")
     fk_name = "for_ip"
     verbose_name = "ForIP RealitySpecs"
+    show_change_link = True
 
 
 class DNSRecordIPValueInline(admin.StackedInline):

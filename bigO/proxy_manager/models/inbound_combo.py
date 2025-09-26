@@ -1,4 +1,5 @@
 from bigO.utils.models import TimeStampedModel
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import UniqueConstraint
 
@@ -66,25 +67,50 @@ class InboundSpec(TimeStampedModel, models.Model):
         null=True,
         blank=True,
     )
+    reality = models.ForeignKey("RealitySpec", on_delete=models.CASCADE, related_name="+", null=True, blank=True)
 
     def __str__(self):
-        return f"{self.pk}-{self.name}|{self.inbound_type}"
+        try:
+            combo_stat = self.get_combo_stat()
+        except Exception:
+            return f"{self.pk}-{self.name}|error"
+        return f"{self.pk}-{self.name}|{combo_stat.address}:{combo_stat.port}:{combo_stat.sni or combo_stat.domainhostheader}"
+
+    def clean(self):
+        try:
+            self.get_combo_stat()
+        except Exception as e:
+            raise ValidationError(f"failed to get_combo_stat, {str(e)}")
 
     def get_combo_stat(self):
         if self.domain_address:
             address = self.domain_address.domain.name
         elif self.ip_address:
             address = self.ip_address.ip.ip
+        elif self.reality:
+            address = self.reality.for_ip.ip.ip
         else:
             raise NotImplementedError
+
+        if self.port:
+            port = self.port
+        elif self.reality:
+            port = self.reality.port
+        else:
+            raise NotImplementedError
+
         if self.domain_sni:
             sni = self.domain_sni.name
+        elif self.reality:
+            sni = self.reality.certificate_domain.name
         else:
             sni = None
+
         if self.domainhost_header:
             domainhost_header = self.domainhost_header.name
         else:
             domainhost_header = None
+
         return typing.ComboStat(
             **{
                 "address": address,
