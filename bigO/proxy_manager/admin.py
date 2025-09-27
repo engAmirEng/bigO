@@ -268,6 +268,24 @@ class ConnectionRuleOutboundInline(admin.StackedInline):
         )
 
 
+class ConnectionRuleInboundSpecInline(admin.TabularInline):
+    extra = 0
+    model = models.ConnectionRuleInboundSpec
+    autocomplete_fields = ("spec", "connector")
+    ordering = (
+        "key",
+        "created_at",
+    )
+    show_change_link = True
+
+    def get_queryset(self, request):
+        return (
+            super()
+            .get_queryset(request)
+            .select_related("rule", "connector__inbound_spec", "connector__outbound_type", "connector__dest_node")
+        )
+
+
 @admin.register(models.OutboundConnector)
 class OutboundConnectorModelAdmin(admin.ModelAdmin):
     list_display = ("id", "is_managed", "outbound_type_display", "inbound_spec_display", "dest_node_display")
@@ -278,7 +296,7 @@ class OutboundConnectorModelAdmin(admin.ModelAdmin):
     )
     list_filter = ("outbound_type__to_inbound_type",)
     autocomplete_fields = "outbound_type", "inbound_spec", "dest_node"
-    inlines = (ConnectionRuleOutboundInline, ConnectionTunnelOutboundInline)
+    inlines = (ConnectionRuleInboundSpecInline, ConnectionRuleOutboundInline, ConnectionTunnelOutboundInline)
 
     @admin.display(ordering="outbound_type")
     def outbound_type_display(self, obj):
@@ -316,6 +334,7 @@ class ConnectionRuleOutboundModelAdmin(admin.ModelAdmin):
         "is_reverse",
         "balancer_allocation_str",
     )
+    list_editable = ("balancer_allocation_str",)
     search_fields = (
         "connector__outbound_type__name",
         "connector__outbound_type__xray_outbound_template",
@@ -380,13 +399,6 @@ class ConnectionRuleOutboundModelAdmin(admin.ModelAdmin):
             admin_obj_change_url(obj.apply_node),
             str(obj.apply_node),
         )
-
-
-class ConnectionRuleInboundSpecInline(admin.StackedInline):
-    extra = 0
-    model = models.ConnectionRuleInboundSpec
-    autocomplete_fields = ("spec",)
-    ordering = ("created_at",)
 
 
 class ConnectionRuleBalancerInline(admin.StackedInline):
@@ -546,12 +558,6 @@ class LocalTunnelPortModelAdmin(SimpleHistoryAdmin, admin.ModelAdmin):
     autocomplete_fields = ("source_node", "tunnel")
 
 
-class ConnectionRuleInboundSpec(admin.StackedInline):
-    model = models.ConnectionRuleInboundSpec
-    extra = 0
-    ordering = ("created_at",)
-
-
 class InboundSpecOutboundConnectorInline(admin.StackedInline):
     model = models.OutboundConnector
     extra = 0
@@ -581,10 +587,10 @@ class InboundSpecModelAdmin(admin.ModelAdmin):
         "ip_address__ip",
         "domain_sni__name",
     )
-    autocomplete_fields = ("domain_address", "ip_address", "domain_sni", "domainhost_header")
+    autocomplete_fields = ("domain_address", "ip_address", "domain_sni", "domainhost_header", "reality")
     inlines = (
         InboundSpecOutboundConnectorInline,
-        ConnectionRuleInboundSpec,
+        ConnectionRuleInboundSpecInline,
     )
 
     @admin.display(ordering="inbound_type")
@@ -602,6 +608,14 @@ class InboundSpecInline(admin.StackedInline):
     autocomplete_fields = ("domain_address", "ip_address", "domain_sni", "domainhost_header")
     ordering = ("created_at",)
     show_change_link = True
+
+
+@admin.register(models.RealitySpec)
+class RealitySpecModelAdmin(SimpleHistoryAdmin, admin.ModelAdmin):
+    list_display = ("__str__", "certificate_domain", "inbound_type", "for_ip", "port", "dest_ip")
+    search_fields = ("name", "inbound_template")
+    inlines = (InboundSpecInline,)
+    autocomplete_fields = ("for_ip", "dest_ip", "certificate_domain")
 
 
 # @admin.register(models.IPProxyUsageSpec)

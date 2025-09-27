@@ -7,6 +7,7 @@ from simple_history.models import HistoricalRecords
 from solo.models import SingletonModel
 
 from bigO.utils.models import TimeStampedModel
+from django.core.exceptions import ValidationError
 from django.core.validators import int_list_validator
 from django.db import models
 from django.db.models import OuterRef, Subquery, Sum, UniqueConstraint
@@ -16,6 +17,7 @@ from .. import typing
 
 
 class Config(TimeStampedModel, SingletonModel):
+    sublink_debug = models.BooleanField(default=False, help_text="should be off, will reveal systems fingerprint")
     nginx_config_http_template = models.TextField(
         null=True, blank=False, help_text="{{ node_obj, xray_path_matchers }}"
     )
@@ -94,6 +96,12 @@ class ConnectionRuleOutbound(TimeStampedModel, models.Model):
                 return f"{self.id}|({connector_str})▶️{self.apply_node}->{self.connector.dest_node}"
             else:
                 return f"{self.id}|({connector_str}){self.apply_node}"
+
+    def clean(self):
+        try:
+            self.get_balancer_allocations()
+        except Exception as e:
+            raise ValidationError(f"balancer_allocation_str is not valid, {str(e)}")
 
     def get_bridge_node(self):
         assert self.is_reverse
@@ -184,8 +192,37 @@ class ConnectionRuleBalancer(TimeStampedModel, models.Model):
 class ConnectionRuleInboundSpec(TimeStampedModel, models.Model):
     key = models.CharField(max_length=63)
     rule = models.ForeignKey(ConnectionRule, on_delete=models.CASCADE, related_name="rule_connectionruleinboundspecs")
-    spec = models.ForeignKey("InboundSpec", on_delete=models.CASCADE, related_name="+")
+    spec = models.ForeignKey(
+        "InboundSpec", on_delete=models.CASCADE, related_name="+", null=True, blank=True, help_text="deprecated"
+    )
+    connector = models.ForeignKey(
+        "OutboundConnector", on_delete=models.CASCADE, related_name="+", null=True, blank=True
+    )  # migrate null
     weight = models.PositiveSmallIntegerField(default=0)
+
+    def __str__(self):
+        if self.spec:
+            return super().__str__()
+        if self.connector.inbound_spec:
+            o = f"({self.connector.outbound_type.name}({self.connector.inbound_spec.id}))"
+        else:
+            o = f"({self.connector.outbound_type.name}(-))"
+        connector_str = f"{o}->{self.connector.dest_node.name if self.connector.dest_node else '?'}"
+        if self.connector.dest_node:
+            return f"{self.id}|({connector_str})▶️{self.rule.name}->{self.connector.dest_node}"
+        else:
+            return f"{self.id}|({connector_str})▶️{self.rule.name}"
+
+    def clean(self):
+        if self.weight > 0 and self.connector and self.spec:
+            raise ValidationError("either connector or spec")
+        if self.weight > 0 and not self.connector and not self.spec:
+            raise ValidationError("either connector or spec")
+        if self.connector:
+            if self.weight > 0 and self.connector.inbound_spec is None:
+                raise ValidationError("connector.inbound_spec is None")
+            if self.weight > 0 and self.connector.outbound_type.to_inbound_type is None:
+                raise ValidationError("connector.outbound_type.to_inbound_type is None")
 
 
 class InternalUser(TimeStampedModel, models.Model):

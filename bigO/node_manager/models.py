@@ -196,7 +196,9 @@ class Node(TimeStampedModel, models.Model):
         """used in templates, deprecated, use get_reality"""
         from bigO.proxy_manager.models import RealitySpec
 
-        realityspec = RealitySpec.objects.filter(inbound_type__isnull=True, for_ip__ip_nodepublicips__node=self, port=443).first()
+        realityspec = RealitySpec.objects.filter(
+            inbound_type__isnull=True, for_ip__ip_nodepublicips__node=self, port=443
+        ).first()
         if realityspec:
             return realityspec.certificate_domain
 
@@ -204,7 +206,9 @@ class Node(TimeStampedModel, models.Model):
         """used in templates"""
         from bigO.proxy_manager.models import RealitySpec
 
-        realityspec = RealitySpec.objects.filter(inbound_type__isnull=True, for_ip__ip_nodepublicips__node=self, port=port).first()
+        realityspec = RealitySpec.objects.filter(
+            inbound_type__isnull=True, for_ip__ip_nodepublicips__node=self, port=port
+        ).first()
         if realityspec:
             if realityspec.dest_ip:
                 dest = str(realityspec.dest_ip.ip.ip)
