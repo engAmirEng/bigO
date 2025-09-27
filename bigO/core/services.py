@@ -358,6 +358,11 @@ def certbot_init_renew(certbotinfo_obj: models.CertbotInfo) -> tuple[bool, str]:
         parent_certificate_obj.save()
         privatekey_obj.save()
         certificate_obj.save()
+        for i in domains:
+            domaincertificate_obj = models.DomainCertificate()
+            domaincertificate_obj.domain = i
+            domaincertificate_obj.certificate = certificate_obj
+            domaincertificate_obj.save()
         certificatetask_obj.is_success = True
         certificatetask_obj.is_closed = True
         certificatetask_obj.save()
