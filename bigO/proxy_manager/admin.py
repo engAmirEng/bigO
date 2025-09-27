@@ -613,7 +613,7 @@ class InboundSpecInline(admin.StackedInline):
 @admin.register(models.RealitySpec)
 class RealitySpecModelAdmin(SimpleHistoryAdmin, admin.ModelAdmin):
     list_display = ("__str__", "certificate_domain", "inbound_type", "for_ip", "port", "dest_ip")
-    search_fields = ("name", "inbound_template")
+    search_fields = ("certificate_domain__name", "for_ip__ip", "dest_ip__ip", "description")
     inlines = (InboundSpecInline,)
     autocomplete_fields = ("for_ip", "dest_ip", "certificate_domain")
 

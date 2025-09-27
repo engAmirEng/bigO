@@ -24,7 +24,9 @@ class RealitySpec(TimeStampedModel, models.Model):
     description = models.TextField(null=True, blank=True)
 
     def __str__(self):
-        return f"{self.id}-{self.certificate_domain.name}"
+        return (
+            f"{self.id}-{str(self.for_ip.ip)}({self.certificate_domain.name}:{str(self.dest_ip and self.dest_ip.ip)})"
+        )
 
     def get_combo_stat(self):
         if self.dest_ip:
