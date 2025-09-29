@@ -260,6 +260,7 @@ class DNSRecordIPValueInline(admin.StackedInline):
     model = net_manager_models.DNSRecord
     extra = 0
     verbose_name = "IP Value DNS Record"
+    autocomplete_fields = ("domain", "value_domain")
     show_change_link = True
 
 
