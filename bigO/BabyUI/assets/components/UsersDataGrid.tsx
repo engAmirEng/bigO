@@ -59,7 +59,7 @@ export default function UsersDataGrid({ users_list_page }: Props) {
       renderCell: (params) => {
         let title: number = params.value;
         var parsedUrl = new URL(url, window.location.origin);
-        parsedUrl.searchParams.set('period_id', params.row.id);
+        parsedUrl.searchParams.set('profile_id', params.row.id);
         // let link = parse/dUrl
         return <Link href={parsedUrl.href}>{title}</Link>;
       },
