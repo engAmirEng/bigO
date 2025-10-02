@@ -1,8 +1,12 @@
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import LinearProgress from '@mui/material/LinearProgress';
-import { router, usePage, Link } from '@inertiajs/react';
-import { ListPage, UserRecord, UserRecordColumns } from '../services/types.ts';
+import { router, usePage } from '@inertiajs/react';
+import {
+  ListPage,
+  PeriodRecord,
+  PeriodRecordColumns,
+} from '../services/types.ts';
 import * as React from 'react';
 import {
   GridColDef,
@@ -22,9 +26,9 @@ import {
 } from '@mui/x-data-grid';
 
 interface Props {
-  users_list_page: ListPage<UserRecord, UserRecordColumns>;
+  periods_list_page: ListPage<PeriodRecord, PeriodRecordColumns>;
 }
-export default function UsersDataGrid({ users_list_page }: Props) {
+export default function PeriodsDataGrid({ periods_list_page }: Props) {
   const { url } = usePage();
   let columns: GridColDef[] = [
     {
@@ -35,10 +39,10 @@ export default function UsersDataGrid({ users_list_page }: Props) {
       minWidth: 50,
       renderCell: (params) => {
         let res: number;
-        if (users_list_page.pagination) {
+        if (periods_list_page.pagination) {
           res =
-            users_list_page.pagination.num_per_page *
-              (users_list_page.pagination.current_page_num - 1) +
+            periods_list_page.pagination.num_per_page *
+              (periods_list_page.pagination.current_page_num - 1) +
             params.api.getRowIndexRelativeToVisibleRows(params.id) +
             1;
         } else {
@@ -49,23 +53,9 @@ export default function UsersDataGrid({ users_list_page }: Props) {
       },
     },
     {
-      field: 'title',
-      headerName: 'Title',
-      sortable: false,
-      flex: 1,
-      minWidth: 200,
-      renderCell: (params) => {
-        let title: number = params.value;
-        var parsedUrl = new URL(url, window.location.origin);
-        parsedUrl.searchParams.set('profile_id', params.row.id);
-        // let link = parse/dUrl
-        return <Link href={parsedUrl.href}>{title}</Link>;
-      },
-    },
-    {
       field: 'expiresInSeconds',
       headerName: 'Expires At',
-      sortable: users_list_page.columns?.expires_at !== undefined,
+      sortable: periods_list_page.columns?.expires_at !== undefined,
       flex: 1,
       minWidth: 200,
       renderCell: (params) => {
@@ -97,7 +87,7 @@ export default function UsersDataGrid({ users_list_page }: Props) {
     {
       field: 'lastUsageAt',
       headerName: 'Last Usage',
-      sortable: users_list_page.columns?.last_usage_at !== undefined,
+      sortable: periods_list_page.columns?.last_usage_at !== undefined,
       flex: 1,
       minWidth: 200,
       renderCell: (params) => {
@@ -119,7 +109,7 @@ export default function UsersDataGrid({ users_list_page }: Props) {
     {
       field: 'usage',
       headerName: 'Usage',
-      sortable: users_list_page.columns?.used_bytes !== undefined,
+      sortable: periods_list_page.columns?.used_bytes !== undefined,
       flex: 1,
       minWidth: 200,
       renderCell: (params) => {
@@ -168,7 +158,7 @@ export default function UsersDataGrid({ users_list_page }: Props) {
     {
       field: 'lastSublinkAt',
       headerName: 'Last Sublink',
-      sortable: users_list_page.columns?.last_sublink_at !== undefined,
+      sortable: periods_list_page.columns?.last_sublink_at !== undefined,
       flex: 1,
       minWidth: 200,
       renderCell: (params) => {
@@ -178,10 +168,8 @@ export default function UsersDataGrid({ users_list_page }: Props) {
       },
     },
   ];
-  let rows: GridRowsProp = users_list_page.records.map((user) => ({
+  let rows: GridRowsProp = periods_list_page.records.map((user) => ({
     id: user.id,
-    title: user.title,
-    onlineStatus: user.online_status,
     lastUsageAt: user.last_usage_at_repr,
     lastSublinkAt: user.last_sublink_at_repr,
     usedBytes: user.used_bytes,
@@ -194,8 +182,8 @@ export default function UsersDataGrid({ users_list_page }: Props) {
   const setPaginationModel = (model: GridPaginationModel) => {
     setLoading(true);
     let data: any = {};
-    data[(users_list_page.prefix || '') + '_page_number'] = model.page + 1;
-    data[(users_list_page.prefix || '') + '_per_page'] = model.pageSize;
+    data[(periods_list_page.prefix || '') + '_page_number'] = model.page + 1;
+    data[(periods_list_page.prefix || '') + '_per_page'] = model.pageSize;
     router.get(url, data, {
       onFinish: () => setLoading(false),
       preserveScroll: true,
@@ -206,7 +194,7 @@ export default function UsersDataGrid({ users_list_page }: Props) {
     setLoading(true);
     let data: any = {};
 
-    data[(users_list_page.prefix || '') + '_search'] =
+    data[(periods_list_page.prefix || '') + '_search'] =
       model.quickFilterValues?.join(' ');
     router.get(url, data, {
       onFinish: () => setLoading(false),
@@ -221,7 +209,7 @@ export default function UsersDataGrid({ users_list_page }: Props) {
       if (sortQ !== '') {
         sortQ += ',';
       }
-      let sortFieldName: keyof typeof users_list_page.columns;
+      let sortFieldName: keyof typeof periods_list_page.columns;
       if (gridSortItem.field == 'usage') {
         sortFieldName = 'used_bytes';
       } else if (gridSortItem.field == 'lastSublinkAt') {
@@ -236,7 +224,7 @@ export default function UsersDataGrid({ users_list_page }: Props) {
       sortQ += (gridSortItem.sort == 'desc' ? '-' : '') + sortFieldName;
     }
     let data: any = {};
-    data[(users_list_page.prefix || '') + '_sort'] = sortQ;
+    data[(periods_list_page.prefix || '') + '_sort'] = sortQ;
     router.get(url, data, {
       onFinish: () => setLoading(false),
       preserveScroll: true,
@@ -244,24 +232,24 @@ export default function UsersDataGrid({ users_list_page }: Props) {
     });
   };
   let sortModel: GridSortModel = [];
-  if (users_list_page.columns.used_bytes?.sorting?.is_asc) {
+  if (periods_list_page.columns?.used_bytes?.sorting?.is_asc) {
     sortModel = [...sortModel, { field: 'usage', sort: 'asc' }];
-  } else if (users_list_page.columns.used_bytes?.sorting?.is_asc === false) {
+  } else if (periods_list_page.columns?.used_bytes?.sorting?.is_asc === false) {
     sortModel = [...sortModel, { field: 'usage', sort: 'desc' }];
   } else {
     sortModel = [...sortModel, { field: 'usage', sort: null }];
   }
 
-  let pagination: GridPaginationInitialState = users_list_page.pagination
+  let pagination: GridPaginationInitialState = periods_list_page.pagination
     ? {
         paginationModel: {
-          page: users_list_page.pagination.current_page_num - 1,
-          pageSize: users_list_page.pagination.num_per_page,
+          page: periods_list_page.pagination.current_page_num - 1,
+          pageSize: periods_list_page.pagination.num_per_page,
         },
       }
     : {};
-  let extra_prop = users_list_page.pagination
-    ? { rowCount: users_list_page.pagination.num_records }
+  let extra_prop = periods_list_page.pagination
+    ? { rowCount: periods_list_page.pagination.num_records }
     : {};
 
   return (
@@ -277,7 +265,7 @@ export default function UsersDataGrid({ users_list_page }: Props) {
         slots={{ toolbar: GridToolbar }}
         slotProps={{
           toolbar: {
-            showQuickFilter: users_list_page.search !== null,
+            showQuickFilter: periods_list_page.search !== null,
             quickFilterProps: { debounceMs: 250 },
             printOptions: { disableToolbarButton: true },
             csvOptions: { disableToolbarButton: true },
@@ -291,7 +279,7 @@ export default function UsersDataGrid({ users_list_page }: Props) {
           filter: {
             filterModel: {
               items: [],
-              quickFilterValues: users_list_page.search?.query?.split(' '),
+              quickFilterValues: periods_list_page.search?.query?.split(' '),
             },
           },
         }}

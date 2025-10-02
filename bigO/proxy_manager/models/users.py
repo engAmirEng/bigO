@@ -4,7 +4,7 @@ from bigO.proxy_manager.subscription import AVAILABLE_SUBSCRIPTION_PLAN_PROVIDER
 from bigO.proxy_manager.subscription.base import BaseSubscriptionPlanProvider
 from bigO.utils.models import TimeStampedModel
 from django.db import models
-from django.db.models import Case, Count, Exists, F, OuterRef, Q, Subquery, UniqueConstraint, Value, When
+from django.db.models import Case, Count, Exists, F, OuterRef, Prefetch, Q, Subquery, UniqueConstraint, Value, When
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 
@@ -198,6 +198,20 @@ class SubscriptionProfile(TimeStampedModel, models.Model):
                 is_alive=Case(
                     When(last_usage_at__gt=now - datetime.timedelta(hours=24), then=Value(True)), default=Value(False)
                 ),
+            )
+
+        def ann_current_period_fields(self):
+            period_qs = (
+                SubscriptionPeriod.objects.filter(selected_as_current=True, profile_id=OuterRef("id"))
+                .ann_expires_at()
+                .ann_total_limit_bytes()
+            )
+            return self.annotate(
+                current_total_limit_bytes=Subquery(period_qs.values("total_limit_bytes")[:1]),
+                current_download_bytes=Subquery(period_qs.values("current_download_bytes")[:1]),
+                current_upload_bytes=Subquery(period_qs.values("current_upload_bytes")[:1]),
+                current_expires_at=Subquery(period_qs.values("expires_at")[:1]),
+                current_created_at=Subquery(period_qs.values("created_at")[:1]),
             )
 
     initial_agency = models.ForeignKey(

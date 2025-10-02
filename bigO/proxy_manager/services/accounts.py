@@ -24,3 +24,7 @@ def get_agent_current_subscriptionperiods_qs(agent: models.Agent):
     return models.SubscriptionPeriod.objects.filter(
         profile__initial_agency_id=agent.agency_id, selected_as_current=True
     )
+
+
+def get_agent_current_subscriptionprofiled_qs(agent: models.Agent):
+    return models.SubscriptionProfile.objects.filter(initial_agency_id=agent.agency_id)

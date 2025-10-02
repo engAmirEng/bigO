@@ -69,9 +69,9 @@ export default function Users({
 }: Props) {
   const { url } = usePage();
   var parsedUrl = new URL(url, window.location.origin);
-  let period_id = parsedUrl.searchParams.get('period_id');
+  let profile_id = parsedUrl.searchParams.get('profile_id');
   const [createFormOpen, setCreateFormOpen] = React.useState(false);
-  const [userDetailOpen, setUserDetailOpen] = React.useState(!!period_id);
+  const [userDetailOpen, setUserDetailOpen] = React.useState(!!profile_id);
   return (
     <AppTheme
       disableCustomTheme={disableCustomTheme}
@@ -145,7 +145,7 @@ export default function Users({
                 isOpen={userDetailOpen}
                 onClose={() => {
                   setUserDetailOpen(false);
-                  parsedUrl.searchParams.delete('period_id');
+                  parsedUrl.searchParams.delete('profile_id');
                   router.get(parsedUrl.href);
                 }}
                 user={selected_user}

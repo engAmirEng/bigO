@@ -35,7 +35,7 @@ class ListPage(pydantic.BaseModel, Generic[OutputRecordT]):
     pagination: Pagination | None
     search: Search | None
     records: list[OutputRecordT]
-    columns: dict[str, Column]
+    columns: dict[str, Column] | None
 
 
 class User(pydantic.BaseModel):
@@ -49,7 +49,13 @@ class User(pydantic.BaseModel):
     expires_in_seconds: int
 
 
-UsersColumns = Literal["a", "b"]
+class Period(pydantic.BaseModel):
+    id: str
+    last_sublink_at_repr: str | None
+    last_usage_at_repr: str | None
+    used_bytes: int
+    total_limit_bytes: int
+    expires_in_seconds: int
 
 
 search_callback_type: TypeAlias = Callable[[QuerySet[InputRecordT], str], Awaitable[QuerySet[InputRecordT]]] | None
@@ -64,8 +70,8 @@ class ListPageHandler(Generic[InputRecordT, OutputRecordT]):
         self,
         request,
         queryset: QuerySet[InputRecordT] | list[InputRecordT],
-        search_callback: search_callback_type,
         render_record_callback: render_record_callback_type,
+        search_callback: search_callback_type | None = None,
         sort_callback: sort_callback_type | None = None,
         sortables: set[str] = None,
         prefix: str | None = None,

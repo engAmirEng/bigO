@@ -25,6 +25,7 @@ import ReplayIcon from '@mui/icons-material/Replay';
 import ContentCopyTwoToneIcon from '@mui/icons-material/ContentCopyTwoTone';
 import Stack from '@mui/material/Stack';
 import UserRenewDialogForm from './UserRenewForm.tsx';
+import PeriodsDataGrid from './PeriodsDataGrid.tsx';
 interface Props {
   isOpen: boolean;
   onClose: () => void;
@@ -38,10 +39,7 @@ export default function UserDetailDialog({
   user,
   creatable_plans,
 }: Props) {
-  let {
-    url,
-    props: { errors },
-  } = usePage();
+  let { url } = usePage();
   console.log(user);
   if (!user) {
     return (
@@ -62,7 +60,7 @@ export default function UserDetailDialog({
   const [currentTab, setCurrentTab] = React.useState('1');
   const [suspending, setSuspending] = React.useState(false);
   const [renewFormOpen, setrenewFormOpen] = React.useState(false);
-  const handleChange = (event: React.SyntheticEvent, newValue: string) => {
+  const handleChange = (_: React.SyntheticEvent, newValue: string) => {
     setCurrentTab(newValue);
   };
 
@@ -187,6 +185,7 @@ export default function UserDetailDialog({
               Renew
             </Button>
             {suspendUnSuspend}
+            <PeriodsDataGrid periods_list_page={user.periods_list_page} />
           </TabPanel>
           <TabPanel sx={{ px: 0 }} value="2">
             <Card>
