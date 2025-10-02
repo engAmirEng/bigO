@@ -49,18 +49,32 @@ export interface UserRecordColumns {
   expires_at?: Column;
 }
 
+export interface PeriodRecord {
+  id: string;
+  last_sublink_at_repr: string | null;
+  last_usage_at_repr: string | null;
+  used_bytes: number;
+  total_limit_bytes: number;
+  expires_in_seconds: string;
+}
+export interface PeriodRecordColumns {
+  used_bytes?: Column;
+  last_sublink_at?: Column;
+  last_usage_at?: Column;
+  expires_at?: Column;
+}
 export interface UrlReverse {
   name: string;
   url: string;
 }
 
 export enum PlanProvider {
-  SimpleStrict1 = "type_simple_strict1",
-  TypeSimpleDynamic1 = "type_simple_dynamic1",
+  SimpleStrict1 = 'type_simple_strict1',
+  TypeSimpleDynamic1 = 'type_simple_dynamic1',
 }
 
 export interface PlanRecord {
-  id: string
+  id: string;
   name: string;
   plan_provider_key: PlanProvider;
   plan_provider_args: any;
@@ -68,10 +82,9 @@ export interface PlanRecord {
 }
 
 export interface Sublink {
-  normal: string
-  b64: string
+  normal: string;
+  b64: string;
 }
-
 
 export interface Event {
   id: string;
@@ -79,13 +92,13 @@ export interface Event {
   created_at_str: string;
 }
 
-
 export interface UserDetail {
   id: string;
   title: string;
   created_at_str: string;
   is_suspended: boolean;
-  sublink: Sublink
-  plan: PlanRecord
-  events: Event[]
+  sublink: Sublink;
+  plan: PlanRecord;
+  events: Event[];
+  periods_list_page: ListPage<PeriodRecord, PeriodRecordColumns>;
 }

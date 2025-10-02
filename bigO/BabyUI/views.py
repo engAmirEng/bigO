@@ -196,6 +196,50 @@ async def dashboard(request):
     }
 
 
+async def users_search_callback(queryset: QuerySet[proxy_manager_models.SubscriptionProfile], q: str):
+    return queryset.filter(title__icontains=q)
+
+
+async def users_render_record_callback(i: proxy_manager_models.SubscriptionProfile) -> utils.User:
+    return utils.User(
+        id=str(i.id),
+        title=i.title,
+        last_usage_at_repr=naturaltime(i.last_usage_at),
+        last_sublink_at_repr=naturaltime(i.last_sublink_at) if i.last_sublink_at else "never",
+        online_status="online"
+        if i.last_usage_at and (timezone.now() - i.last_usage_at < timedelta(minutes=2))
+        else "offline"
+        if i.last_usage_at
+        else "never",
+        used_bytes=i.current_download_bytes + i.current_upload_bytes,
+        total_limit_bytes=i.current_total_limit_bytes,
+        expires_in_seconds=int((i.current_expires_at - timezone.now()).total_seconds()),
+    )
+
+
+async def users_sort_callback(
+    queryset: QuerySet[proxy_manager_models.SubscriptionProfile], orderings: list[tuple[str, bool]]
+):
+    order_bys = []
+    res_orderings = []
+    for key, is_asc in orderings:
+        if key == "used_bytes":
+            queryset = queryset.annotate(
+                used_bytes=Coalesce("current_download_bytes", 0) + Coalesce("current_upload_bytes", 0)
+            )
+            order_bys.append(("" if is_asc else "-") + "used_bytes")
+        elif key == "last_sublink_at":
+            order_bys.append(("" if is_asc else "-") + "last_sublink_at")
+        elif key == "last_usage_at":
+            order_bys.append(("" if is_asc else "-") + "last_usage_at")
+        elif key == "expires_at":
+            order_bys.append(("" if is_asc else "-") + "current_expires_at")
+        res_orderings.append((key, is_asc))
+    if order_bys:
+        return queryset.order_by(*order_bys), res_orderings
+    return queryset, []
+
+
 @login_required(login_url=reverse_lazy("BabyUI:signin"))
 @inertia("Dashboard/Users", layout="BabyUI/page.html")
 @prop_urls()
@@ -254,48 +298,7 @@ async def dashboard_users(request):
         .order_by("-current_created_at")
     )
 
-    async def users_search_callback(queryset: QuerySet[proxy_manager_models.SubscriptionPeriod], q: str):
-        return queryset.filter(title__icontains=q)
-
-    async def users_render_record_callback(i: proxy_manager_models.SubscriptionProfile) -> utils.User:
-        return utils.User(
-            id=str(i.id),
-            title=i.title,
-            last_usage_at_repr=naturaltime(i.last_usage_at),
-            last_sublink_at_repr=naturaltime(i.last_sublink_at) if i.last_sublink_at else "never",
-            online_status="online"
-            if i.last_usage_at and (timezone.now() - i.last_usage_at < timedelta(minutes=2))
-            else "offline"
-            if i.last_usage_at
-            else "never",
-            used_bytes=i.current_download_bytes + i.current_upload_bytes,
-            total_limit_bytes=i.current_total_limit_bytes,
-            expires_in_seconds=int((i.current_expires_at - timezone.now()).total_seconds()),
-        )
-
-    async def users_sort_callback(
-        queryset: QuerySet[proxy_manager_models.SubscriptionPeriod], orderings: list[tuple[str, bool]]
-    ):
-        order_bys = []
-        res_orderings = []
-        for key, is_asc in orderings:
-            if key == "used_bytes":
-                queryset = queryset.annotate(
-                    used_bytes=Coalesce("current_download_bytes", 0) + Coalesce("current_upload_bytes", 0)
-                )
-                order_bys.append(("" if is_asc else "-") + "used_bytes")
-            elif key == "last_sublink_at":
-                order_bys.append(("" if is_asc else "-") + "last_sublink_at")
-            elif key == "last_usage_at":
-                order_bys.append(("" if is_asc else "-") + "last_usage_at")
-            elif key == "expires_at":
-                order_bys.append(("" if is_asc else "-") + "current_expires_at")
-            res_orderings.append((key, is_asc))
-        if order_bys:
-            return queryset.order_by(*order_bys), res_orderings
-        return queryset, []
-
-    user_listpagehandler = utils.ListPageHandler[proxy_manager_models.SubscriptionPeriod, utils.User](
+    user_listpagehandler = utils.ListPageHandler[proxy_manager_models.SubscriptionProfile, utils.User](
         request,
         queryset=users_qs,
         search_callback=users_search_callback,
@@ -316,6 +319,25 @@ async def dashboard_users(request):
             await selected_user.periods.filter(selected_as_current=True).select_related("plan").afirst()
         )
         user_events = selected_user.profile_subscriptionevents.all()
+        periods_qs = selected_user.periods.ann_expires_at().ann_total_limit_bytes().order_by("-created_at")
+
+        async def periods_render_record_callback(i: proxy_manager_models.SubscriptionPeriod) -> utils.User:
+            return utils.Period(
+                id=str(i.id),
+                last_usage_at_repr=naturaltime(i.last_usage_at),
+                last_sublink_at_repr=naturaltime(i.last_sublink_at) if i.last_sublink_at else "never",
+                used_bytes=i.current_download_bytes + i.current_upload_bytes,
+                total_limit_bytes=i.total_limit_bytes,
+                expires_in_seconds=int((i.expires_at - timezone.now()).total_seconds()),
+            )
+
+        period_listpagehandler = utils.ListPageHandler[proxy_manager_models.SubscriptionPeriod, utils.User](
+            request,
+            queryset=periods_qs,
+            render_record_callback=periods_render_record_callback,
+            prefix="periods",
+        )
+        periods_res = await period_listpagehandler.to_response()
 
         # form
         if request.POST and request.POST.get("action") == "renew_user":
@@ -377,6 +399,7 @@ async def dashboard_users(request):
                 }
                 async for i in user_events
             ],
+            "periods_list_page": periods_res.model_dump(),
         }
         if selected_user
         else None,
