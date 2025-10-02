@@ -93,12 +93,9 @@ export default function PeriodsDataGrid({ periods_list_page }: Props) {
       renderCell: (params) => {
         let color: ChipOwnProps['color'];
         let label;
-        if (params.row.onlineStatus == 'never') {
+        if (params.value == null) {
           color = 'error';
           label = 'never';
-        } else if (params.row.onlineStatus == 'online') {
-          color = 'success';
-          label = 'online';
         } else {
           color = 'secondary';
           label = params.value;
