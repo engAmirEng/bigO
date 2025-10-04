@@ -144,7 +144,11 @@ class OutboundConnector(TimeStampedModel, models.Model):
             o = f"({self.outbound_type.name}({self.inbound_spec.id}))"
         else:
             o = f"({self.outbound_type.name}(-))"
-        return f"{self.id}-{o}->{self.dest_node.name if self.dest_node else '?'}"
+        dest_node_display = "?"
+        if self.dest_node:
+            first_ip = self.dest_node.node_nodepublicips.first()
+            dest_node_display = f"{first_ip.ip.get_region_display() if first_ip else ''}{self.dest_node.name}"
+        return f"{self.id}-{o}->{dest_node_display}"
 
 
 class OutboundType(TimeStampedModel, models.Model):

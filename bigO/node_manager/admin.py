@@ -266,7 +266,7 @@ class DNSRecordIPValueInline(admin.StackedInline):
 
 @admin.register(models.PublicIP)
 class PublicIPModelAdmin(admin.ModelAdmin):
-    list_display = ("__str__", "asn", "node_display")
+    list_display = ("__str__", "node_display", "asn", "isp", "region")
     search_fields = ("name", "ip")
     inlines = (
         RealitySpecForIPInline,

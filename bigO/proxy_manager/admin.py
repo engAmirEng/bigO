@@ -22,7 +22,7 @@ class ConfigModelAdmin(
 
 
 @admin.register(models.Region)
-class RegionAdmin(admin.ModelAdmin):
+class RegionModelAdmin(admin.ModelAdmin):
     list_display = ("__str__",)
 
 
