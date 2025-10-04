@@ -196,6 +196,50 @@ async def dashboard(request):
     }
 
 
+async def users_search_callback(queryset: QuerySet[proxy_manager_models.SubscriptionProfile], q: str):
+    return queryset.filter(title__icontains=q)
+
+
+async def users_render_record_callback(i: proxy_manager_models.SubscriptionProfile) -> utils.User:
+    return utils.User(
+        id=str(i.id),
+        title=i.title,
+        last_usage_at_repr=naturaltime(i.last_usage_at),
+        last_sublink_at_repr=naturaltime(i.last_sublink_at) if i.last_sublink_at else "never",
+        online_status="online"
+        if i.last_usage_at and (timezone.now() - i.last_usage_at < timedelta(minutes=2))
+        else "offline"
+        if i.last_usage_at
+        else "never",
+        used_bytes=i.current_download_bytes + i.current_upload_bytes,
+        total_limit_bytes=i.current_total_limit_bytes,
+        expires_in_seconds=int((i.current_expires_at - timezone.now()).total_seconds()),
+    )
+
+
+async def users_sort_callback(
+    queryset: QuerySet[proxy_manager_models.SubscriptionProfile], orderings: list[tuple[str, bool]]
+):
+    order_bys = []
+    res_orderings = []
+    for key, is_asc in orderings:
+        if key == "used_bytes":
+            queryset = queryset.annotate(
+                used_bytes=Coalesce("current_download_bytes", 0) + Coalesce("current_upload_bytes", 0)
+            )
+            order_bys.append(("" if is_asc else "-") + "used_bytes")
+        elif key == "last_sublink_at":
+            order_bys.append(("" if is_asc else "-") + "last_sublink_at")
+        elif key == "last_usage_at":
+            order_bys.append(("" if is_asc else "-") + "last_usage_at")
+        elif key == "expires_at":
+            order_bys.append(("" if is_asc else "-") + "current_expires_at")
+        res_orderings.append((key, is_asc))
+    if order_bys:
+        return queryset.order_by(*order_bys), res_orderings
+    return queryset, []
+
+
 @login_required(login_url=reverse_lazy("BabyUI:signin"))
 @inertia("Dashboard/Users", layout="BabyUI/page.html")
 @prop_urls()
@@ -244,55 +288,19 @@ async def dashboard_users(request):
     # end
 
     # users
-    users_qs = proxy_manager_services.get_agent_current_subscriptionperiods_qs(agent=agent_obj)
+    users_qs = proxy_manager_services.get_agent_current_subscriptionprofiled_qs(agent=agent_obj)
+
     users_qs = (
-        users_qs.select_related("profile", "plan").ann_expires_at().ann_total_limit_bytes().order_by("-created_at")
+        users_qs.ann_last_usage_at()
+        .ann_last_sublink_at()
+        .ann_current_period_fields()
+        .filter(current_created_at__isnull=False)
+        .order_by("-current_created_at")
     )
 
-    async def users_search_callback(queryset: QuerySet[proxy_manager_models.SubscriptionPeriod], q: str):
-        return queryset.filter(profile__title__icontains=q)
-
-    async def users_render_record_callback(i: proxy_manager_models.SubscriptionPeriod) -> utils.User:
-        return utils.User(
-            id=str(i.id),
-            title=i.profile.title,
-            last_usage_at_repr=naturaltime(i.last_usage_at),
-            last_sublink_at_repr=naturaltime(i.last_sublink_at) if i.last_sublink_at else "never",
-            online_status="online"
-            if i.last_usage_at and (timezone.now() - i.last_usage_at < timedelta(minutes=2))
-            else "offline"
-            if i.last_usage_at
-            else "never",
-            used_bytes=i.current_download_bytes + i.current_upload_bytes,
-            total_limit_bytes=i.total_limit_bytes,
-            expires_in_seconds=int((i.expires_at - timezone.now()).total_seconds()),
-        )
-
-    async def users_sort_callback(
-        queryset: QuerySet[proxy_manager_models.SubscriptionPeriod], orderings: list[tuple[str, bool]]
-    ):
-        order_bys = []
-        res_orderings = []
-        for key, is_asc in orderings:
-            if key == "used_bytes":
-                queryset = queryset.annotate(
-                    used_bytes=Coalesce("current_download_bytes", 0) + Coalesce("current_upload_bytes", 0)
-                )
-                order_bys.append(("" if is_asc else "-") + "used_bytes")
-            elif key == "last_sublink_at":
-                order_bys.append(("" if is_asc else "-") + "last_sublink_at")
-            elif key == "last_usage_at":
-                order_bys.append(("" if is_asc else "-") + "last_usage_at")
-            elif key == "expires_at":
-                order_bys.append(("" if is_asc else "-") + "expires_at")
-            res_orderings.append((key, is_asc))
-        if order_bys:
-            return queryset.order_by(*order_bys), res_orderings
-        return queryset, []
-
-    user_listpagehandler = utils.ListPageHandler[proxy_manager_models.SubscriptionPeriod, utils.User](
+    user_listpagehandler = utils.ListPageHandler[proxy_manager_models.SubscriptionProfile, utils.User](
         request,
-        queryset=users_qs.filter(selected_as_current=True),
+        queryset=users_qs,
         search_callback=users_search_callback,
         render_record_callback=users_render_record_callback,
         sort_callback=users_sort_callback,
@@ -305,35 +313,57 @@ async def dashboard_users(request):
     creatable_plans_qs = newuser_form.fields["plan"].queryset
     # user detail
     selected_user = None
-    if period_id := request.GET.get("period_id"):
-        selected_user: proxy_manager_models.SubscriptionPeriod = await users_qs.filter(id=period_id).afirst()
-        user_events = selected_user.profile.profile_subscriptionevents.all()
+    if profile_id := request.GET.get("profile_id"):
+        selected_user: proxy_manager_models.SubscriptionProfile = await users_qs.filter(id=profile_id).afirst()
+        selected_user.current_period = (
+            await selected_user.periods.filter(selected_as_current=True).select_related("plan").afirst()
+        )
+        user_events = selected_user.profile_subscriptionevents.all()
+        periods_qs = selected_user.periods.ann_expires_at().ann_total_limit_bytes().order_by("-created_at")
+
+        async def periods_render_record_callback(i: proxy_manager_models.SubscriptionPeriod) -> utils.User:
+            return utils.Period(
+                id=str(i.id),
+                last_usage_at_repr=naturaltime(i.last_usage_at),
+                last_sublink_at_repr=naturaltime(i.last_sublink_at) if i.last_sublink_at else "never",
+                used_bytes=i.current_download_bytes + i.current_upload_bytes,
+                total_limit_bytes=i.total_limit_bytes,
+                expires_in_seconds=int((i.expires_at - timezone.now()).total_seconds()),
+            )
+
+        period_listpagehandler = utils.ListPageHandler[proxy_manager_models.SubscriptionPeriod, utils.User](
+            request,
+            queryset=periods_qs,
+            render_record_callback=periods_render_record_callback,
+            prefix="periods",
+        )
+        periods_res = await period_listpagehandler.to_response()
 
         # form
         if request.POST and request.POST.get("action") == "renew_user":
-            renewuser_form = forms.RenewUserForm(request.POST, profile=selected_user.profile, prefix="renewuser1")
+            renewuser_form = forms.RenewUserForm(request.POST, profile=selected_user, prefix="renewuser1")
             if await sync_to_async(renewuser_form.is_valid)():
                 await sync_to_async(services.renew_user)(
                     agency=agent_obj.agency,
                     agentuser=request.user,
                     plan=renewuser_form.cleaned_data["plan"],
                     plan_args=renewuser_form.get_plan_args(),
-                    profile=selected_user.profile,
+                    profile=selected_user,
                 )
                 return redirect(request.get_full_path())
             errors.update(**renewuser_form.errors)
         else:
-            renewuser_form = forms.RenewUserForm(profile=selected_user.profile, prefix="newuser1")
+            renewuser_form = forms.RenewUserForm(profile=selected_user, prefix="newuser1")
         # end
 
         creatable_plans_qs = renewuser_form.fields["plan"].queryset
-        normal_sublink = await sync_to_async(selected_user.profile.get_sublink)()
+        normal_sublink = await sync_to_async(selected_user.get_sublink)()
         b64_sublink = normal_sublink + "?base64=true"
         if request.GET and request.POST.get("action") == "suspend":
-            await sync_to_async(services.suspend_user)(selected_user.profile, agentuser=request.user)
+            await sync_to_async(services.suspend_user)(selected_user, agentuser=request.user)
             return redirect(request.get_full_path())
         elif request.GET and request.POST.get("action") == "unsuspend":
-            await sync_to_async(services.unsuspend_user)(selected_user.profile, agentuser=request.user)
+            await sync_to_async(services.unsuspend_user)(selected_user, agentuser=request.user)
             return redirect(request.get_full_path())
 
     return {
@@ -351,16 +381,14 @@ async def dashboard_users(request):
         "logout_url": reverse("BabyUI:logout"),
         "users_list_page": users_res.model_dump(),
         "selected_user": {
-            "title": selected_user.profile.title,
-            "created_at_str": jformat(
-                selected_user.profile.created_at.astimezone(ZoneInfo("Asia/Tehran")), "%Y/%m/%d %H:%M"
-            ),
-            "is_suspended": not selected_user.profile.is_active,
+            "title": selected_user.title,
+            "created_at_str": jformat(selected_user.created_at.astimezone(ZoneInfo("Asia/Tehran")), "%Y/%m/%d %H:%M"),
+            "is_suspended": not selected_user.is_active,
             "plan": {
-                "id": str(selected_user.plan.id),
-                "name": selected_user.plan.name,
-                "plan_provider_key": selected_user.plan.plan_provider_key,
-                "plan_provider_args": selected_user.plan.plan_provider_args,
+                "id": str(selected_user.current_period.plan.id),
+                "name": selected_user.current_period.plan.name,
+                "plan_provider_key": selected_user.current_period.plan.plan_provider_key,
+                "plan_provider_args": selected_user.current_period.plan.plan_provider_args,
             },
             "sublink": {"normal": normal_sublink, "b64": b64_sublink},
             "events": [
@@ -371,6 +399,7 @@ async def dashboard_users(request):
                 }
                 async for i in user_events
             ],
+            "periods_list_page": periods_res.model_dump(),
         }
         if selected_user
         else None,
