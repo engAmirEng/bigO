@@ -1,1 +1,4 @@
 /workdir
+/.idea
+/dist
+config.toml

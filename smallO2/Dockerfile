@@ -1,5 +1,6 @@
 FROM golang:1.24-alpine3.22 AS builder
 
+# setup smallO2 binay
 WORKDIR /app
 # Copy go.mod and go.sum first for dependency caching
 COPY go.mod go.sum ./
@@ -9,15 +10,19 @@ RUN go mod download
 COPY . .
 
 # Build the Go binary
-RUN go build -o myapp ./...
+RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o myapp ./...
+
+# setup telegraf binay
+WORKDIR /telegraf
+RUN wget https://dl.influxdata.com/telegraf/releases/telegraf-1.33.1_linux_amd64.tar.gz
+RUN tar -xzvf telegraf-1.33.1_linux_amd64.tar.gz && cp telegraf-1.33.1/usr/bin/telegraf telegraf
 
 # --- Stage 2: Run the Go app ---
-FROM debian:bullseye-slim
+FROM python:3.13.6-slim-bullseye
 
 # Install CA certificates
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
-    supervisor \
     # integration binaries \
     nginx \
     haproxy \
@@ -31,13 +36,33 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app/dependencies
-# integration binaries
-RUN wget https://dl.influxdata.com/telegraf/releases/telegraf-1.33.1_linux_amd64.tar.gz
-RUN tar -xzvf telegraf-1.33.1_linux_amd64.tar.gz && cp telegraf-1.33.1/usr/bin/telegraf /usr/local/bin/telegraf && chmod +x /usr/local/bin/telegraf
+# setting up supervisor
+RUN pip install supervisor==4.3.0
+RUN mkdir /etc/supervisor/
+RUN mkdir /var/log/supervisor
+RUN cat <<'EOF' > /etc/supervisor/supervisord.conf
+[unix_http_server]
+file=/var/run/supervisor.sock
+chmod=0700
 
-# cleaning up
-RUN rm -rf /app/dependencies
+[supervisord]
+logfile=/var/log/supervisor/supervisord.log
+pidfile=/var/run/supervisord.pid
+childlogdir=/var/log/supervisor
+
+[rpcinterface:supervisor]
+supervisor.rpcinterface_factory = supervisor.rpcinterface:make_main_rpcinterface
+
+[supervisorctl]
+serverurl=unix:///var/run/supervisor.sock
+
+[include]
+files = /app/workdir/supervisor/supervisor.conf
+EOF
+
+# setting up telegraf
+COPY --from=builder /telegraf/telegraf /usr/local/bin/telegraf
+RUN chmod +x /usr/local/bin/telegraf
 
 # Set working directory
 WORKDIR /app
