@@ -53,7 +53,7 @@ class Region(TimeStampedModel, models.Model):
     short_display = models.CharField(max_length=7, null=True, blank=True)
 
     def __str__(self):
-        return f"{self.pk}-{self.short_display}{self.name}"
+        return f"{self.pk}-{self.short_display or ''}{self.name}"
 
 
 class ISP(TimeStampedModel, models.Model):
