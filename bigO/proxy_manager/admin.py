@@ -22,7 +22,7 @@ class ConfigModelAdmin(
 
 
 @admin.register(models.Region)
-class RegionAdmin(admin.ModelAdmin):
+class RegionModelAdmin(admin.ModelAdmin):
     list_display = ("__str__",)
 
 
@@ -293,6 +293,7 @@ class OutboundConnectorModelAdmin(admin.ModelAdmin):
         "outbound_type__name",
         "outbound_type__to_inbound_type__name",
         "outbound_type__xray_outbound_template",
+        "dest_node__name",
     )
     list_filter = ("outbound_type__to_inbound_type",)
     autocomplete_fields = "outbound_type", "inbound_spec", "dest_node"

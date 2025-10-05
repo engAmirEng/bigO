@@ -177,7 +177,11 @@ class Node(TimeStampedModel, models.Model):
     objects = NodeQuerySet.as_manager()
 
     def __str__(self):
-        return f"{'❌' if self.is_revoked else ''}{self.pk}-{self.name}"
+        first_ip = self.node_nodepublicips.first()
+        prefix = ""
+        if first_ip:
+            prefix = first_ip.ip.get_region_display()
+        return f"{'❌' if self.is_revoked else ''}{self.pk}-{prefix}{self.name}"
 
     def get_support_ipv6(self):
         return Node.objects.filter(id=self.id).support_ipv6().exists()
@@ -332,6 +336,21 @@ class PublicIP(TimeStampedModel):
 
     objects = PublicIPManager()
 
+    def __str__(self):
+        prefix = self.get_region_display()
+        try:
+            if self.node_name:
+                return f"{self.pk}-{prefix}{self.ip.ip} -> {self.node_id}-{self.node_name}"
+        except AttributeError:
+            pass
+        return f"{self.pk}-{prefix}{self.ip.ip}"
+
+    def get_region_display(self):
+        prefix = ""
+        if self.region and self.region.short_display:
+            prefix = self.region.short_display
+        return prefix
+
     @property
     def node_name(self):
         return self._node_name
@@ -347,14 +366,6 @@ class PublicIP(TimeStampedModel):
     @node_id.setter
     def node_id(self, value):
         self._node_id = value
-
-    def __str__(self):
-        try:
-            if self.node_name:
-                return f"{self.pk}-{self.ip.ip} -> {self.node_id}-{self.node_name}"
-        except AttributeError:
-            pass
-        return f"{self.pk}-{self.ip.ip}"
 
 
 class NodePublicIP(TimeStampedModel):
@@ -373,7 +384,8 @@ class NodePublicIP(TimeStampedModel):
         constraints = [UniqueConstraint(fields=("ip", "node"), name="unique_node_ip")]
 
     def __str__(self):
-        return f"{self.pk}-{self.node}|{self.mark}{self.ip}"
+        perfix = self.ip.get_region_display()
+        return f"{self.pk}-{self.node.name}|{self.mark}{perfix}{self.ip.ip}"
 
     @property
     def mark(self):
