@@ -39,7 +39,7 @@ func getLogsDir(config Config) string {
 	return logsDir
 }
 
-func configureLogger(config Config) *zap.Logger {
+func configureLogger(stdout bool, config Config) *zap.Logger {
 	fileWriter := &lumberjack.Logger{
 		Filename:   filepath.Join(getLogsDir(config), "app.log"), // <-- Path to your log file
 		MaxSize:    50,                                           // megabytes
@@ -55,7 +55,7 @@ func configureLogger(config Config) *zap.Logger {
 	encoderCfg.EncodeTime = zapcore.ISO8601TimeEncoder
 
 	var core zapcore.Core
-	if config.IsDev {
+	if config.IsDev || stdout {
 		core = zapcore.NewTee(
 			zapcore.NewCore(zapcore.NewJSONEncoder(encoderCfg), consoleSyncer, zap.DebugLevel),
 			zapcore.NewCore(zapcore.NewJSONEncoder(encoderCfg), fileWriterSyncer, zap.DebugLevel),

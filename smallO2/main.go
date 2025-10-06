@@ -22,16 +22,19 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "--version" {
 		fmt.Printf("Release: %s\nBuilt at: %s\n", Release, BuildTime)
 		return
+	} else if len(os.Args) == 4 && os.Args[1] == "pre_run" && os.Args[2] == "--config" {
+		configPath := os.Args[3]
+		mainLoop(configPath, true)
 	} else if len(os.Args) > 1 && os.Args[1] == "--config" {
 		configPath := os.Args[2]
-		mainLoop(configPath)
+		mainLoop(configPath, false)
 	} else {
 		fmt.Printf("unknown command %s\n", os.Args)
 		return
 	}
 }
 
-func mainLoop(configPath string) {
+func mainLoop(configPath string, preRun bool) {
 	config, err := loadConfig(configPath)
 	if config.SentryDsn != nil {
 		var environment string
@@ -52,7 +55,7 @@ func mainLoop(configPath string) {
 	if err != nil {
 		panic(fmt.Sprintf("Error loading config: %v", err))
 	}
-	logger := configureLogger(config)
+	logger := configureLogger(preRun, config)
 	defer logger.Sync()
 	defer func() {
 		if r := recover(); r != nil {
@@ -68,8 +71,13 @@ func mainLoop(configPath string) {
 	supervisorXmlRpcClient, err := getSupervisorXmlRpcClient()
 	defer supervisorXmlRpcClient.Close()
 
+	loopCount := 0
 MainLoop:
 	for {
+		if preRun && loopCount >= 1 {
+			break MainLoop
+		}
+		loopCount++
 		isSupervisorRunning, err := IsSupervisorRunning(supervisorXmlRpcClient)
 		if isSupervisorRunning == false {
 			logger.Warn(fmt.Sprintf("Supervisor not running with err: %s", err))

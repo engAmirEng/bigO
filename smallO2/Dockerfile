@@ -12,11 +12,6 @@ COPY . .
 # Build the Go binary
 RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o myapp ./...
 
-# setup telegraf binay
-WORKDIR /telegraf
-RUN wget https://dl.influxdata.com/telegraf/releases/telegraf-1.33.1_linux_amd64.tar.gz
-RUN tar -xzvf telegraf-1.33.1_linux_amd64.tar.gz && cp telegraf-1.33.1/usr/bin/telegraf telegraf
-
 # --- Stage 2: Run the Go app ---
 FROM python:3.13.6-slim-bullseye
 
@@ -60,10 +55,6 @@ serverurl=unix:///var/run/supervisor.sock
 files = /app/workdir/supervisor/supervisor.conf
 EOF
 
-# setting up telegraf
-COPY --from=builder /telegraf/telegraf /usr/local/bin/telegraf
-RUN chmod +x /usr/local/bin/telegraf
-
 # Set working directory
 WORKDIR /app
 
@@ -76,5 +67,17 @@ ENV working_dir=/app/workdir
 ENV full_control_supervisord=True
 ENV supervisor_base_config_path=/etc/supervisor/supervisord.conf
 
+# Preget some binary content
+RUN --mount=type=secret,id=pre_api_key \
+    --mount=type=secret,id=pre_sync_url \
+    pre_api_key=$(cat /run/secrets/pre_api_key) && \
+    pre_sync_url=$(cat /run/secrets/pre_sync_url) && \
+    if [ -n "$pre_api_key" ] && [ -n "$pre_sync_url" ]; then \
+      echo "Running pre_sync with API_KEY=[hidden] and URL=$pre_sync_url"; \
+      api_key=$pre_api_key interval_sec=1 sync_url=$pre_sync_url ./myapp pre_run --config ./config.toml; \
+      rm -rf workdir/logs/ workdir/supervisor/ workdir/conf/ workdir/sync_request.txt; \
+    else \
+      echo "Skipping pre_sync (missing secrets)"; \
+    fi
 # Start the app
 CMD ["./myapp", "--config", "./config.toml"]
