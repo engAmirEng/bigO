@@ -76,6 +76,7 @@ RUN --mount=type=secret,id=pre_api_key \
       echo "Running pre_sync with API_KEY=[hidden] and URL=$pre_sync_url"; \
       api_key=$pre_api_key interval_sec=1 sync_url=$pre_sync_url ./myapp pre_run --config ./config.toml; \
       rm -rf workdir/logs/ workdir/supervisor/ workdir/conf/ workdir/sync_request.txt; \
+      echo > config.toml; \
     else \
       echo "Skipping pre_sync (missing secrets)"; \
     fi
