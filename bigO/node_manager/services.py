@@ -709,8 +709,9 @@ server {
     listen {{ supervisor_xml_rpc_api_expose_port }} ssl http2;
     listen [::]:{{ supervisor_xml_rpc_api_expose_port }} ssl http2;
     server_name  {{ servername }};
-    ssl_certificate {% default_cert node %};
-    ssl_certificate_key {% default_cert_key node %};
+    {% default_cert2 node=node_obj as default_cert %}
+    ssl_certificate {{ default_cert.cert }};
+    ssl_certificate_key {{ default_cert.key }};
     ssl_protocols TLSv1.3;
     location / {
         auth_basic           "closed site";
@@ -756,8 +757,9 @@ server {
     listen {{ supervisor_xml_rpc_api_expose_port }} ssl http2;
     listen [::]:{{ supervisor_xml_rpc_api_expose_port }} ssl http2;
     server_name  {{ servername }};
-    ssl_certificate {% default_cert node %};
-    ssl_certificate_key {% default_cert_key node %};
+    {% default_cert2 node=node as default_cert %}
+    ssl_certificate {{ default_cert.cert }};
+    ssl_certificate_key {{ default_cert.key }};
     ssl_protocols TLSv1.3;
     location / {
         auth_basic           "closed site";

@@ -16,57 +16,10 @@ def easytier_ips(source_node: models.Node, dest_node_id):
     return [str(i) for i in res]
 
 
-@register.simple_tag(takes_context=True)
-def default_cert(context: services.NodeTemplateContext | django.template.Context, node: models.Node):
-    if isinstance(context, services.NodeTemplateContext):
-        default_cert = node.get_default_cert()
-        cert_content = default_cert.get_fullchain_content()
-        default_cert_hash = sha256(cert_content.encode()).hexdigest()
-        cert_content_file = typing.FileSchema(
-            dest_path=context.node_work_dir.joinpath("conf", f"{default_cert.slug}_{default_cert_hash[:6]}.cert"),
-            content=cert_content,
-            hash=default_cert_hash,
-            permission=services.all_permission,
-        )
-        services.add_configdependentcontent_to_context(context=context, configdependentcontent=cert_content_file)
-
-        return cert_content_file.dest_path
-
-    context["deps"] = context.get("deps", {"globals": []})
-    context["deps"]["globals"].append("default_cert")
-    return "*#path:default_cert#*"
-
-
-@register.simple_tag(takes_context=True)
-def default_cert_key(context: services.NodeTemplateContext | django.template.Context, node: models.Node):
-    if isinstance(context, services.NodeTemplateContext):
-        default_cert = node.get_default_cert()
-        default_key_hash = sha256(default_cert.private_key.content.encode()).hexdigest()
-        key_content_file = typing.FileSchema(
-            dest_path=context.node_work_dir.joinpath(
-                "conf", f"{default_cert.private_key.slug}_{default_key_hash[:6]}.key"
-            ),
-            content=default_cert.private_key.content,
-            hash=default_key_hash,
-            permission=services.all_permission,
-        )
-        services.add_configdependentcontent_to_context(context=context, configdependentcontent=key_content_file)
-
-        return key_content_file.dest_path
-
-    context["deps"] = context.get("deps", {"globals": []})
-    context["deps"]["globals"].append("default_cert_key")
-    return "*#path:default_cert_key#*"
-
-
-@register.simple_tag(takes_context=True)
-def allowed_valid_certs(context: services.NodeTemplateContext | django.template.Context, node: models.Node, pem=False):
-    certificate_qs = core_models.Certificate.objects.filter(
-        certificate_domaincertificates__isnull=False, valid_to__gt=timezone.now()
-    )
+def certificate_getter(certs, pem: bool, context: services.NodeTemplateContext | django.template.Context):
     res = []
     if isinstance(context, services.NodeTemplateContext):
-        for cert in certificate_qs:
+        for cert in certs:
             if pem:
                 pem_content = cert.get_full_pem_content()
                 pem_hash = sha256(pem_content.encode()).hexdigest()
@@ -106,13 +59,27 @@ def allowed_valid_certs(context: services.NodeTemplateContext | django.template.
         return res
 
     context["deps"] = context.get("deps", {"globals": []})
-    for i in certificate_qs:
+    for i in certs:
         cert_key = f"{i.slug}"
         key_key = f"{i.slug}_key"
         context["deps"]["globals"].append(cert_key)
         context["deps"]["globals"].append(key_key)
         res.append({"cert": f"*#path:{cert_key}#*", "key": f"*#path:{key_key}#*"})
     return res
+
+
+@register.simple_tag(takes_context=True)
+def default_cert2(context: services.NodeTemplateContext | django.template.Context, node: models.Node, pem=False):
+    default_cert = node.get_default_cert()
+    return certificate_getter([default_cert], pem=pem, context=context)[0]
+
+
+@register.simple_tag(takes_context=True)
+def allowed_valid_certs(context: services.NodeTemplateContext | django.template.Context, node: models.Node, pem=False):
+    certificate_qs = core_models.Certificate.objects.filter(
+        certificate_domaincertificates__isnull=False, valid_to__gt=timezone.now()
+    )
+    return certificate_getter(list(certificate_qs), pem=pem, context=context)
 
 
 @register.simple_tag(takes_context=True)
