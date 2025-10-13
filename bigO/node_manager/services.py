@@ -458,6 +458,11 @@ def get_global_haproxy_conf_v2(
     if site_config.main_haproxy is None:
         logger.critical("no program set for global_haproxy_conf")
         return None
+    proxy_manager_config = proxy_manager_models.Config.objects.get()
+    haproxy_config_template = proxy_manager_config.haproxy_config_template
+    if not haproxy_config_template:
+        logger.critical(f"proxy_manager_config.haproxy_config_template is empty")
+        return None
     haproxy_program = site_config.main_haproxy.get_program_for_node(node_obj)
     if haproxy_program is None:
         raise ProgramNotFound(program_version=site_config.main_haproxy)
@@ -493,81 +498,6 @@ def get_global_haproxy_conf_v2(
         node_work_dir=node_work_dir,
         base_url=base_url,
     )
-    proxy_manager_config = proxy_manager_models.Config.objects.get()
-    haproxy_config_template = proxy_manager_config.haproxy_config_template
-    # depracated (remove this)
-    default_haproxy_config_template = """
-{% load node_manager %}
-global
-    log /dev/log local0
-    # limited-quic
-
-defaults
-    log global
-    retry-on all-retryable-errors
-
-    timeout connect 5s
-    timeout client 50s
-    timeout client-fin 50s
-    timeout server 50s
-    timeout tunnel 1h
-    default-server init-addr none
-    default-server inter 15s fastinter 2s downinter 5s rise 3 fall 3
-    mode tcp
-
-frontend https-in
-    bind :443,:::443 v4v6 tfo
-    # option tcplog
-    # option dontlognull
-    tcp-request inspect-delay 5s
-    tcp-request content accept if { req.ssl_hello_type 1 }
-
-    {{ xray_443_matchers_part }}
-
-    default_backend to_https_in_ssl
-
-backend to_https_in_ssl
-    server haproxy abns@https_in_ssl send-proxy-v2 tfo
-
-frontend http-https-in
-    bind :80,:::80 v4v6 tfo
-
-    {% allowed_valid_certs node=node_obj pem='True' as certs %}
-    bind abns@https_in_ssl tfo accept-proxy ssl {% for i in certs %}crt {{ i }} {% endfor %}alpn h2,http/1.1,h3 allow-0rtt
-    acl h2 ssl_fc_alpn -i h2
-    #acl h2 ssl_fc_npn -i h2
-
-    http-response set-header alt-svc "h3=\":443\";ma=900;"
-    tcp-request inspect-delay 5s
-    tcp-request content accept if HTTP
-
-    # use_backend vlesshs if { path_beg /TWJesFY44i6zOOD8pYMb }
-    # use_backend vlessw if { path_beg /13wuO5tMdxJDeSHexv5DKmT0 }
-    {{ xray_80_matchers_part }}
-
-    use_backend nginx_dispatcher_h2 if h2
-    default_backend nginx_dispatcher_h2
-    #default_backend nginx_dispatcher
-
-# this server handles xray http2 proxies
-backend nginx_dispatcher_h2
-    server nginx unix@/run/nginx_xray_h2.sock send-proxy-v2 tfo
-
-# this server doesn't handle any proxy
-backend nginx_dispatcher
-    server nginx unix@/run/nginx_xray_h1.sock send-proxy-v2
-
-
-# backend vlesshs
-#   #mode http
-#   #server vlesshs abns@vless-xhttp send-proxy-v2
-#   #server vlesshs 127.0.0.1:1025
-#   server vlesshs unix@/var/run/vless-xhttp.sock
-# backend vlessw
-#   server vlessw abns@h2_vless_ws_new send-proxy-v2 tfo
-{{ xray_backends_part }}
-"""
-    haproxy_config_template = haproxy_config_template or default_haproxy_config_template
     haproxy_config_template += "\n"  # fix haproxyerror: Missing LF on last line, file might have been truncated
     haproxy_config_content = django.template.Template(haproxy_config_template).render(context=template_context)
 
