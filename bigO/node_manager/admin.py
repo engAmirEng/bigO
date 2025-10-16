@@ -244,7 +244,7 @@ class AnsibleTaskModelAdmin(admin.ModelAdmin):
 
 @admin.register(models.NodeAPIKey)
 class NodeAPIKeyModelAdmin(APIKeyModelAdmin):
-    pass
+    autocomplete_fields = ("node",)
 
 
 class RealitySpecForIPInline(admin.StackedInline):
@@ -384,6 +384,7 @@ class CustomConfigDependantFileModelAdmin(SimpleHistoryAdmin, admin.ModelAdmin):
 class EasyTierNetworkModelAdmin(admin.ModelAdmin):
     list_display = ("__str__", "program_version", "ip_range")
     list_select_related = ("program_version",)
+    autocomplete_fields = ("program_version",)
 
 
 @admin.register(models.EasyTierNodeListener)
