@@ -8,6 +8,7 @@ from django.db.models import Exists
 from django.utils.translation import gettext
 
 from . import models
+from .services.node_config import proxy_plugin
 from .subscription import AVAILABLE_SUBSCRIPTION_PLAN_PROVIDERS
 
 
@@ -108,3 +109,22 @@ class ConnectionRuleOutboundModelForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["base_conn_uuid"].initial = uuid.uuid4()
+
+
+class InboundTypeModelForm(forms.ModelForm):
+    class Meta:
+        model = models.InboundType
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["type"] = forms.ChoiceField(
+            choices=[(v.key, v.key) for k, v in proxy_plugin.plugins.items() if v.inbound_clean]
+        )
+
+    def clean_type(self):
+        cleaned_data = self.cleaned_data
+        value = cleaned_data.get("type")
+        if value:
+            proxy_plugin.plugins[value].inbound_clean(self)
+        return value

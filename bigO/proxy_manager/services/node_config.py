@@ -5,8 +5,9 @@ import re
 from collections import defaultdict
 from decimal import ROUND_HALF_DOWN, Decimal
 from hashlib import sha256
-from typing import Protocol
+from typing import Callable, Protocol
 
+import bigO.utils.py_helpers
 import django.template
 from bigO.core import models as core_models
 from bigO.node_manager import models as node_manager_models
@@ -19,6 +20,53 @@ from django.utils import timezone
 from .. import models, services, typing
 
 logger = logging.getLogger(__name__)
+
+
+class ProxyPlugin(metaclass=bigO.utils.py_helpers.Singleton):
+    def __init__(self):
+        self.plugins: dict[str, Plugin] = {}
+
+    def register_plugin(self):
+        def wrapper(plugin: type["Plugin"]):
+            self.plugins[plugin.key] = plugin
+            return plugin
+
+        return wrapper
+
+
+proxy_plugin = ProxyPlugin()
+
+
+class Plugin:
+    key: str
+
+    @property
+    def inbound_clean(self) -> Callable | None:
+        pass
+
+
+@proxy_plugin.register_plugin()
+class XrayGeneralPlugin(Plugin):
+    key = "xray_general"
+
+    @property
+    def inbound_clean(self):
+        def fdf(form):
+            pass
+
+        return fdf
+
+
+@proxy_plugin.register_plugin()
+class GostPlugin(Plugin):
+    key = "gost1"
+
+    @property
+    def inbound_clean(self):
+        def fdf(form):
+            pass
+
+        return fdf
 
 
 def get_proxy_manager_nginx_conf_v1(node_obj) -> tuple[str, str, dict] | None:

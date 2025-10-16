@@ -549,6 +549,7 @@ class InboundTypeModelAdmin(SimpleHistoryAdmin, admin.ModelAdmin):
     list_display = ("__str__", "is_active", "is_template")
     search_fields = ("name", "inbound_template")
     inlines = (OutboundTypeInline,)
+    form = forms.InboundTypeModelForm
 
 
 @admin.register(models.Balancer)

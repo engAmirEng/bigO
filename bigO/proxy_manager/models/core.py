@@ -258,6 +258,7 @@ class InboundType(TimeStampedModel, models.Model):
     is_active = models.BooleanField(default=True)
     is_template = models.BooleanField(default=False)
     name = models.SlugField()
+    type = models.CharField(max_length=63)
     inbound_template = models.TextField(
         help_text="{{ node_obj, inbound_tag, consumers_part, combo_stat: {'address', 'port', 'sni', 'domainhostheader'} }}"
     )
