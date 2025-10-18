@@ -8,6 +8,8 @@ from ._setup import env
 
 # Project's apps stuff...
 # ------------------------------------------------------------------------------
+CALENDAR_TYPE = "gregorian"
+
 # graphql
 # ------------------------------------------------------------------------------
 # show graphiql panel or not

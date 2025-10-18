@@ -5,7 +5,6 @@ import string
 from enum import Enum
 from typing import Literal
 
-from asgiref.sync import sync_to_async
 from wonderwords import RandomWord
 
 import aiogram
@@ -14,16 +13,14 @@ import aiogram.utils.token
 from aiogram.client.default import DefaultBotProperties
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.enums import ChatMemberStatus, ParseMode
+from bigO.users.models import User
+from bigO.utils.models import TimeStampedModel
 from django.conf import settings
 from django.db import models
 from django.db.models import CheckConstraint, Q, UniqueConstraint
 from django.utils import timezone
 from django.utils.translation import gettext as _
 
-from bigO.users.models import User, UserManager
-from bigO.utils.models import TimeStampedModel
-
-from .. import tasks
 from .telegram_mappings import TelegramChat
 
 
@@ -162,7 +159,7 @@ class TelegramBot(TimeStampedModel, models.Model):
         self.is_revoked = True
         await self.asave()
         if notify_the_owner:
-            tasks.send_message.delay(tuser_id=self.added_by_id, message=str(_("ربات شما معلق شد")))
+            tasks.send_message.delay(tid=self.added_by_id, message=str(_("ربات شما معلق شد")))
 
     @staticmethod
     def generate_secret_token():
@@ -195,17 +192,58 @@ class TelegramBot(TimeStampedModel, models.Model):
     @staticmethod
     def new_aiobot(token: str) -> aiogram.Bot:
         from ..settings import TELEGRAM_SESSION
+
         session = TELEGRAM_SESSION
         return aiogram.Bot(token, default=DefaultBotProperties(parse_mode=ParseMode.HTML), session=session)
 
 
 class TelegramUser(TimeStampedModel, models.Model):
-    user = models.ForeignKey(User, related_name="telegramuserprofile", on_delete=models.CASCADE)
-    user_tid = models.BigIntegerField(db_comment="user id in telegram")
-    tbot = models.ForeignKey(TelegramBot, related_name="telegramuserprofiles", on_delete=models.CASCADE)
+    user = models.ForeignKey(
+        User, related_name="telegramuserprofiles", on_delete=models.CASCADE, null=True, blank=True
+    )
+    tid = models.BigIntegerField(db_comment="user id in telegram")
+    bot = models.ForeignKey(TelegramBot, related_name="telegramuserprofiles", on_delete=models.CASCADE)
+    last_accessed_at = models.DateTimeField()
+    tfirst_name = models.CharField(max_length=255)
+    tlast_name = models.CharField(max_length=255, null=True, blank=True)
+    tusername = models.CharField(max_length=255, null=True, blank=True)
+    tlanguage_code = models.CharField(max_length=3, null=True, blank=True)
+    tis_premium = models.BooleanField(null=True, blank=True)
+    tadded_to_attachment_menu = models.BooleanField(null=True, blank=True)
 
     class Meta:
-        constraints = [UniqueConstraint(fields=("user_tid", "tbot"), name="unique_tuser_tbot")]
+        constraints = [UniqueConstraint(fields=("tid", "bot"), name="unique_tuser_tbot")]
+
+    def __str__(self):
+        res = f"{self.id}-{self.bot.title}"
+        if self.user:
+            res += f"({self.user.username})"
+        else:
+            res += f"(__{self.tfirst_name})"
+        return res
+
+    @classmethod
+    async def from_update(cls, *, bot_obj: TelegramBot, tuser: aiogram.types.User):
+        now = timezone.now()
+        try:
+            tuser_obj = (
+                await TelegramUser.objects.filter(tid=tuser.id, bot_id=bot_obj.id).select_related("bot", "user").aget()
+            )
+            tuser_obj.last_accessed_at = now
+            await tuser_obj.asave()
+            return False, tuser_obj
+        except TelegramUser.DoesNotExist:
+            tuser_obj = cls(user=None)
+            tuser_obj.bot = bot_obj
+            tuser_obj.tid = tuser.id
+            tuser_obj.last_accessed_at = now
+            tuser_obj.tfirst_name = tuser.first_name
+            tuser_obj.tlast_name = tuser.last_name
+            tuser_obj.tlanguage_code = tuser.language_code
+            tuser_obj.tis_premium = tuser.is_premium
+            tuser_obj.tadded_to_attachment_menu = tuser.added_to_attachment_menu
+            await tuser_obj.asave()
+            return True, tuser_obj
 
 
 class TelegramChatMemberManager(models.Manager):

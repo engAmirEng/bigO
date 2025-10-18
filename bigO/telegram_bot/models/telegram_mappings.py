@@ -8,11 +8,10 @@ from polymorphic.models import PolymorphicModel
 import aiogram
 import aiogram.exceptions
 import aiogram.utils.token
-from django.db import models, transaction
-from django.db.models import CheckConstraint, Q, UniqueConstraint
-
 from bigO.users.models import User
 from bigO.utils.models import TimeStampedModel
+from django.db import models, transaction
+from django.db.models import CheckConstraint, Q, UniqueConstraint
 
 if TYPE_CHECKING:
     from .base import TelegramBot
