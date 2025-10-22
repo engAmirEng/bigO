@@ -598,7 +598,7 @@ class InboundSpecModelAdmin(admin.ModelAdmin):
     def inbound_type_display(self, obj):
         return obj.inbound_type and format_html(
             "<a href='{}'>{}</a>",
-            reverse("admin:proxy_manager_inboundtype_change", args=[obj.inbound_type.id]),
+            admin_obj_change_url(obj.inbound_type),
             str(obj.inbound_type),
         )
 
@@ -613,7 +613,8 @@ class InboundSpecInline(admin.StackedInline):
 
 @admin.register(models.RealitySpec)
 class RealitySpecModelAdmin(SimpleHistoryAdmin, admin.ModelAdmin):
-    list_display = ("__str__", "certificate_domain", "inbound_type", "for_ip", "port", "dest_ip")
+    list_display = ("id", "certificate_domain", "inbound_type", "for_ip_display", "port", "dest_ip")
+    list_select_related = ("certificate_domain", "inbound_type", "for_ip", "dest_ip")
     search_fields = (
         "certificate_domain__name",
         "for_ip__ip",
@@ -623,6 +624,14 @@ class RealitySpecModelAdmin(SimpleHistoryAdmin, admin.ModelAdmin):
     )
     inlines = (InboundSpecInline,)
     autocomplete_fields = ("for_ip", "dest_ip", "certificate_domain")
+
+    @admin.display(ordering="for_ip__asn")
+    def for_ip_display(self, obj):
+        return obj.for_ip and format_html(
+            "<a href='{}'>{}</a>",
+            admin_obj_change_url(obj.for_ip),
+            f"{str(obj.for_ip)}({obj.for_ip.asn})",
+        )
 
 
 # @admin.register(models.IPProxyUsageSpec)

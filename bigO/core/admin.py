@@ -422,6 +422,6 @@ class CertificateTaskModelAdmin(admin.ModelAdmin):
             return obj.certbot_info_uuid
         return format_html(
             "<a href='{}'>{}</a>",
-            reverse("admin:core_certbotinfo_change", args=[certbotinfo.pk]),
+            admin_obj_change_url(certbotinfo),
             obj.certbot_info_uuid,
         )
