@@ -617,7 +617,7 @@ class RealitySpecModelAdmin(SimpleHistoryAdmin, admin.ModelAdmin):
     search_fields = (
         "certificate_domain__name",
         "for_ip__ip",
-        "for_ip__ip__ip_nodepublicips__node__name",
+        "for_ip__ip_nodepublicips__node__name",
         "dest_ip__ip",
         "description",
     )
