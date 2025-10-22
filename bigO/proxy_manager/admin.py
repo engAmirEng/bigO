@@ -630,7 +630,7 @@ class RealitySpecModelAdmin(SimpleHistoryAdmin, admin.ModelAdmin):
         return obj.for_ip and format_html(
             "<a href='{}'>{}</a>",
             admin_obj_change_url(obj.for_ip),
-            f"{str(obj.for_ip)}({obj.for_ip.asn})",
+            f"{str(obj.for_ip)} ({obj.for_ip.asn})",
         )
 
 
