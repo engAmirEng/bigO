@@ -16,6 +16,9 @@ class TypeSimpleStrict1(BaseSubscriptionPlanProvider):
 
     PlanArgsModel = None
 
+    def get_total_limit_bytes(self):
+        return self.provider_args.total_usage_limit_bytes
+
     @classmethod
     def get_expires_at_ann_expr(cls):
         a = MakeInterval(Cast("plan__plan_provider_args__expiry_seconds", PositiveBigIntegerField()))
@@ -54,6 +57,9 @@ class TypeSimpleDynamic1(BaseSubscriptionPlanProvider):
     class PlanArgsModel(pydantic.BaseModel):
         total_usage_limit_bytes: int
         expiry_seconds: int
+
+    def get_total_limit_bytes(self):
+        return self.plan_args.total_usage_limit_bytes
 
     @classmethod
     def get_expires_at_ann_expr(cls):

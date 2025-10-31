@@ -1,0 +1,5 @@
+{% load humanize calander_type filesize tbot_widgets %}
+{% if subscriptionprofile.current_limit_passed or not is_active %}❌{% endif %}{{ subscriptionprofile.title|safe }} ({% if subscriptionprofile.is_alive %}آنلاین🟢{% else %}{{ subscriptionprofile.last_usage_at|naturaltime }}{% endif %})
+📅{{ subscriptionprofile.current_expires_at|time_format:"%Y/%m/%d" }} ({{ subscriptionprofile.current_expires_at|naturaltime }})
+{{ subscriptionprofile.current_download_bytes|add:subscriptionprofile.current_upload_bytes|filesize }} / {{ subscriptionprofile.current_total_limit_bytes|filesize }}
+{% progress_bar current=subscriptionprofile.current_download_bytes|add:subscriptionprofile.current_upload_bytes total=subscriptionprofile.current_total_limit_bytes %}

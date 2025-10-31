@@ -109,9 +109,12 @@ CACHES = {
 # ------------------------------------------------------------------------------
 LOCAL_APPS = [
     "bigO.core",
+    "bigO.finance",
     "bigO.net_manager",
     "bigO.node_manager",
     "bigO.proxy_manager",
+    "bigO.telegram_bot",
+    "bigO.teleport",
     "bigO.tmp_rz",
     "bigO.users",
     "bigO.utils",
@@ -131,6 +134,7 @@ THIRD_PARTY_APPS = clean_ellipsis(
         "django_json_widget",
         "django_jsonform",
         "django_vite",
+        "djmoney",
         "drf_spectacular",
         "graphene_django",
         "graphql_jwt.refresh_token",

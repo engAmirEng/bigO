@@ -1,0 +1,3 @@
+به ربات {{ agency.name }} خوش آمدید
+
+{% for subscriptionprofile in subscriptionprofiles %}{% include "teleport/partials/subscriptionperiod_status.thtml" with subscriptionprofile=subscriptionprofile %}{% endfor %}

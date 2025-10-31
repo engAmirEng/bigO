@@ -11,6 +11,8 @@ from . import models
 @admin.register(models.TelegramBot)
 class TelegramBotModelAdmin(admin.ModelAdmin):
     actions = ("set_webhook_action", "delete_webhook_action", "get_webhook_info_action")
+    search_fields = ("tid", "tusername", "title")
+    list_display = ("id", "title", "tid", "tusername", "is_revoked", "is_powered_off")
 
     @async_to_sync
     async def set_webhook_action(what, self, request, queryset):
@@ -60,6 +62,27 @@ class TelegramBotModelAdmin(admin.ModelAdmin):
 
         tasks = [get_webhook_info(bot) async for bot in queryset]
         await asyncio.gather(*tasks)
+
+
+@admin.register(models.TelegramUser)
+class TelegramUserModelAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "user",
+        "bot",
+        "name_display",
+        "tlanguage_code",
+        "tis_premium",
+        "tadded_to_attachment_menu",
+        "created_at",
+        "last_accessed_at",
+    )
+    search_fields = ("user__name", "user__username", "tfirst_name", "tlast_name", "tusername")
+    autocomplete_fields = ("user", "bot")
+
+    @admin.display()
+    def name_display(self, obj: models.TelegramUser):
+        return f"{obj.tfirst_name} {obj.tlast_name} @{obj.tusername}"
 
 
 @admin.register(models.TelegramFile)

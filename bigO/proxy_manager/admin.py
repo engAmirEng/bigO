@@ -1,10 +1,14 @@
 import humanize.filesize
+import polymorphic.admin
 from simple_history.admin import SimpleHistoryAdmin
 from solo.admin import SingletonModelAdmin
 
+from bigO.finance import models as finance_models
+from bigO.teleport import services as teleport_services
 from bigO.utils.admin import admin_obj_change_url
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.contrib.humanize.templatetags.humanize import naturaltime
+from django.db.models import QuerySet
 from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils.html import format_html
@@ -38,11 +42,17 @@ class AgentInline(admin.StackedInline):
     ordering = ("created_at",)
 
 
+class AgencyPlanRestrictionInline(admin.StackedInline):
+    extra = 1
+    model = models.AgencyPlanRestriction
+    autocomplete_fields = ("agency", "connection_rule")
+
+
 @admin.register(models.Agency)
 class AgencyModelAdmin(admin.ModelAdmin):
     list_display = ("__str__",)
     search_fields = ("name",)
-    inlines = (AgentInline,)
+    inlines = (AgentInline, AgencyPlanRestrictionInline)
     autocomplete_fields = ("sublink_host",)
 
 
@@ -56,9 +66,10 @@ class AgentModelAdmin(admin.ModelAdmin):
 class SubscriptionProfileModelAdmin(admin.ModelAdmin):
     list_display = ("__str__", "initial_agency", "user", "last_usage_at", "last_sublink_at")
     list_editable = []
+    search_fields = ("title", "user__name", "description", "uuid", "xray_uuid")
+    actions = ("get_teleport_startlink",)
     form = forms.SubscriptionProfileModelForm
     autocomplete_fields = ("user",)
-    search_fields = ("title", "user__name", "description", "uuid", "xray_uuid")
 
     def get_queryset(self, request):
         return super().get_queryset(request).ann_last_usage_at().ann_last_sublink_at()
@@ -75,12 +86,39 @@ class SubscriptionProfileModelAdmin(admin.ModelAdmin):
             return "never"
         return naturaltime(obj.last_sublink_at)
 
+    @admin.action()
+    def get_teleport_startlink(self, request, queryset: QuerySet[models.SubscriptionProfile]):
+        for subscriptionprofile_obj in queryset:
+            try:
+                subscription_profile_startlink = teleport_services.get_subscription_profile_startlink(
+                    subscription_profile=subscriptionprofile_obj
+                )
+            except teleport_services.TelegramBotNotSet as e:
+                self.message_user(request, f"{subscriptionprofile_obj}: {str(e)}", level=messages.ERROR)
+                continue
+            self.message_user(
+                request, f"{subscriptionprofile_obj}: {subscription_profile_startlink}", level=messages.SUCCESS
+            )
 
-class AgencyPlanSpecInline(admin.StackedInline):
-    model = models.AgencyPlanSpec
-    extra = 0
-    autocomplete_fields = ("agency",)
-    ordering = ("created_at",)
+
+@admin.register(models.AgencyUserGroup)
+class AgencyUserGroupModelAdmin(admin.ModelAdmin):
+    list_display = ("__str__", "members_count_display")
+    list_filter = ("users__username",)
+    form = forms.AgencyUserGroupModelForm
+    autocomplete_fields = ("agency", "users")
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).ann_members_count()
+
+    @admin.display(ordering="members_count")
+    def members_count_display(self, obj):
+        return obj.periods_count
+
+
+@admin.register(models.AgencyPlanRestriction)
+class AgencyPlanRestrictionAdmin(admin.ModelAdmin):
+    list_display = ("__str__",)
 
 
 @admin.register(models.SubscriptionPlan)
@@ -93,9 +131,9 @@ class SubscriptionPlanModelAdmin(admin.ModelAdmin):
         "alive_periods_count_display",
     )
     list_select_related = ("connection_rule",)
+    search_fields = ("name",)
     list_filter = ("connection_rule",)
     form = forms.SubscriptionPlanModelForm
-    inlines = (AgencyPlanSpecInline,)
 
     def get_queryset(self, request):
         return super().get_queryset(request).ann_periods_count()
@@ -633,3 +671,14 @@ class RealitySpecModelAdmin(SimpleHistoryAdmin, admin.ModelAdmin):
 # @admin.register(models.DomainProxyUsageSpec)
 # class DomainProxyUsageSpecModelAdmin(admin.ModelAdmin):
 #     list_display = ("__str__",)
+
+
+@admin.register(models.SubscriptionPlanInvoiceItem)
+class SubscriptionPlanInvoiceItemModelAdmin(polymorphic.admin.PolymorphicChildModelAdmin):
+    base_model = finance_models.InvoiceItem
+    list_display = (
+        "id",
+        "invoice",
+        "plan",
+        "total_price",
+    )

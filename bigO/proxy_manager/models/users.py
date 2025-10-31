@@ -1,7 +1,10 @@
 import datetime
 
+from taggit.managers import TaggableManager
+
 from bigO.proxy_manager.subscription import AVAILABLE_SUBSCRIPTION_PLAN_PROVIDERS
 from bigO.proxy_manager.subscription.base import BaseSubscriptionPlanProvider
+from bigO.utils import calander_type
 from bigO.utils.models import TimeStampedModel
 from django.db import models
 from django.db.models import Case, Count, Exists, F, OuterRef, Prefetch, Q, Subquery, UniqueConstraint, Value, When
@@ -14,6 +17,11 @@ class Agency(TimeStampedModel, models.Model):
     is_active = models.BooleanField()
     sublink_header_template = models.TextField(null=True, blank=False, help_text="{{ subscription_obj, expires_at }}")
     sublink_host = models.ForeignKey("core.Domain", on_delete=models.PROTECT, related_name="+", null=True, blank=False)
+    default_timezone = models.CharField(max_length=255, null=True, blank=True)
+    default_language = models.CharField(max_length=3, null=True, blank=True)
+    default_calendar_type = models.CharField(
+        max_length=15, choices=calander_type.CalendarType.choices, null=True, blank=True
+    )
 
     def __str__(self):
         return f"{self.pk}-{self.name}"
@@ -27,6 +35,22 @@ class Agent(TimeStampedModel, models.Model):
     class Meta:
         ordering = ["-created_at"]
         constraints = [UniqueConstraint(fields=("user", "agency"), name="unique_user_agency")]
+
+
+class AgencyPlanRestriction(TimeStampedModel, models.Model):
+    class AgencyPlanRestrictionQuerySet(models.QuerySet):
+        def ann_remained_count(self):
+            return self.annotate(remained_count=F("capacity"))
+
+    agency = models.ForeignKey(Agency, on_delete=models.CASCADE, related_name="+")
+    connection_rule = models.ForeignKey(
+        "ConnectionRule",
+        on_delete=models.CASCADE,
+        related_name="+",
+    )
+    capacity = models.PositiveIntegerField()
+
+    objects = AgencyPlanRestrictionQuerySet.as_manager()
 
 
 class SubscriptionPlan(TimeStampedModel, models.Model):
@@ -48,9 +72,14 @@ class SubscriptionPlan(TimeStampedModel, models.Model):
                 ),
             )
 
+        def ann_remained_count(self):
+            return self.annotate(remained_count=F("capacity"))
+
     objects = SubscriptionPlanQuerySet.as_manager()
 
     name = models.SlugField()
+    agency = models.ForeignKey(Agency, on_delete=models.CASCADE, related_name="+", null=True)  # todo migrate null
+    is_active = models.BooleanField(default=True)
     plan_provider_key = models.SlugField(max_length=127, db_index=True)
     plan_provider_args = models.JSONField(null=True, blank=True)
     connection_rule = models.ForeignKey(
@@ -58,7 +87,9 @@ class SubscriptionPlan(TimeStampedModel, models.Model):
         on_delete=models.PROTECT,
         related_name="connectionrule_subscriptionplans",
     )
+    allowed_agencyusergroups = models.ManyToManyField("AgencyUserGroup", related_name="+", blank=True)
     capacity = models.PositiveIntegerField()
+    tags = TaggableManager(related_name="+", blank=True)
 
     @property
     def plan_provider_cls(self) -> type[BaseSubscriptionPlanProvider]:
@@ -66,15 +97,6 @@ class SubscriptionPlan(TimeStampedModel, models.Model):
 
     def __str__(self):
         return f"{self.pk}-{self.name}"
-
-
-class AgencyPlanSpec(TimeStampedModel, models.Model):
-    agency = models.ForeignKey(Agency, on_delete=models.CASCADE, related_name="agency_agencyplanspecs")
-    plan = models.ForeignKey(SubscriptionPlan, on_delete=models.CASCADE, related_name="plan_agencyplanspecs")
-    capacity = models.PositiveIntegerField()
-
-    class Meta:
-        constraints = [UniqueConstraint(fields=("agency", "plan"), name="unique_agency_plan")]
 
 
 class SubscriptionPeriod(TimeStampedModel, models.Model):
@@ -107,9 +129,27 @@ class SubscriptionPeriod(TimeStampedModel, models.Model):
                 whens.append(When(plan__plan_provider_key=i.TYPE_IDENTIFIER, then=ann_expr))
             return self.annotate(total_limit_bytes=Case(*whens, output_field=models.PositiveBigIntegerField()))
 
+        def ann_limit_passed(self):
+            return (
+                self.ann_expires_at()
+                .ann_dl_bytes_remained()
+                .ann_up_bytes_remained()
+                .annotate(
+                    limit_passed=Case(
+                        When(
+                            condition=Q(expires_at__gt=timezone.now())
+                            & Q(Q(up_bytes_remained__gt=0) | Q(dl_bytes_remained__gt=0)),
+                            then=Value(True),
+                        ),
+                        default=Value(False),
+                    )
+                )
+            )
+
     plan = models.ForeignKey("SubscriptionPlan", on_delete=models.PROTECT, related_name="+")
     plan_args = models.JSONField(null=True, blank=True)
     profile = models.ForeignKey("SubscriptionProfile", on_delete=models.PROTECT, related_name="periods")
+    invoice = models.ForeignKey("finance.Invoice", on_delete=models.PROTECT, related_name="+", null=True, blank=True)
 
     selected_as_current = models.BooleanField()
 
@@ -205,6 +245,7 @@ class SubscriptionProfile(TimeStampedModel, models.Model):
                 SubscriptionPeriod.objects.filter(selected_as_current=True, profile_id=OuterRef("id"))
                 .ann_expires_at()
                 .ann_total_limit_bytes()
+                .ann_limit_passed()
             )
             return self.annotate(
                 current_total_limit_bytes=Subquery(period_qs.values("total_limit_bytes")[:1]),
@@ -212,6 +253,7 @@ class SubscriptionProfile(TimeStampedModel, models.Model):
                 current_upload_bytes=Subquery(period_qs.values("current_upload_bytes")[:1]),
                 current_expires_at=Subquery(period_qs.values("expires_at")[:1]),
                 current_created_at=Subquery(period_qs.values("created_at")[:1]),
+                current_limit_passed=Subquery(period_qs.values("limit_passed")[:1]),
             )
 
     initial_agency = models.ForeignKey(
@@ -251,6 +293,50 @@ class SubscriptionProfile(TimeStampedModel, models.Model):
         else:
             raise ValueError("sublink_host not set")
         return f"https://{domain}/sub/{self.uuid}/"
+
+
+class Referral(TimeStampedModel, models.Model):
+    referrer = models.ForeignKey("AgencyUser", on_delete=models.CASCADE, related_name="referrer_referrals")
+    referee = models.OneToOneField("AgencyUser", on_delete=models.CASCADE, related_name="referee_referral")
+
+
+class AgencyUser(TimeStampedModel, models.Model):
+    user = models.ForeignKey("users.User", on_delete=models.CASCADE, related_name="+")
+    agency = models.ForeignKey("Agency", on_delete=models.CASCADE, related_name="+")
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [UniqueConstraint(fields=("user", "agency"), name="unique_user_agency_agencyuser")]
+
+    def __str__(self):
+        return f"{self.pk}-@{self.user.username} ({self.agency.name})"
+
+
+class AgencyUserGroup(TimeStampedModel, models.Model):
+    class AgencyUserGroupQuerySet(models.QuerySet):
+        def ann_members_count(self):
+            return self.annotate(_members_count=Count("users"))
+
+    name = models.CharField(max_length=127)
+    agency = models.ForeignKey(Agency, on_delete=models.CASCADE, related_name="+", null=True, blank=True)
+    users = models.ManyToManyField("users.User", blank=True)
+
+    objects = AgencyUserGroupQuerySet.as_manager()
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [UniqueConstraint(fields=("name", "agency"), name="unique_name_agency__agencyusergroup")]
+
+    def __str__(self):
+        return f"{self.pk}-{self.name}"
+
+    @property
+    def members_count(self):
+        return self._members_count
+
+    @members_count.setter
+    def members_count(self, value):
+        self._members_count = value
 
 
 class SubscriptionEvent(TimeStampedModel, models.Model):

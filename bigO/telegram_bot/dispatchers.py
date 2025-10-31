@@ -14,12 +14,12 @@ dp = Dispatcher(storage=fsm_storage)
 
 
 class AppRouter(BaseRouter):
-    def __init__(self, *args, app_filter_callback: Callable[[Any], Awaitable[bool]], **kwargs):
+    def __init__(self, *args, app_filter_callback: Callable[[Any], Awaitable[tuple[bool, Any, Any]]], **kwargs):
         super().__init__(*args, **kwargs)
         self.app_filter_callback = app_filter_callback
 
     async def propagate_event(self, *args, **kwargs):
-        handle = await self.app_filter_callback(*args, **kwargs)
+        handle, args, kwargs = await self.app_filter_callback(*args, **kwargs)
         if not handle:
             return UNHANDLED
         return await super().propagate_event(*args, **kwargs)
