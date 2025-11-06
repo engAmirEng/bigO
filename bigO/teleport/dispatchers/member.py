@@ -12,9 +12,16 @@ from aiogram.filters import CommandStart
 from aiogram.filters.callback_data import CallbackData
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery, ChatMemberUpdated, KeyboardButtonRequestChat, Message, InlineQuery, \
-    InputTextMessageContent, InlineQueryResultArticle
-from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder, InlineKeyboardButton
+from aiogram.types import (
+    CallbackQuery,
+    ChatMemberUpdated,
+    InlineQuery,
+    InlineQueryResultArticle,
+    InputTextMessageContent,
+    KeyboardButtonRequestChat,
+    Message,
+)
+from aiogram.utils.keyboard import InlineKeyboardBuilder, InlineKeyboardButton, ReplyKeyboardBuilder
 from bigO.proxy_manager import models as proxy_manager_models
 from bigO.proxy_manager import services as proxy_manager_services
 from bigO.telegram_bot.dispatchers import AppRouter
@@ -29,6 +36,7 @@ from django.utils.translation import gettext
 from ...proxy_manager.subscription.planproviders import TypeSimpleDynamic1, TypeSimpleStrict1
 from ...users.models import User
 from .. import models, services
+from .base import MemberAgencyAction, MemberAgencyCallbackData, SimpleButtonCallbackData, SimpleButtonName, router
 from .utils import (
     MASTER_PATH_FILTERS,
     SUB_OWNER_PATH_FILTERS,
@@ -38,17 +46,6 @@ from .utils import (
     get_dispatch_query,
     query_magic_dispatcher,
 )
-
-
-
-class MemberAgencyAction(str, Enum):
-    OVERVIEW = "overview"
-    LIST_AVAILABLE_PLANS = "list_available_plans"
-
-
-class MemberAgencyCallbackData(CallbackData, prefix="member_agency"):
-    agency_id: int
-    action: MemberAgencyAction
 
 
 class MemberAgencyPlanAction(str, Enum):
@@ -61,8 +58,6 @@ class MemberAgencyPlanCallbackData(CallbackData, prefix="member_agency"):
     action: MemberAgencyPlanAction
 
 
-
-
 @router.callback_query(MemberAgencyCallbackData.filter(aiogram.F.action == MemberAgencyAction.LIST_AVAILABLE_PLANS))
 async def new_profile_me_handler(
     message: CallbackQuery,
@@ -71,10 +66,12 @@ async def new_profile_me_handler(
     state: FSMContext,
     aiobot: Bot,
     bot_obj: TelegramBot,
+    panel_obj: models.Panel,
 ) -> Optional[aiogram.methods.TelegramMethod]:
     await state.clear()
+    agency = panel_obj.agency
     useragency = await proxy_manager_models.AgencyUser.objects.filter(
-        user=tuser.user, agency__telegrambot=bot_obj, agency_id=callback_data.agency_id
+        user=tuser.user, agency=agency, agency_id=callback_data.agency_id
     ).afirst()
     if useragency is None:
         return message.message.edit_text(gettext("تغییری ایجاد شده، ار ابتدا اقدام کنید."))
@@ -141,9 +138,11 @@ async def subscription_profile_startlink_handler(
     state: FSMContext,
     aiobot: Bot,
     bot_obj: TelegramBot,
+    panel_obj: models.Panel,
 ) -> Optional[aiogram.methods.TelegramMethod]:
     await state.clear()
     user = tuser and tuser.user
+    agency = panel_obj.agency
     secret_key = command_query.get("k")
     if not secret_key:
         return
@@ -171,11 +170,14 @@ async def subscription_profile_startlink_handler(
             user = User()
             user.name = message.from_user.full_name
             user.username = await services.make_username(base=message.from_user.username)
-        tuser = TelegramUser()
-        tuser.user = user
-        tuser.user_tid = message.from_user.id
-        tuser.tbot = bot_obj
         await user.asave()
+        if tuser is None:
+            tuser = TelegramUser()
+            tuser.user = user
+            tuser.tid = message.from_user.id
+            tuser.bot = bot_obj
+        else:
+            tuser.user = user
         await tuser.asave()
 
     if subscriptionprofile_obj.user is None:
@@ -189,17 +191,26 @@ async def subscription_profile_startlink_handler(
             tuser.user = user
             await user.asave()
             await tuser.asave()
-        msg = gettext("مالکیت اکانت {0} به شما({2}) منتقل شد.").format(str(subscriptionprofile_obj), str(user))
+        msg = gettext("مالکیت اکانت {0} به شما({1}) منتقل شد.").format(str(subscriptionprofile_obj), str(user))
     else:
         if user:
             if subscriptionprofile_obj.user != user:
                 if transfer_ownership:
-                    referred_by = subscriptionprofile_obj.user
+                    try:
+                        referred_by = await proxy_manager_models.AgencyUser.objects.aget(
+                            user=subscriptionprofile_obj.user, agency=agency
+                        )
+                    except proxy_manager_models.AgencyUser.DoesNotExist:
+                        pass
                     subscriptionprofile_obj.user = user
                     await subscriptionprofile_obj.asave()
-                    msg = gettext("مالکیت اکانت {0} از {1} به شما({2}) منتقل شد.").format(str(subscriptionprofile_obj), str(referred_by), str(user))
+                    msg = gettext("مالکیت اکانت {0} از {1} به شما({2}) منتقل شد.").format(
+                        str(subscriptionprofile_obj), str(referred_by), str(user)
+                    )
                 else:
-                    msg = gettext("مالکیت اکانت {0} از قبل به دیگری اختصاص یافته.").format(str(subscriptionprofile_obj))
+                    msg = gettext("مالکیت اکانت {0} از قبل به دیگری اختصاص یافته.").format(
+                        str(subscriptionprofile_obj)
+                    )
             else:
                 msg = gettext("از قبل به اکانت خود متصل بودید.")
         else:
@@ -217,9 +228,13 @@ async def subscription_profile_startlink_handler(
                 await tuser.asave()
                 await subscriptionprofile_obj.asave()
                 msg = gettext("مالکیت اکانت {0} به شما({2}) منتقل شد.").format(str(subscriptionprofile_obj), str(user))
-    await proxy_manager_models.AgencyUser.objects.aget_or_create(
-        user=tuser.user, agency=subscriptionprofile_obj.initial_agency, defaults={"referred_by": referred_by}
+    agencyuser, created = await proxy_manager_models.AgencyUser.objects.aget_or_create(
+        user=tuser.user, agency=subscriptionprofile_obj.initial_agency
     )
+    if created and referred_by:
+        referral_obj = proxy_manager_models.Referral()
+        referral_obj.referrer = referred_by
+        referral_obj.referee = agencyuser
 
     ikbuilder = InlineKeyboardBuilder()
     ikbuilder.button(
@@ -231,7 +246,8 @@ async def subscription_profile_startlink_handler(
     #     callback_data=ContentCallbackData(pk=subscriptionprofile_obj.pk, action=SubscriptionProfileAction.GET_LINK),
     # )
     text = render_to_string(
-        "teleport/member/subscription_profile_startlink.thtml", context={"msg": msg, "subscriptionprofile": subscriptionprofile_obj}
+        "teleport/member/subscription_profile_startlink.thtml",
+        context={"msg": msg, "subscriptionprofile": subscriptionprofile_obj},
     )
 
     return message.answer(text, reply_markup=ikbuilder.as_markup())

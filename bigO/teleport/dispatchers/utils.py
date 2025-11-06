@@ -29,10 +29,10 @@ class OwnerBotFilter(Filter):
     ) -> bool:
         if user.is_anonymous:
             return False
-        assert update.from_user.id == user.user_tid
+        assert update.from_user.id == user.tid
         added_by = await sync_to_async(bot_obj.added_by.get_real_instance)()
         if isinstance(added_by, TelegramUser):
-            return added_by.user_tid == update.from_user.id
+            return added_by.tid == update.from_user.id
         if not bot_obj.is_master:
             logging.info(f"owner of {str(bot_obj)} is not of type TelegramUser")
         return False

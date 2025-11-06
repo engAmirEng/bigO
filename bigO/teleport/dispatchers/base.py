@@ -48,6 +48,26 @@ class SimpleButtonCallbackData(CallbackData, prefix="simplebutton"):
     button_name: SimpleButtonName
 
 
+class AgentAgencyAction(str, Enum):
+    OVERVIEW = "overview"
+    NEW_PROFILE = "new_profile"
+
+
+class AgentAgencyCallbackData(CallbackData, prefix="agent_agency"):
+    pk: int
+    action: AgentAgencyAction
+
+
+class MemberAgencyAction(str, Enum):
+    OVERVIEW = "overview"
+    LIST_AVAILABLE_PLANS = "list_available_plans"
+
+
+class MemberAgencyCallbackData(CallbackData, prefix="member_agency"):
+    agency_id: int
+    action: MemberAgencyAction
+
+
 @router.callback_query(SimpleButtonCallbackData.filter(aiogram.F.button_name == SimpleButtonName.MENU))
 @router.message(CommandStart(magic=~aiogram.F.args))
 async def menu_handler(
@@ -75,21 +95,31 @@ async def menu_handler(
         agent = None
 
     if agent:
-        ikbuilder.button(
-            text=gettext("مدیریت"),
-            callback_data=AgentAgencyCallbackData(pk=agent.agency_id, action=AgentAgencyAction.OVERVIEW),
+        ikbuilder.row(
+            InlineKeyboardButton(
+                text=gettext("مدیریت"),
+                callback_data=AgentAgencyCallbackData(pk=agent.agency_id, action=AgentAgencyAction.OVERVIEW).pack(),
+            ),
+            InlineKeyboardButton(
+                text=gettext("اکانت جدید"),
+                callback_data=AgentAgencyCallbackData(pk=agency.id, action=AgentAgencyAction.NEW_PROFILE).pack(),
+            ),
+            InlineKeyboardButton(text=gettext("مدیریت اکانت ها"), switch_inline_query_current_chat="profiles manage "),
         )
-        ikbuilder.button(
-            text=gettext("اکانت جدید"),
-            callback_data=AgentAgencyCallbackData(pk=agency.id, action=AgentAgencyAction.NEW_PROFILE),
+
+        ikbuilder.row(
+            InlineKeyboardButton(text=gettext("ارسال به کاربر"), switch_inline_query="profiles status "),
         )
+
         text = render_to_string("teleport/agent/start.thtml", context={"agency": agency})
     else:
         text = gettext("دریافت اکانت جدید")
-        ikbuilder.button(
-            text=text,
-            callback_data=MemberAgencyCallbackData(
-                agency_id=agency.id, action=MemberAgencyAction.LIST_AVAILABLE_PLANS
+        ikbuilder.row(
+            InlineKeyboardButton(
+                text=text,
+                callback_data=MemberAgencyCallbackData(
+                    agency_id=agency.id, action=MemberAgencyAction.LIST_AVAILABLE_PLANS
+                ).pack(),
             ),
         )
         subscriptionprofile_qs = (
