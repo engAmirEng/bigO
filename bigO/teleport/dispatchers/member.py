@@ -15,6 +15,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import (
     CallbackQuery,
     ChatMemberUpdated,
+    CopyTextButton,
     InlineQuery,
     InlineQueryResultArticle,
     InputTextMessageContent,
@@ -36,7 +37,15 @@ from django.utils.translation import gettext
 from ...proxy_manager.subscription.planproviders import TypeSimpleDynamic1, TypeSimpleStrict1
 from ...users.models import User
 from .. import models, services
-from .base import MemberAgencyAction, MemberAgencyCallbackData, SimpleButtonCallbackData, SimpleButtonName, router
+from .base import (
+    MemberAgencyAction,
+    MemberAgencyCallbackData,
+    ProfileAction,
+    ProfileCallbackData,
+    SimpleButtonCallbackData,
+    SimpleButtonName,
+    router,
+)
 from .utils import (
     MASTER_PATH_FILTERS,
     SUB_OWNER_PATH_FILTERS,
@@ -251,3 +260,72 @@ async def subscription_profile_startlink_handler(
     )
 
     return message.answer(text, reply_markup=ikbuilder.as_markup())
+
+
+@router.callback_query(ProfileCallbackData.filter(aiogram.F.action == ProfileAction.DETAIL))
+async def my_accounts_handler(
+    message: CallbackQuery,
+    callback_data: ProfileCallbackData,
+    tuser: TelegramUser | None,
+    state: FSMContext,
+    aiobot: Bot,
+    bot_obj: TelegramBot,
+    panel_obj: models.Panel,
+) -> Optional[aiogram.methods.TelegramMethod]:
+    await state.clear()
+
+    agency = panel_obj.agency
+    if tuser is None or tuser.user is None:
+        text = gettext("برای استفاده از خدمات ما از معرف خود لینک معرفی دریافت کنید.")
+        return message.answer(text, show_alert=True)
+    user = tuser.user
+    try:
+        subscriptionprofile_obj = await (
+            proxy_manager_models.SubscriptionProfile.objects.filter(user=user, initial_agency=agency)
+            .ann_last_usage_at()
+            .ann_last_sublink_at()
+            .ann_current_period_fields()
+            .filter(current_created_at__isnull=False)
+            .order_by("-current_created_at")
+        ).aget(id=callback_data.profile_id)
+    except proxy_manager_models.SubscriptionProfile.DoesNotExist:
+        return message.answer(gettext("اکانت یافت نشد."))
+
+    ikbuilder = InlineKeyboardBuilder()
+    ikbuilder.row(
+        InlineKeyboardButton(
+            text="🔙 " + gettext("بازکشت به منو"),
+            callback_data=SimpleButtonCallbackData(button_name=SimpleButtonName.MENU).pack(),
+        ),
+        InlineKeyboardButton(
+            text="🔄 Refresh",
+            callback_data=ProfileCallbackData(
+                profile_id=subscriptionprofile_obj.id, action=ProfileAction.DETAIL
+            ).pack(),
+        ),
+    )
+    ikbuilder.row(
+        InlineKeyboardButton(
+            text=gettext("شارژ این اکانت"),
+            callback_data=ProfileCallbackData(
+                profile_id=subscriptionprofile_obj.id, action=ProfileAction.RENEW
+            ).pack(),
+        ),
+    )
+    normal_sublink = await sync_to_async(subscriptionprofile_obj.get_sublink)()
+    ikbuilder.row(
+        InlineKeyboardButton(
+            text=gettext("کپی لینک اشتراک اندروید"),
+            copy_text=CopyTextButton(text=normal_sublink),
+        ),
+        InlineKeyboardButton(
+            text=gettext("کپی لینک اشتراک ios"),
+            copy_text=CopyTextButton(text=normal_sublink + "?base64=true"),
+        ),
+    )
+
+    text = render_to_string(
+        "teleport/member/subscription_profile_startlink.thtml",
+        context={"msg": "", "subscriptionprofile": subscriptionprofile_obj},
+    )
+    return message.message.edit_text(text, reply_markup=ikbuilder.as_markup())

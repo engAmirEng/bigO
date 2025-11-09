@@ -17,6 +17,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import (
     CallbackQuery,
     ChatMemberUpdated,
+    CopyTextButton,
     InlineQuery,
     InlineQueryResultArticle,
     InputTextMessageContent,
@@ -207,6 +208,17 @@ async def inline_profiles_startlink_handler(
         text += connect_text
 
         ikbuilder = InlineKeyboardBuilder()
+        normal_sublink = await sync_to_async(subscriptionprofile_obj.get_sublink)()
+        ikbuilder.row(
+            InlineKeyboardButton(
+                text=gettext("کپی لینک اشتراک اندروید"),
+                copy_text=CopyTextButton(text=normal_sublink),
+            ),
+            InlineKeyboardButton(
+                text=gettext("کپی لینک اشتراک ios"),
+                copy_text=CopyTextButton(text=normal_sublink + "?base64=true"),
+            ),
+        )
         results.append(
             InlineQueryResultArticle(
                 id=f"{subscriptionprofile_obj.id}",

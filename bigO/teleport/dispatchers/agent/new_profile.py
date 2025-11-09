@@ -86,7 +86,7 @@ async def agent_new_profile_handler(
     ikbuilder.adjust(2, repeat=True)
     ikbuilder.row(
         InlineKeyboardButton(
-            text=gettext("بازکشت به منو"),
+            text="🔙 " + gettext("بازکشت به منو"),
             callback_data=SimpleButtonCallbackData(button_name=SimpleButtonName.MENU).pack(),
         )
     )

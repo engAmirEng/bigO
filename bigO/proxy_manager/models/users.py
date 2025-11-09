@@ -129,19 +129,22 @@ class SubscriptionPeriod(TimeStampedModel, models.Model):
                 whens.append(When(plan__plan_provider_key=i.TYPE_IDENTIFIER, then=ann_expr))
             return self.annotate(total_limit_bytes=Case(*whens, output_field=models.PositiveBigIntegerField()))
 
-        def ann_limit_passed(self):
+        def ann_limit_passed_type(self):
             return (
                 self.ann_expires_at()
                 .ann_dl_bytes_remained()
                 .ann_up_bytes_remained()
                 .annotate(
-                    limit_passed=Case(
+                    limit_passed_type=Case(
                         When(
-                            condition=Q(expires_at__gt=timezone.now())
-                            & Q(Q(up_bytes_remained__gt=0) | Q(dl_bytes_remained__gt=0)),
-                            then=Value(True),
+                            condition=Q(Q(up_bytes_remained__lte=0) | Q(dl_bytes_remained__lte=0)),
+                            then=Value("traffic_limit"),
                         ),
-                        default=Value(False),
+                        When(
+                            condition=Q(expires_at__lt=timezone.now()),
+                            then=Value("expired"),
+                        ),
+                        default=Value(None),
                     )
                 )
             )
@@ -245,7 +248,7 @@ class SubscriptionProfile(TimeStampedModel, models.Model):
                 SubscriptionPeriod.objects.filter(selected_as_current=True, profile_id=OuterRef("id"))
                 .ann_expires_at()
                 .ann_total_limit_bytes()
-                .ann_limit_passed()
+                .ann_limit_passed_type()
             )
             return self.annotate(
                 current_total_limit_bytes=Subquery(period_qs.values("total_limit_bytes")[:1]),
@@ -253,7 +256,7 @@ class SubscriptionProfile(TimeStampedModel, models.Model):
                 current_upload_bytes=Subquery(period_qs.values("current_upload_bytes")[:1]),
                 current_expires_at=Subquery(period_qs.values("expires_at")[:1]),
                 current_created_at=Subquery(period_qs.values("created_at")[:1]),
-                current_limit_passed=Subquery(period_qs.values("limit_passed")[:1]),
+                current_limit_passed_type=Subquery(period_qs.values("limit_passed_type")[:1]),
             )
 
     initial_agency = models.ForeignKey(

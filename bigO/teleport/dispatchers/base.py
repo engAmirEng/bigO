@@ -42,6 +42,7 @@ router = AppRouter(name="teleport", app_filter_callback=app_filter_callback)
 class SimpleButtonName(str, Enum):
     MENU = "menu"
     NEW_ACCOUNT_ME = "new_account_me"
+    ACCOUNTS_ME = "accounts_me"
 
 
 class SimpleButtonCallbackData(CallbackData, prefix="simplebutton"):
@@ -66,6 +67,16 @@ class MemberAgencyAction(str, Enum):
 class MemberAgencyCallbackData(CallbackData, prefix="member_agency"):
     agency_id: int
     action: MemberAgencyAction
+
+
+class ProfileAction(str, Enum):
+    DETAIL = "detail"
+    RENEW = "renew"
+
+
+class ProfileCallbackData(CallbackData, prefix="profile"):
+    profile_id: int
+    action: ProfileAction
 
 
 @router.callback_query(SimpleButtonCallbackData.filter(aiogram.F.button_name == SimpleButtonName.MENU))
@@ -113,10 +124,15 @@ async def menu_handler(
 
         text = render_to_string("teleport/agent/start.thtml", context={"agency": agency})
     else:
-        text = gettext("دریافت اکانت جدید")
         ikbuilder.row(
             InlineKeyboardButton(
-                text=text,
+                text="🔄 Refresh",
+                callback_data=SimpleButtonCallbackData(button_name=SimpleButtonName.MENU).pack(),
+            ),
+        )
+        ikbuilder.row(
+            InlineKeyboardButton(
+                text=gettext("دریافت اکانت جدید"),
                 callback_data=MemberAgencyCallbackData(
                     agency_id=agency.id, action=MemberAgencyAction.LIST_AVAILABLE_PLANS
                 ).pack(),
@@ -132,6 +148,27 @@ async def menu_handler(
         )
 
         subscriptionprofiles = [i async for i in subscriptionprofile_qs]
+        if subscriptionprofiles:
+            ikbuilder.row(
+                InlineKeyboardButton(
+                    text=gettext("اکانت های شما 👇"),
+                    callback_data=SimpleButtonCallbackData(button_name=SimpleButtonName.ACCOUNTS_ME).pack(),
+                ),
+            )
+            ikbuilder_profiles = InlineKeyboardBuilder()
+            btns = []
+            for subscriptionprofile in subscriptionprofiles:
+                btns.append(
+                    InlineKeyboardButton(
+                        text=str(subscriptionprofile),
+                        callback_data=ProfileCallbackData(
+                            profile_id=subscriptionprofile.id, action=ProfileAction.DETAIL
+                        ).pack(),
+                    ),
+                )
+            ikbuilder_profiles.add(*btns)
+            ikbuilder_profiles.adjust(2, repeat=True)
+            ikbuilder.attach(ikbuilder_profiles)
         text = render_to_string(
             "teleport/member/start.thtml", context={"agency": agency, "subscriptionprofiles": subscriptionprofiles}
         )

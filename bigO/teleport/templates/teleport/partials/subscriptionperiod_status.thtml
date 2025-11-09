@@ -1,11 +1,16 @@
 {% load humanize calander_type filesize tbot_widgets %}
 {% if subscriptionprofile.current_created_at %}
-    {% if subscriptionprofile.current_limit_passed or not is_active %}❌{% endif %}{{ subscriptionprofile.title|safe }} ({% if subscriptionprofile.is_alive %}آنلاین🟢{% else %}{{ subscriptionprofile.last_usage_at|naturaltime }}{% endif %})
+    {% if subscriptionprofile.current_limit_passed_type or not is_active %}❌{% endif %}{{ subscriptionprofile.title|safe }} ({% if subscriptionprofile.is_alive %}آنلاین🟢{% elif subscriptionprofile.last_usage_at %}آخرین اتصال: {{ subscriptionprofile.last_usage_at|naturaltime }}{% else %}تاکنون متصل نشده اید{% endif %})
     📅{{ subscriptionprofile.current_expires_at|time_format:"%Y/%m/%d" }} ({{ subscriptionprofile.current_expires_at|naturaltime }})
     {{ subscriptionprofile.current_download_bytes|add:subscriptionprofile.current_upload_bytes|filesize }} / {{ subscriptionprofile.current_total_limit_bytes|filesize }}
     {% progress_bar current=subscriptionprofile.current_download_bytes|add:subscriptionprofile.current_upload_bytes total=subscriptionprofile.current_total_limit_bytes %}
+    {% if subscriptionprofile.current_limit_passed_type == "traffic_limit" %}
+        <strong>❗️ حجم سرویس شما به اتمام رسیده است</strong>
+    {% elif subscriptionprofile.current_limit_passed_type == "expired" %}
+        <strong>❗️ سرویس شما منقضی شده است</strong>
+    {% endif %}
 {% else %}
     {{ subscriptionprofile.title|safe }}
 
-    بدون اکانت فعال
+    این اکانت سرویس فعال ندارد
 {% endif %}

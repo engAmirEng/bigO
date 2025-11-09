@@ -61,3 +61,4 @@ def get_search_q(query: str, fields: list):
         for field in fields:
             s_q |= models.Q(**{field + "__icontains": q_part})
         m_q &= s_q
+    return m_q
