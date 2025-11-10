@@ -1,4 +1,6 @@
 پلن های فعال:
+<br>
 {% for subscriptionplan in subscriptionplans %}
 {{ subscriptionplan.name }}
+<br>
 {% endfor %}

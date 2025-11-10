@@ -27,10 +27,10 @@ from bigO.proxy_manager import models as proxy_manager_models
 from bigO.proxy_manager import services as proxy_manager_services
 from bigO.telegram_bot.dispatchers import AppRouter
 from bigO.telegram_bot.models import TelegramBot, TelegramUser
+from bigO.telegram_bot.utils import thtml_render_to_string
 from bigO.users.models import User
 from django.db.models import Exists, OuterRef, Q
 from django.http import QueryDict
-from django.template.loader import render_to_string
 from django.utils import timezone
 from django.utils.translation import gettext
 
@@ -100,7 +100,7 @@ async def new_profile_me_handler(
                 action=MemberAgencyPlanAction.NEW_PROFILE,
             ),
         )
-    text = render_to_string(
+    text = thtml_render_to_string(
         "teleport/member/availbale_plans_new_profile.thtml",
         context={"agencyusergroupplanspecs": agencyusergroupplanspecs},
     )
@@ -254,7 +254,7 @@ async def subscription_profile_startlink_handler(
     #     text=gettext("مشاهده منو"),
     #     callback_data=ContentCallbackData(pk=subscriptionprofile_obj.pk, action=SubscriptionProfileAction.GET_LINK),
     # )
-    text = render_to_string(
+    text = thtml_render_to_string(
         "teleport/member/subscription_profile_startlink.thtml",
         context={"msg": msg, "subscriptionprofile": subscriptionprofile_obj},
     )
@@ -324,7 +324,7 @@ async def my_accounts_handler(
         ),
     )
 
-    text = render_to_string(
+    text = thtml_render_to_string(
         "teleport/member/subscription_profile_startlink.thtml",
         context={"msg": "", "subscriptionprofile": subscriptionprofile_obj},
     )

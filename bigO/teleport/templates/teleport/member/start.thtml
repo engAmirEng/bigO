@@ -1,3 +1,9 @@
 به ربات {{ agency.name }} خوش آمدید
-{% if subscriptionprofiles %}اکانت های شما:{% endif %}
-{% for subscriptionprofile in subscriptionprofiles %}{% include "teleport/partials/subscriptionperiod_status.thtml" with subscriptionprofile=subscriptionprofile %}{% endfor %}
+{% if subscriptionprofiles %}
+    <br>
+    اکانت های شما:
+{% endif %}
+{% for subscriptionprofile in subscriptionprofiles %}
+    <br>
+    {% include "teleport/partials/subscriptionperiod_status.thtml" with subscriptionprofile=subscriptionprofile %}
+{% endfor %}

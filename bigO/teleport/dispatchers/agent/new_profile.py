@@ -27,10 +27,10 @@ from bigO.proxy_manager import models as proxy_manager_models
 from bigO.proxy_manager import services as proxy_manager_services
 from bigO.telegram_bot.dispatchers import AppRouter
 from bigO.telegram_bot.models import TelegramBot, TelegramUser
+from bigO.telegram_bot.utils import thtml_render_to_string
 from bigO.users.models import User
 from django.db.models import Exists, OuterRef, Q
 from django.http import QueryDict
-from django.template.loader import render_to_string
 from django.utils import timezone
 from django.utils.translation import gettext
 
@@ -90,7 +90,7 @@ async def agent_new_profile_handler(
             callback_data=SimpleButtonCallbackData(button_name=SimpleButtonName.MENU).pack(),
         )
     )
-    text = render_to_string(
+    text = thtml_render_to_string(
         "teleport/agent/new_account.thtml", context={"subscriptionplan_list": subscriptionplan_list}
     )
     return message.message.edit_text(text, reply_markup=ikbuilder.as_markup())
@@ -276,7 +276,7 @@ async def agent_new_profile_plan_finalcheck_handler(
         text=gettext("مشاهده منو"),
         callback_data=SimpleButtonCallbackData(button_name=SimpleButtonName.MENU),
     )
-    text = render_to_string(
+    text = thtml_render_to_string(
         "teleport/member/subscription_profile_startlink.thtml",
         context={"msg": msg, "subscriptionprofile": subscriptionprofile_obj},
     )

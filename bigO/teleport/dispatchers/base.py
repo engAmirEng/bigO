@@ -19,7 +19,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder, InlineKeyboardButton, 
 from bigO.proxy_manager import models as proxy_manager_models
 from bigO.telegram_bot.dispatchers import AppRouter
 from bigO.telegram_bot.models import TelegramBot, TelegramUser
-from django.template.loader import render_to_string
+from bigO.telegram_bot.utils import thtml_render_to_string
 from django.utils.translation import gettext
 
 from .. import models
@@ -122,7 +122,7 @@ async def menu_handler(
             InlineKeyboardButton(text=gettext("ارسال به کاربر"), switch_inline_query="profiles status "),
         )
 
-        text = render_to_string("teleport/agent/start.thtml", context={"agency": agency})
+        text = thtml_render_to_string("teleport/agent/start.thtml", context={"agency": agency})
     else:
         ikbuilder.row(
             InlineKeyboardButton(
@@ -169,7 +169,7 @@ async def menu_handler(
             ikbuilder_profiles.add(*btns)
             ikbuilder_profiles.adjust(2, repeat=True)
             ikbuilder.attach(ikbuilder_profiles)
-        text = render_to_string(
+        text = thtml_render_to_string(
             "teleport/member/start.thtml", context={"agency": agency, "subscriptionprofiles": subscriptionprofiles}
         )
     if isinstance(message, Message):
