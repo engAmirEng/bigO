@@ -49,6 +49,9 @@ class SimpleButtonCallbackData(CallbackData, prefix="simplebutton"):
     button_name: SimpleButtonName
 
 
+class SimpleBoolCallbackData(CallbackData, prefix="simplebool"):
+    result: bool
+
 class AgentAgencyAction(str, Enum):
     OVERVIEW = "overview"
     NEW_PROFILE = "new_profile"
@@ -72,6 +75,8 @@ class MemberAgencyCallbackData(CallbackData, prefix="member_agency"):
 class ProfileAction(str, Enum):
     DETAIL = "detail"
     RENEW = "renew"
+    PASS_CHANGE = "pass_change"
+    TRANSFER_TO_ANOTHER = "transfer_to_another"
 
 
 class ProfileCallbackData(CallbackData, prefix="profile"):

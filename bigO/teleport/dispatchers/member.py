@@ -33,7 +33,7 @@ from django.db.models import Exists, OuterRef, Q
 from django.http import QueryDict
 from django.utils import timezone
 from django.utils.translation import gettext
-
+from bigO.BabyUI import services as BabyUI_services
 from ...proxy_manager.subscription.planproviders import TypeSimpleDynamic1, TypeSimpleStrict1
 from ...users.models import User
 from .. import models, services
@@ -45,6 +45,7 @@ from .base import (
     SimpleButtonCallbackData,
     SimpleButtonName,
     router,
+    SimpleBoolCallbackData
 )
 from .utils import (
     MASTER_PATH_FILTERS,
@@ -190,53 +191,29 @@ async def subscription_profile_startlink_handler(
         await tuser.asave()
 
     if subscriptionprofile_obj.user is None:
-        if user:
-            subscriptionprofile_obj.user = user
-            await subscriptionprofile_obj.asave()
-        else:
-            user = User()
-            user.name = message.from_user.full_name
-            user.username = await services.make_username(base=message.from_user.username)
-            tuser.user = user
-            await user.asave()
-            await tuser.asave()
+        subscriptionprofile_obj.user = user
+        await subscriptionprofile_obj.asave()
         msg = gettext("مالکیت اکانت {0} به شما({1}) منتقل شد.").format(str(subscriptionprofile_obj), str(user))
     else:
-        if user:
-            if subscriptionprofile_obj.user != user:
-                if transfer_ownership:
-                    try:
-                        referred_by = await proxy_manager_models.AgencyUser.objects.aget(
-                            user=subscriptionprofile_obj.user, agency=agency
-                        )
-                    except proxy_manager_models.AgencyUser.DoesNotExist:
-                        pass
-                    subscriptionprofile_obj.user = user
-                    await subscriptionprofile_obj.asave()
-                    msg = gettext("مالکیت اکانت {0} از {1} به شما({2}) منتقل شد.").format(
-                        str(subscriptionprofile_obj), str(referred_by), str(user)
+        if subscriptionprofile_obj.user != user:
+            if transfer_ownership:
+                try:
+                    referred_by = await proxy_manager_models.AgencyUser.objects.aget(
+                        user=subscriptionprofile_obj.user, agency=agency
                     )
-                else:
-                    msg = gettext("مالکیت اکانت {0} از قبل به دیگری اختصاص یافته.").format(
-                        str(subscriptionprofile_obj)
-                    )
-            else:
-                msg = gettext("از قبل به اکانت خود متصل بودید.")
-        else:
-            if subscriptionprofile_obj.user:
-                tuser.user = subscriptionprofile_obj.user
-                await tuser.asave()
-                msg = gettext("مالکیت اکانت {0} به شما({2}) منتقل شد.").format(str(subscriptionprofile_obj), str(user))
-            else:
-                user = User()
-                user.name = message.from_user.full_name
-                user.username = await services.make_username(base=message.from_user.username)
-                tuser.user = user
+                except proxy_manager_models.AgencyUser.DoesNotExist:
+                    pass
                 subscriptionprofile_obj.user = user
-                await user.asave()
-                await tuser.asave()
                 await subscriptionprofile_obj.asave()
-                msg = gettext("مالکیت اکانت {0} به شما({2}) منتقل شد.").format(str(subscriptionprofile_obj), str(user))
+                msg = gettext("مالکیت اکانت {0} از {1} به شما({2}) منتقل شد.").format(
+                    str(subscriptionprofile_obj), str(referred_by), str(user)
+                )
+            else:
+                msg = gettext("مالکیت اکانت {0} از قبل به دیگری اختصاص یافته.").format(
+                    str(subscriptionprofile_obj)
+                )
+        else:
+            msg = gettext("از قبل به اکانت خود متصل بودید.")
     agencyuser, created = await proxy_manager_models.AgencyUser.objects.aget_or_create(
         user=tuser.user, agency=subscriptionprofile_obj.initial_agency
     )
@@ -262,8 +239,28 @@ async def subscription_profile_startlink_handler(
     return message.answer(text, reply_markup=ikbuilder.as_markup())
 
 
+@router.callback_query(SimpleButtonCallbackData.filter(aiogram.F.button_name == SimpleButtonName.ACCOUNTS_ME))
+async def my_account_detail_handler(
+    message: CallbackQuery,
+    callback_data: SimpleButtonCallbackData,
+    tuser: TelegramUser | None,
+    state: FSMContext,
+    aiobot: Bot,
+    bot_obj: TelegramBot,
+    panel_obj: models.Panel,
+) -> Optional[aiogram.methods.TelegramMethod]:
+    await state.clear()
+
+    agency = panel_obj.agency
+    if tuser is None or tuser.user is None:
+        text = gettext("برای استفاده از خدمات ما از معرف خود لینک معرفی دریافت کنید.")
+        return message.answer(text, show_alert=True)
+    user = tuser.user
+    return message.answer(gettext("یکی از اکانت های خود را انتخاب کنید"))
+
+
 @router.callback_query(ProfileCallbackData.filter(aiogram.F.action == ProfileAction.DETAIL))
-async def my_accounts_handler(
+async def my_account_detail_handler(
     message: CallbackQuery,
     callback_data: ProfileCallbackData,
     tuser: TelegramUser | None,
@@ -306,7 +303,7 @@ async def my_accounts_handler(
     )
     ikbuilder.row(
         InlineKeyboardButton(
-            text=gettext("شارژ این اکانت"),
+            text="💳 " + gettext("شارژ این اکانت"),
             callback_data=ProfileCallbackData(
                 profile_id=subscriptionprofile_obj.id, action=ProfileAction.RENEW
             ).pack(),
@@ -315,17 +312,179 @@ async def my_accounts_handler(
     normal_sublink = await sync_to_async(subscriptionprofile_obj.get_sublink)()
     ikbuilder.row(
         InlineKeyboardButton(
-            text=gettext("کپی لینک اشتراک اندروید"),
+            text="⚿ " + gettext("کپی لینک اشتراک اندروید"),
             copy_text=CopyTextButton(text=normal_sublink),
         ),
         InlineKeyboardButton(
-            text=gettext("کپی لینک اشتراک ios"),
+            text="⚿ " + gettext("کپی لینک اشتراک ios"),
             copy_text=CopyTextButton(text=normal_sublink + "?base64=true"),
+        ),
+    )
+    ikbuilder.row(
+        InlineKeyboardButton(
+            text="🔐 " + gettext("عوض کردن رمز اتصال"),
+            callback_data=ProfileCallbackData(
+                profile_id=subscriptionprofile_obj.id, action=ProfileAction.PASS_CHANGE
+            ).pack(),
+        ),
+        InlineKeyboardButton(
+            text="🎁 " + gettext("هدیه به دوست"),
+            callback_data=ProfileCallbackData(
+                profile_id=subscriptionprofile_obj.id, action=ProfileAction.TRANSFER_TO_ANOTHER
+            ).pack(),
         ),
     )
 
     text = thtml_render_to_string(
         "teleport/member/subscription_profile_startlink.thtml",
+        context={"msg": "", "subscriptionprofile": subscriptionprofile_obj},
+    )
+    return message.message.edit_text(text, reply_markup=ikbuilder.as_markup())
+
+
+@router.callback_query(ProfileCallbackData.filter(aiogram.F.action == ProfileAction.TRANSFER_TO_ANOTHER))
+async def my_account_transfer_to_another_handler(
+    message: CallbackQuery,
+    callback_data: ProfileCallbackData,
+    tuser: TelegramUser | None,
+    state: FSMContext,
+    aiobot: Bot,
+    bot_obj: TelegramBot,
+    panel_obj: models.Panel,
+) -> Optional[aiogram.methods.TelegramMethod]:
+    await state.clear()
+
+    agency = panel_obj.agency
+    if tuser is None or tuser.user is None:
+        text = gettext("برای استفاده از خدمات ما از معرف خود لینک معرفی دریافت کنید.")
+        return message.answer(text, show_alert=True)
+    user = tuser.user
+    try:
+        subscriptionprofile_obj = await (
+            proxy_manager_models.SubscriptionProfile.objects.filter(user=user, initial_agency=agency)
+        ).aget(id=callback_data.profile_id)
+    except proxy_manager_models.SubscriptionProfile.DoesNotExist:
+        return message.answer(gettext("اکانت یافت نشد."))
+
+    startlink = services.get_subscription_profile_startlink(
+        bot_obj=bot_obj, subscription_profile=subscriptionprofile_obj, transfer_ownership=True
+    )
+    ikbuilder = InlineKeyboardBuilder()
+    ikbuilder.row(
+        InlineKeyboardButton(
+            text="🔙 " + gettext("بازگشت"),
+            callback_data=ProfileCallbackData(
+                profile_id=subscriptionprofile_obj.id, action=ProfileAction.DETAIL
+            ).pack(),
+        )
+    )
+    text = thtml_render_to_string(
+        "teleport/member/subscription_profile_transfer_to_another.thtml",
+        context={"startlink": startlink, "subscriptionprofile": subscriptionprofile_obj},
+    )
+    return message.message.edit_text(text, reply_markup=ikbuilder.as_markup())
+
+
+@router.callback_query(ProfileCallbackData.filter(aiogram.F.action == ProfileAction.PASS_CHANGE))
+async def my_account_passchange_request_handler(
+    message: CallbackQuery,
+    callback_data: ProfileCallbackData,
+    tuser: TelegramUser | None,
+    state: FSMContext,
+    aiobot: Bot,
+    bot_obj: TelegramBot,
+    panel_obj: models.Panel,
+) -> Optional[aiogram.methods.TelegramMethod]:
+    await state.clear()
+
+    agency = panel_obj.agency
+    if tuser is None or tuser.user is None:
+        text = gettext("برای استفاده از خدمات ما از معرف خود لینک معرفی دریافت کنید.")
+        return message.answer(text, show_alert=True)
+    user = tuser.user
+    try:
+        subscriptionprofile_obj = await (
+            proxy_manager_models.SubscriptionProfile.objects.filter(user=user, initial_agency=agency)
+        ).aget(id=callback_data.profile_id)
+    except proxy_manager_models.SubscriptionProfile.DoesNotExist:
+        return message.answer(gettext("اکانت یافت نشد."))
+
+    await state.set_state(PassChangeForm.requested)
+
+    ikbuilder = InlineKeyboardBuilder()
+    ikbuilder.row(
+        InlineKeyboardButton(
+            text="🔙 " + gettext("انصراف"),
+            callback_data=ProfileCallbackData(
+                profile_id=subscriptionprofile_obj.id, action=ProfileAction.DETAIL
+            ).pack(),
+        ),
+        InlineKeyboardButton(
+            text="🔄 تایید",
+            callback_data=SimpleBoolCallbackData(result=True).pack(),
+        ),
+    )
+
+    text = thtml_render_to_string(
+        "teleport/member/subscription_profile_passchange_request.thtml",
+        context={"msg": "", "subscriptionprofile": subscriptionprofile_obj},
+    )
+    return message.message.edit_text(text, reply_markup=ikbuilder.as_markup())
+
+
+class PassChangeForm(StatesGroup):
+    requested = State()
+    approved = State()
+
+
+@router.callback_query(SimpleBoolCallbackData.filter(aiogram.F.result == True), PassChangeForm.requested)
+async def my_account_passchange_done_handler(
+    message: CallbackQuery,
+    callback_data: ProfileCallbackData,
+    tuser: TelegramUser | None,
+    state: FSMContext,
+    aiobot: Bot,
+    bot_obj: TelegramBot,
+    panel_obj: models.Panel,
+) -> Optional[aiogram.methods.TelegramMethod]:
+    await state.clear()
+
+    agency = panel_obj.agency
+    if tuser is None or tuser.user is None:
+        text = gettext("برای استفاده از خدمات ما از معرف خود لینک معرفی دریافت کنید.")
+        return message.answer(text, show_alert=True)
+    user = tuser.user
+    try:
+        subscriptionprofile_obj: proxy_manager_models.SubscriptionProfile = await (
+            proxy_manager_models.SubscriptionProfile.objects.filter(user=user, initial_agency=agency)
+        ).aget(id=callback_data.profile_id)
+    except proxy_manager_models.SubscriptionProfile.DoesNotExist:
+        return message.answer(gettext("اکانت یافت نشد."))
+
+    await sync_to_async(BabyUI_services.pass_change_profile)(profile=subscriptionprofile_obj, user=user)
+    await state.set_state(PassChangeForm.approved)
+
+    ikbuilder = InlineKeyboardBuilder()
+    ikbuilder.row(
+        InlineKeyboardButton(
+            text="🔙 " + gettext("بازکشت"),
+            callback_data=ProfileCallbackData(
+                profile_id=subscriptionprofile_obj.id, action=ProfileAction.DETAIL
+            ).pack(),
+        )
+    )
+    normal_sublink = await sync_to_async(subscriptionprofile_obj.get_sublink)()
+    InlineKeyboardButton(
+        text="⚿ " + gettext("کپی لینک اشتراک جدید(اندروید)"),
+        copy_text=CopyTextButton(text=normal_sublink),
+    ),
+    InlineKeyboardButton(
+        text="⚿ " + gettext("کپی لینک اشتراک جدید(ios)"),
+        copy_text=CopyTextButton(text=normal_sublink + "?base64=true"),
+    ),
+
+    text = thtml_render_to_string(
+        "teleport/member/subscription_profile_passchange_done.thtml",
         context={"msg": "", "subscriptionprofile": subscriptionprofile_obj},
     )
     return message.message.edit_text(text, reply_markup=ikbuilder.as_markup())
