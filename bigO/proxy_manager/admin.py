@@ -103,9 +103,8 @@ class SubscriptionProfileModelAdmin(admin.ModelAdmin):
 
 @admin.register(models.AgencyUserGroup)
 class AgencyUserGroupModelAdmin(admin.ModelAdmin):
-    list_display = ("__str__", "members_count_display")
+    list_display = ("id", "name", "agency", "members_count_display")
     list_filter = ("users__username",)
-    form = forms.AgencyUserGroupModelForm
     autocomplete_fields = ("agency", "users")
 
     def get_queryset(self, request):
@@ -113,12 +112,12 @@ class AgencyUserGroupModelAdmin(admin.ModelAdmin):
 
     @admin.display(ordering="members_count")
     def members_count_display(self, obj):
-        return obj.periods_count
+        return obj.members_count
 
 
 @admin.register(models.AgencyPlanRestriction)
 class AgencyPlanRestrictionAdmin(admin.ModelAdmin):
-    list_display = ("__str__",)
+    list_display = ("agency", "connection_rule", "capacity")
 
 
 @admin.register(models.SubscriptionPlan)

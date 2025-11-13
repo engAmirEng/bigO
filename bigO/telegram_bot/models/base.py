@@ -15,12 +15,13 @@ from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.enums import ChatMemberStatus, ParseMode
 from bigO.users.models import User
 from bigO.utils.models import TimeStampedModel
-from django.conf import settings
 from django.db import models
 from django.db.models import CheckConstraint, Q, UniqueConstraint
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import gettext as _
 
+from .. import settings
 from .telegram_mappings import TelegramChat
 
 
@@ -67,7 +68,8 @@ class TelegramBot(TimeStampedModel, models.Model):
 
     @property
     def webhook_url(self):
-        return f"{self.domain_name}/{settings.TELEGRAM_WEBHOOK_URL_PREFIX}/{self.url_specifier}/"
+        path = reverse("telegram_bot:webhook", kwargs={"url_specifier": self.url_specifier})
+        return f"{self.domain_name}{path}"
 
     @property
     def is_active(self):

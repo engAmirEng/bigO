@@ -8,9 +8,9 @@
     <br>
     {% progress_bar current=subscriptionprofile.current_download_bytes|add:subscriptionprofile.current_upload_bytes total=subscriptionprofile.current_total_limit_bytes %}
     {% if subscriptionprofile.current_limit_passed_type == "traffic_limit" %}
-        <br><br><strong>❗️ حجم سرویس شما به اتمام رسیده است</strong>
+        <br><br><strong>❗️ حجم سرویس به اتمام رسیده است</strong>
     {% elif subscriptionprofile.current_limit_passed_type == "expired" %}
-        <br><br><strong>❗️ سرویس شما منقضی شده است</strong>
+        <br><br><strong>❗️ سرویس منقضی شده است</strong>
     {% endif %}
 {% else %}
     {{ subscriptionprofile.title|safe }}

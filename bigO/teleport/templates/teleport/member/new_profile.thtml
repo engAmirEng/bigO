@@ -1,0 +1,12 @@
+درحال دریافت اکانت جدید هستید، درصورتی که پروفایل فعلی تان را مبخواهید شارژ کنید به منو باز گردید.
+<br>
+{% if not subscriptionplans %}
+    درحال حاضر پلن فعالی برای شما موجود نیست
+{% else %}
+    پلن های فعال:
+    <br>
+    {% for subscriptionplan in subscriptionplans %}
+    {{ subscriptionplan.name }}
+    <br>
+    {% endfor %}
+{% endif %}

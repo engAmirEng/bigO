@@ -52,7 +52,10 @@ class TelegramBotModelAdmin(admin.ModelAdmin):
             info: aiogram.types.WebhookInfo = await bot.get_webhook_info()
 
             m = str(telegram_bot_obj) + " "
-            if telegram_bot_obj.webhook_url == info.url:
+            if not info.url:
+                message = m + f"webhook url is not set, should be {telegram_bot_obj.webhook_url}"
+                level = messages.INFO
+            elif telegram_bot_obj.webhook_url == info.url:
                 message = m + f"webhook url correctly set to {info.url}"
                 level = messages.SUCCESS
             else:

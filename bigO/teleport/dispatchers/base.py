@@ -1,5 +1,8 @@
+import functools
 from enum import Enum
 from typing import Optional
+
+import makefun
 
 import aiogram.utils.deep_linking
 from aiogram import Bot
@@ -52,6 +55,7 @@ class SimpleButtonCallbackData(CallbackData, prefix="simplebutton"):
 class SimpleBoolCallbackData(CallbackData, prefix="simplebool"):
     result: bool
 
+
 class AgentAgencyAction(str, Enum):
     OVERVIEW = "overview"
     NEW_PROFILE = "new_profile"
@@ -84,6 +88,19 @@ class ProfileCallbackData(CallbackData, prefix="profile"):
     action: ProfileAction
 
 
+def clear_state(fn):
+    @makefun.wraps(fn)
+    async def wrapper(*args, **kwargs):
+        resp = await fn(*args, **kwargs)
+        state: FSMContext | None = kwargs.get("state")
+        if state:
+            await state.clear()
+        return resp
+
+    return wrapper
+
+
+@clear_state
 @router.callback_query(SimpleButtonCallbackData.filter(aiogram.F.button_name == SimpleButtonName.MENU))
 @router.message(CommandStart(magic=~aiogram.F.args))
 async def menu_handler(
@@ -94,8 +111,6 @@ async def menu_handler(
     bot_obj: TelegramBot,
     panel_obj: models.Panel,
 ) -> Optional[aiogram.methods.TelegramMethod]:
-    await state.clear()
-
     ikbuilder = InlineKeyboardBuilder()
     agency = panel_obj.agency
     if tuser is None or tuser.user is None:
@@ -127,7 +142,7 @@ async def menu_handler(
             InlineKeyboardButton(text=gettext("ارسال به کاربر"), switch_inline_query="profiles status "),
         )
 
-        text = thtml_render_to_string("teleport/agent/start.thtml", context={"agency": agency})
+        text = await thtml_render_to_string("teleport/agent/start.thtml", context={"agency": agency})
     else:
         ikbuilder.row(
             InlineKeyboardButton(
@@ -174,8 +189,9 @@ async def menu_handler(
             ikbuilder_profiles.add(*btns)
             ikbuilder_profiles.adjust(2, repeat=True)
             ikbuilder.attach(ikbuilder_profiles)
-        text = thtml_render_to_string(
-            "teleport/member/start.thtml", context={"agency": agency, "subscriptionprofiles": subscriptionprofiles}
+        text = await thtml_render_to_string(
+            "teleport/member/start.thtml",
+            context={"state": state, "agency": agency, "subscriptionprofiles": subscriptionprofiles},
         )
     if isinstance(message, Message):
         return message.answer(text, reply_markup=ikbuilder.as_markup())

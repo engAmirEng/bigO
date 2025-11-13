@@ -115,7 +115,7 @@ async def inline_profiles_startlink_handler(
             callback_data=SimpleButtonCallbackData(button_name=SimpleButtonName.MENU),
         )
         msg = ""
-        text = thtml_render_to_string(
+        text = await thtml_render_to_string(
             "teleport/member/subscription_profile_startlink.thtml",
             context={"msg": msg, "subscriptionprofile": subscriptionprofile_obj},
         )
@@ -201,7 +201,7 @@ async def inline_profiles_startlink_handler(
         )
         connect_text = gettext("جهت اتصال به اکانت خود از طریق این لینک وارد ربات شوید") + "\n" + startlink
         msg = ""
-        text = thtml_render_to_string(
+        text = await thtml_render_to_string(
             "teleport/member/subscription_profile_startlink.thtml",
             context={"msg": msg, "subscriptionprofile": subscriptionprofile_obj},
         )
@@ -276,7 +276,7 @@ async def agent_manage_profile_handler(
         callback_data=SimpleButtonCallbackData(button_name=SimpleButtonName.MENU),
     )
     msg = gettext("خدمت شما")
-    text = thtml_render_to_string(
+    text = await thtml_render_to_string(
         "teleport/member/subscription_profile_startlink.thtml",
         context={"msg": msg, "subscriptionprofile": subscriptionprofile_obj},
     )

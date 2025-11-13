@@ -115,11 +115,6 @@ class AgencyUserGroupModelForm(forms.ModelForm):
         model = models.AgencyUserGroup
         fields = "__all__"
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.data.get()
-        self.fields["users"].queryset = self.fields["users"].queryset.filter(id=1)
-
     def clean_users(self):
         users = self.cleaned_data.get("users")
         agency = self.cleaned_data.get("agency")

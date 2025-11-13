@@ -18,7 +18,7 @@ urlpatterns = [
     # the core apis
     path("api/", api.urls),
     # Telegram webhook handler
-    # path("", include(bigO.telegram_bot.urls)),
+    path("", include("bigO.telegram_bot.urls")),
     # local apps
     path("core/", include("bigO.core.urls")),
     path("node-manager/", include("bigO.node_manager.urls")),

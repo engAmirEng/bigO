@@ -1,0 +1,13 @@
+{% for message in messages %}
+    {% if message.level == DEFAULT_MESSAGE_LEVELS.INFO %}
+        ℹ️&nbsp;
+    {% elif message.level == DEFAULT_MESSAGE_LEVELS.SUCCESS %}
+        ✅&nbsp;
+    {% elif message.level == DEFAULT_MESSAGE_LEVELS.WARNING %}
+        ⚠️&nbsp;
+    {% elif message.level == DEFAULT_MESSAGE_LEVELS.ERROR %}
+        ❌&nbsp;
+    {% endif %}
+    {{ message.message }}
+    <br>
+{% endfor %}

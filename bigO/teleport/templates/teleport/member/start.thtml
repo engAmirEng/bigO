@@ -1,9 +1,18 @@
+{% load tbot_widgets %}
+{% trender_messages "teleport/partials/messages.thtml" %}
 به ربات {{ agency.name }} خوش آمدید
-{% if subscriptionprofiles %}
-    <br>
-    اکانت های شما:
-{% endif %}
 {% for subscriptionprofile in subscriptionprofiles %}
+    {% if forloop.first %}
+        <br>
+        <br>
+        اکانت های شما:
+    {% endif %}
+    <br>
+    ---{{ forloop.counter }}-----------------------------
     <br>
     {% include "teleport/partials/subscriptionperiod_status.thtml" with subscriptionprofile=subscriptionprofile %}
+    {% if forloop.last %}
+        <br>
+        -----------------------------------
+    {% endif %}
 {% endfor %}
