@@ -104,9 +104,9 @@ async def new_profile_me_handler(
         )
     )
     ikbuilder_plan = InlineKeyboardBuilder()
-    for subscriptionplan in subscriptionplan_qs:
+    for i, subscriptionplan in enumerate(subscriptionplan_list):
         ikbuilder_plan.button(
-            text=subscriptionplan.name,
+            text=f"{i + 1}) {subscriptionplan.name}",
             callback_data=MemberAgencyPlanCallbackData(
                 agency_id=useragency.agency_id,
                 plan_id=subscriptionplan.id,
@@ -178,7 +178,11 @@ async def member_new_profile_plan_choosed_handler(
         rkbuilder.button(text=gettext("تایید"))
         rkbuilder.button(text=gettext("انصراف"))
         rkbuilder.adjust(2, True)
-        return message.message.answer(gettext("درحال خرید {}، تایید میکنید؟"), reply_markup=rkbuilder.as_markup())
+        text = await thtml_render_to_string(
+            "teleport/member/subcription_plan_checkout.thtml",
+            context={"subscriptionplan": choosed_plan_obj},
+        )
+        return message.message.answer(text, reply_markup=rkbuilder.as_markup())
     else:
         raise NotImplementedError
 
@@ -330,8 +334,12 @@ async def agent_new_profile_plan_simplestrict1_handler(
             rkbuilder = ReplyKeyboardBuilder()
             rkbuilder.button(text=gettext("تایید"))
             rkbuilder.button(text=gettext("انصراف"))
+            text = await thtml_render_to_string(
+                "teleport/member/subcription_plan_checkout.thtml",
+                context={"subscriptionplan": choosed_plan_obj},
+            )
             return message.answer(
-                gettext("نا معتبر، درحال خرید {}، تایید میکنید؟"), reply_markup=rkbuilder.as_markup()
+                text=text, reply_markup=rkbuilder.as_markup()
             )
         subscriptionperiod_obj = await sync_to_async(create_new_user)(
             agency=agency,

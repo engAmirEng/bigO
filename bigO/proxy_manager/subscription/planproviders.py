@@ -1,11 +1,18 @@
+from datetime import timedelta
+
+import humanize.filesize
+import humanize.time
 import pydantic
+from django.utils.translation import gettext
+from djmoney.money import Money
+from moneyed import Currency
 
 from bigO.utils.models import MakeInterval
 from django.db.models import Case, DateTimeField, F, PositiveBigIntegerField, When
 from django.db.models.functions import Cast, Now
 
 from .base import BaseSubscriptionPlanProvider
-
+from decimal import Decimal
 
 class TypeSimpleStrict1(BaseSubscriptionPlanProvider):
     TYPE_IDENTIFIER = "type_simple_strict1"
@@ -13,6 +20,18 @@ class TypeSimpleStrict1(BaseSubscriptionPlanProvider):
     class ProviderArgsModel(pydantic.BaseModel):
         total_usage_limit_bytes: int
         expiry_seconds: int
+        price: Decimal
+
+        def title(self, currency):
+            limit_bytes = humanize.naturalsize(self.total_usage_limit_bytes)
+            m = Money(amount=self.price, currency=currency)
+            return f"{limit_bytes}/{humanize.precisedelta(timedelta(seconds=self.expiry_seconds))} {m}"
+
+        def verbose_title(self, currency):
+            limit_bytes = humanize.naturalsize(self.total_usage_limit_bytes)
+            m = Money(amount=self.price, currency=currency)
+            return "حجم {0} در مدت {1} با قیمت {2}".format(
+                str(limit_bytes), humanize.precisedelta(timedelta(seconds=self.expiry_seconds)), str(m))
 
     PlanArgsModel = None
 
@@ -52,7 +71,16 @@ class TypeSimpleStrict1(BaseSubscriptionPlanProvider):
 class TypeSimpleDynamic1(BaseSubscriptionPlanProvider):
     TYPE_IDENTIFIER = "type_simple_dynamic1"
 
-    ProviderArgsModel = None
+    class ProviderArgsModel(pydantic.BaseModel):
+        per_gb_price: Decimal
+
+        def title(self, currency: Currency):
+            m = Money(amount=self.per_gb_price, currency=currency)
+            return str(m) + " per GB"
+
+        def verbose_title(self, currency):
+            m = Money(amount=self.per_gb_price, currency=currency)
+            return "{0} به ازای هر گیگابایت".format(m)
 
     class PlanArgsModel(pydantic.BaseModel):
         total_usage_limit_bytes: int

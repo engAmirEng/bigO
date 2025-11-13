@@ -1,0 +1,8 @@
+درحال خرید
+{{ subscriptionplan.name }} ({{ subscriptionplan.plan_verbose_display }})
+{% if subscriptionplan.description %}
+<br>
+توضیحات: {{ subscriptionplan.description }}
+{% endif %}
+<br>
+تایید میکنید؟

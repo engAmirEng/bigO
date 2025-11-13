@@ -1,5 +1,5 @@
 from typing import TypedDict
-
+from django.utils.translation import get_language
 from asgiref.sync import async_to_sync, sync_to_async
 
 from aiogram.fsm.context import FSMContext
@@ -9,6 +9,13 @@ from django.template.loader import render_to_string
 
 async def thtml_render_to_string(template_name, context=None, request=None, using=None):
     rendered = await sync_to_async(render_to_string)(template_name, context=context, request=request, using=using)
+    # digit translation
+    english = "0123456789"
+    farsi = "۰۱۲۳۴۵۶۷۸۹"
+    language = get_language()
+    if language == "fa":
+        rendered = rendered.translate(str.maketrans(english, farsi))
+    # # # # #
     lines = rendered.replace("\n", "").split("<br>")
     result_lines = []
     for line in lines:

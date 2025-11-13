@@ -27,6 +27,9 @@ class Invoice(TimeStampedModel, PolymorphicModel, models.Model):
     due_date = models.DateTimeField(null=True, blank=True)
     status = models.PositiveSmallIntegerField(choices=StatusChoices.choices)
 
+    def __str__(self):
+        return f"{self.id}-{self.get_status_display()}({self.total_price})"
+
 
 class InvoiceItem(TimeStampedModel, PolymorphicModel, models.Model):
     invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name="items")

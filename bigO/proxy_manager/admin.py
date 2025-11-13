@@ -123,7 +123,9 @@ class AgencyPlanRestrictionAdmin(admin.ModelAdmin):
 @admin.register(models.SubscriptionPlan)
 class SubscriptionPlanModelAdmin(admin.ModelAdmin):
     list_display = (
-        "__str__",
+        "id",
+        "name",
+        "plan_display",
         "connection_rule_display",
         "capacity",
         "periods_count_display",
@@ -136,6 +138,10 @@ class SubscriptionPlanModelAdmin(admin.ModelAdmin):
 
     def get_queryset(self, request):
         return super().get_queryset(request).ann_periods_count()
+
+    @admin.display()
+    def plan_display(self, obj):
+        return obj.plan_display
 
     @admin.display(ordering="periods_count")
     def periods_count_display(self, obj):

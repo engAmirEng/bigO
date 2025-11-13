@@ -51,3 +51,9 @@ class PaymentProviderModelAdmin(admin.ModelAdmin):
     list_display = ("id", "name")
     search_fields = ("name",)
     form = forms.PaymentProviderModelForm
+
+
+@admin.register(models.Payment)
+class PaymentModelAdmin(admin.ModelAdmin):
+    list_display = ("id", "uuid", "provider", "invoice", "amount")
+
