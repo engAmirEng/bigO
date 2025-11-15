@@ -1,5 +1,6 @@
 import datetime
 
+from djmoney.models.fields import CurrencyField
 from djmoney.settings import CURRENCY_CHOICES
 from moneyed import get_currency
 from taggit.managers import TaggableManager
@@ -12,7 +13,6 @@ from django.db import models
 from django.db.models import Case, Count, Exists, F, OuterRef, Prefetch, Q, Subquery, UniqueConstraint, Value, When
 from django.db.models.functions import Coalesce
 from django.utils import timezone
-from djmoney.models.fields import CurrencyField
 
 
 class Agency(TimeStampedModel, models.Model):
@@ -86,7 +86,9 @@ class SubscriptionPlan(TimeStampedModel, models.Model):
     plan_provider_key = models.SlugField(max_length=127, db_index=True)
     plan_provider_args = models.JSONField(null=True, blank=True)
     description = models.TextField(null=True, blank=True)
-    base_currency = CurrencyField(choices=CURRENCY_CHOICES, null=True, blank=False, help_text="currency unit that other prices are based on")
+    base_currency = CurrencyField(
+        choices=CURRENCY_CHOICES, null=True, blank=False, help_text="currency unit that other prices are based on"
+    )
     connection_rule = models.ForeignKey(
         "ConnectionRule",
         on_delete=models.PROTECT,
@@ -104,17 +106,20 @@ class SubscriptionPlan(TimeStampedModel, models.Model):
     def plan_display(self) -> str:
         plan_provider_cls = self.plan_provider_cls
         if plan_provider_cls.ProviderArgsModel and self.plan_provider_args:
-            return plan_provider_cls.ProviderArgsModel(**self.plan_provider_args).title(get_currency(self.base_currency))
+            return plan_provider_cls.ProviderArgsModel(**self.plan_provider_args).title(
+                get_currency(self.base_currency)
+            )
 
     @property
     def plan_verbose_display(self) -> str:
         plan_provider_cls = self.plan_provider_cls
         if plan_provider_cls.ProviderArgsModel and self.plan_provider_args:
-            return plan_provider_cls.ProviderArgsModel(**self.plan_provider_args).verbose_title(get_currency(self.base_currency))
-
+            return plan_provider_cls.ProviderArgsModel(**self.plan_provider_args).verbose_title(
+                get_currency(self.base_currency)
+            )
 
     def __str__(self):
-        if plan_display:=self.plan_display:
+        if plan_display := self.plan_display:
             return f"{self.pk}-{self.name}({plan_display})"
         return f"{self.pk}-{self.name}"
 

@@ -1,0 +1,6 @@
+پرداخت:
+{{ bill }}
+
+{% for i in bill.items %}
+    {{ i }}
+{% endfor %}

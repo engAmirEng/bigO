@@ -1,5 +1,6 @@
 import datetime
 import uuid
+from typing import Any
 
 from djmoney.models.fields import MoneyField
 from polymorphic.models import PolymorphicModel
@@ -34,6 +35,8 @@ class Invoice(TimeStampedModel, PolymorphicModel, models.Model):
 class InvoiceItem(TimeStampedModel, PolymorphicModel, models.Model):
     invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name="items")
     total_price = MoneyField(max_digits=14, decimal_places=2, default_currency="USD")
+    created_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name="+")
+    issued_to: Any
 
 
 class Payment(TimeStampedModel, models.Model):
@@ -60,6 +63,7 @@ class PaymentProvider(TimeStampedModel, models.Model):
     name = models.SlugField(unique=True)
     provider_key = models.SlugField(max_length=127, db_index=True)
     provider_args = models.JSONField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
 
     def __str__(self):
         return f"{self.pk}-{self.name}"

@@ -1,18 +1,19 @@
 from datetime import timedelta
+from decimal import Decimal
 
 import humanize.filesize
 import humanize.time
 import pydantic
-from django.utils.translation import gettext
 from djmoney.money import Money
 from moneyed import Currency
 
 from bigO.utils.models import MakeInterval
 from django.db.models import Case, DateTimeField, F, PositiveBigIntegerField, When
 from django.db.models.functions import Cast, Now
+from django.utils.translation import gettext
 
 from .base import BaseSubscriptionPlanProvider
-from decimal import Decimal
+
 
 class TypeSimpleStrict1(BaseSubscriptionPlanProvider):
     TYPE_IDENTIFIER = "type_simple_strict1"
@@ -31,7 +32,8 @@ class TypeSimpleStrict1(BaseSubscriptionPlanProvider):
             limit_bytes = humanize.naturalsize(self.total_usage_limit_bytes)
             m = Money(amount=self.price, currency=currency)
             return "حجم {0} در مدت {1} با قیمت {2}".format(
-                str(limit_bytes), humanize.precisedelta(timedelta(seconds=self.expiry_seconds)), str(m))
+                str(limit_bytes), humanize.precisedelta(timedelta(seconds=self.expiry_seconds)), str(m)
+            )
 
     PlanArgsModel = None
 
@@ -85,6 +87,11 @@ class TypeSimpleDynamic1(BaseSubscriptionPlanProvider):
     class PlanArgsModel(pydantic.BaseModel):
         total_usage_limit_bytes: int
         expiry_seconds: int
+
+    def calc_init_price(self):
+        price_amount = (self.plan_args.total_usage_limit_bytes / 1000_000) * self.provider_args.per_gb_price
+        price = Money(amount=price_amount, currency=self.currency)
+        return price
 
     def get_total_limit_bytes(self):
         return self.plan_args.total_usage_limit_bytes

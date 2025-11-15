@@ -98,4 +98,4 @@ if sentry_dsn := env.url("SENTRY_DSN", default=None):
 DJANGO_VITE = {"BabyUI": {"dev_mode": DEBUG, "dev_server_port": 5225, "static_url_prefix": "BabyUI"}}  # todo  # todo
 
 # django-money
-CURRENCIES = ('USD', 'EUR', 'IRR')
+CURRENCIES = ("USD", "EUR", "IRR")

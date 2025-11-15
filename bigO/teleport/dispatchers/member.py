@@ -24,6 +24,7 @@ from aiogram.types import (
 )
 from aiogram.utils.keyboard import InlineKeyboardBuilder, InlineKeyboardButton, ReplyKeyboardBuilder
 from bigO.BabyUI import services as BabyUI_services
+from bigO.finance import models as finance_models
 from bigO.proxy_manager import models as proxy_manager_models
 from bigO.proxy_manager import services as proxy_manager_services
 from bigO.telegram_bot.dispatchers import AppRouter
@@ -68,6 +69,11 @@ class MemberAgencyPlanCallbackData(CallbackData, prefix="member_agency"):
     agency_id: int
     plan_id: int
     action: MemberAgencyPlanAction
+
+
+class MemberInitPaybillCallbackData(CallbackData, prefix="member_init_paybill"):
+    bill_id: int
+    payment_provider_id: int
 
 
 @router.callback_query(MemberAgencyCallbackData.filter(aiogram.F.action == MemberAgencyAction.LIST_AVAILABLE_PLANS))
@@ -126,11 +132,13 @@ class MemberNewSimpleDynamic1PlanForm(StatesGroup):
     plan_id = State()
     trafficGB = State()
     days = State()
+    bill_id = State()
     final_check = State()
 
 
 class MemberNewSimpleStrict1PlanForm(StatesGroup):
     plan_id = State()
+    bill_id = State()
     final_check = State()
 
 
@@ -174,13 +182,17 @@ async def member_new_profile_plan_choosed_handler(
         )
     elif choosed_plan_obj.plan_provider_cls == TypeSimpleStrict1:
         await state.set_state(MemberNewSimpleStrict1PlanForm.final_check)
+        invoice_obj = await sync_to_async(proxy_manager_services.member_create_bill)(
+            plan=choosed_plan_obj, plan_args={}, agency_user=useragency, profile=None, actor=tuser.user
+        )
+        await state.update_data(bill_id=invoice_obj.id)
         rkbuilder = ReplyKeyboardBuilder()
         rkbuilder.button(text=gettext("تایید"))
         rkbuilder.button(text=gettext("انصراف"))
         rkbuilder.adjust(2, True)
         text = await thtml_render_to_string(
             "teleport/member/subcription_plan_checkout.thtml",
-            context={"subscriptionplan": choosed_plan_obj},
+            context={"invoice": invoice_obj},
         )
         return message.message.answer(text, reply_markup=rkbuilder.as_markup())
     else:
@@ -205,9 +217,9 @@ async def agent_new_profile_plan_newsimpledynamic1plan_handler(
         return await menu_handler(
             message=message, tuser=tuser, state=state, aiobot=aiobot, bot_obj=bot_obj, panel_obj=panel_obj
         )
-    data = await state.get_data()
+    state_data = await state.get_data()
     state_name = await state.get_state()
-    choosed_plan_id = data["plan_id"]
+    choosed_plan_id = state_data["plan_id"]
     agency = panel_obj.agency
     useragency = (
         await proxy_manager_models.AgencyUser.objects.filter(user=tuser.user, agency=agency, agency_id=agency.id)
@@ -252,17 +264,25 @@ async def agent_new_profile_plan_newsimpledynamic1plan_handler(
             )
         await state.update_data(days=entered_days)
         await state.set_state(MemberNewSimpleDynamic1PlanForm.final_check)
+        volume_gb = state_data["trafficGB"]
+        plan_args = {
+            "total_usage_limit_bytes": volume_gb * 1000_000_000,
+            "expiry_seconds": entered_days * 24 * 60 * 60,
+        }
+        invoice_obj = await sync_to_async(proxy_manager_services.member_create_bill)(
+            plan=choosed_plan_obj, plan_args=plan_args, agency_user=useragency, profile=None, actor=tuser.user
+        )
+        await state.update_data(bill_id=invoice_obj.id)
         rkbuilder = ReplyKeyboardBuilder()
         rkbuilder.button(text=gettext("تایید"))
         rkbuilder.button(text=gettext("انصراف"))
-
-        return message.answer(gettext("درحال خرید {}، تایید میکنید؟"), reply_markup=rkbuilder.as_markup())
+        rkbuilder.adjust(2, True)
+        text = await thtml_render_to_string(
+            "teleport/member/subcription_plan_checkout.thtml",
+            context={"invoice": invoice_obj},
+        )
+        return message.message.answer(text, reply_markup=rkbuilder.as_markup())
     elif state_name == MemberNewSimpleDynamic1PlanForm.final_check.state:
-        from bigO.BabyUI.services import create_new_user
-
-        expiry_days = data["days"]
-        volume_gb = data["trafficGB"]
-        plan_args = {"total_usage_limit_bytes": volume_gb * 1000_000_000, "expiry_seconds": expiry_days * 24 * 60 * 60}
         if message.text != gettext("تایید"):
             rkbuilder = ReplyKeyboardBuilder()
             rkbuilder.button(text=gettext("تایید"))
@@ -270,24 +290,43 @@ async def agent_new_profile_plan_newsimpledynamic1plan_handler(
             return message.answer(
                 gettext("نا معتبر، درحال خرید {}، تایید میکنید؟"), reply_markup=rkbuilder.as_markup()
             )
-        subscriptionperiod_obj = await sync_to_async(create_new_user)(
-            agency=agency,
-            agentuser=agent.user,
-            plan=choosed_plan_obj,
-            title="",
-            plan_args=plan_args,
-            description="fdfd",
+
+        bill_id = state_data["bill_id"]
+        subscriptionplaninvoiceitem_obj = (
+            await proxy_manager_models.SubscriptionPlanInvoiceItem.objects.select_related("invoice").afirst(
+                invoice_id=bill_id, issued_to=useragency
+            )
         )
-        subscriptionprofile_obj = subscriptionperiod_obj.profile
-        msg = gettext("باموفقیت ایجاد شد")
+        if (
+            subscriptionplaninvoiceitem_obj is None
+            or subscriptionplaninvoiceitem_obj.invoice.status != finance_models.Invoice.StatusChoices.ISSUED
+        ):
+            return
+        paymentproviders_qs = proxy_manager_services.get_user_available_paymentproviders(
+            user=tuser.user, agency=agency
+        )
+        paymentproviders_list: list[finance_models.PaymentProvider] = [i async for i in paymentproviders_qs]
+        if not paymentproviders_list:
+            return message.answer(gettext("درگاه فعالی وجود ندارد، با ادمین تماس بگیرید"))
+
         ikbuilder = InlineKeyboardBuilder()
-        ikbuilder.button(
-            text=gettext("مشاهده منو"),
-            callback_data=SimpleButtonCallbackData(button_name=SimpleButtonName.MENU),
+        ikbuilder.row(
+            InlineKeyboardButton(
+                text=gettext("انصراف"), callback_data=SimpleButtonCallbackData(button_name=SimpleButtonName.MENU)
+            )
         )
+        for paymentprovider in paymentproviders_list:
+            ikbuilder.row(
+                InlineKeyboardButton(
+                    text=gettext("پرداخت با ") + paymentprovider.name,
+                    callback_data=MemberInitPaybillCallbackData(
+                        bill_id=bill_id, payment_provide_id=paymentprovider.id
+                    ),
+                )
+            )
         text = await thtml_render_to_string(
-            "teleport/member/subscription_profile_startlink.thtml",
-            context={"msg": msg, "subscriptionprofile": subscriptionprofile_obj},
+            "teleport/member/subscription_profile_bill_checkout.thtml",
+            context={"bill": subscriptionplaninvoiceitem_obj.invoice},
         )
         return message.answer(text, reply_markup=ikbuilder.as_markup())
     raise NotImplementedError
@@ -308,9 +347,9 @@ async def agent_new_profile_plan_simplestrict1_handler(
         return await menu_handler(
             message=message, tuser=tuser, state=state, aiobot=aiobot, bot_obj=bot_obj, panel_obj=panel_obj
         )
-    data = await state.get_data()
+    state_data = await state.get_data()
     state_name = await state.get_state()
-    choosed_plan_id = data["plan_id"]
+    choosed_plan_id = state_data["plan_id"]
     agency = panel_obj.agency
     useragency = (
         await proxy_manager_models.AgencyUser.objects.filter(user=tuser.user, agency=agency, agency_id=agency.id)
@@ -326,10 +365,7 @@ async def agent_new_profile_plan_simplestrict1_handler(
     )
     if choosed_plan_obj is None:
         return message.answer(gettext("این پلن فعال نیست."))
-    elif state_name == MemberNewSimpleStrict1PlanForm.final_check.state:
-        from bigO.BabyUI.services import create_new_user
-
-        plan_args = {}
+    if state_name == MemberNewSimpleStrict1PlanForm.final_check.state:
         if message.text != gettext("تایید"):
             rkbuilder = ReplyKeyboardBuilder()
             rkbuilder.button(text=gettext("تایید"))
@@ -338,27 +374,44 @@ async def agent_new_profile_plan_simplestrict1_handler(
                 "teleport/member/subcription_plan_checkout.thtml",
                 context={"subscriptionplan": choosed_plan_obj},
             )
-            return message.answer(
-                text=text, reply_markup=rkbuilder.as_markup()
+            return message.answer(text=text, reply_markup=rkbuilder.as_markup())
+        state_data = await state.get_data()
+        bill_id = state_data["bill_id"]
+        subscriptionplaninvoiceitem_obj = (
+            await proxy_manager_models.SubscriptionPlanInvoiceItem.objects.select_related("invoice").afirst(
+                invoice_id=bill_id, issued_to=useragency
             )
-        subscriptionperiod_obj = await sync_to_async(create_new_user)(
-            agency=agency,
-            agentuser=agent.user,
-            plan=choosed_plan_obj,
-            title="",
-            plan_args=plan_args,
-            description="fdfd",
         )
-        subscriptionprofile_obj = subscriptionperiod_obj.profile
-        msg = gettext("باموفقیت ایجاد شد")
+        if (
+            subscriptionplaninvoiceitem_obj is None
+            or subscriptionplaninvoiceitem_obj.invoice.status != finance_models.Invoice.StatusChoices.ISSUED
+        ):
+            return
+        paymentproviders_qs = proxy_manager_services.get_user_available_paymentproviders(
+            user=tuser.user, agency=agency
+        )
+        paymentproviders_list: list[finance_models.PaymentProvider] = [i async for i in paymentproviders_qs]
+        if not paymentproviders_list:
+            return message.answer(gettext("درگاه فعالی وجود ندارد، با ادمین تماس بگیرید"))
+
         ikbuilder = InlineKeyboardBuilder()
-        ikbuilder.button(
-            text=gettext("مشاهده منو"),
-            callback_data=SimpleButtonCallbackData(button_name=SimpleButtonName.MENU),
+        ikbuilder.row(
+            InlineKeyboardButton(
+                text=gettext("انصراف"), callback_data=SimpleButtonCallbackData(button_name=SimpleButtonName.MENU)
+            )
         )
+        for paymentprovider in paymentproviders_list:
+            ikbuilder.row(
+                InlineKeyboardButton(
+                    text=gettext("پرداخت با ") + paymentprovider.name,
+                    callback_data=MemberInitPaybillCallbackData(
+                        bill_id=bill_id, payment_provide_id=paymentprovider.id
+                    ),
+                )
+            )
         text = await thtml_render_to_string(
-            "teleport/member/subscription_profile_startlink.thtml",
-            context={"msg": msg, "subscriptionprofile": subscriptionprofile_obj},
+            "teleport/member/subscription_profile_bill_checkout.thtml",
+            context={"bill": subscriptionplaninvoiceitem_obj.invoice},
         )
         return message.answer(text, reply_markup=ikbuilder.as_markup())
     raise NotImplementedError
