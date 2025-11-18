@@ -10,19 +10,13 @@ from django.utils.translation import get_language
 
 async def thtml_render_to_string(template_name, context=None, request=None, using=None):
     rendered = await sync_to_async(render_to_string)(template_name, context=context, request=request, using=using)
-    # digit translation
-    english = "0123456789"
-    farsi = "۰۱۲۳۴۵۶۷۸۹"
-    language = get_language()
-    if language == "fa":
-        rendered = rendered.translate(str.maketrans(english, farsi))
-    # # # # #
-    lines = rendered.replace("\n", "").split("<br>")
-    result_lines = []
-    for line in lines:
-        line: str
-        result_lines.append(line.lstrip().rstrip().replace("&nbsp;", " "))
-    return "\n".join(result_lines)
+    lines_list = []
+    for line in rendered.split("\n"):
+        lines_list.append(line.lstrip().rstrip())
+    result_lines_list = []
+    for line in "".join(lines_list).split("<br>"):
+        result_lines_list.append(line.lstrip().rstrip().replace("&nbsp;", " "))
+    return "\n".join(result_lines_list)
 
 
 class TMessage(TypedDict):
