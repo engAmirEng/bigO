@@ -1,1 +1,4 @@
+{% load digits_locale %}
+{% digits_locale on %}
 یکی از پلان ها را انتخاب کنید:
+{% enddigits_locale %}
