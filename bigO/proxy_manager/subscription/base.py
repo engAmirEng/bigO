@@ -14,8 +14,14 @@ class BaseSubscriptionPlanProvider(abc.ABC, Generic[ProviderArgsT, PlanArgsT]):
     TYPE_IDENTIFIER: str
 
     def __init__(self, provider_args: ProviderArgsT, plan_args: PlanArgsT, currency: Currency):
-        self.provider_args = provider_args
-        self.plan_args = plan_args
+        if self.ProviderArgsModel:
+            self.provider_args = self.ProviderArgsModel(**provider_args)
+        else:
+            self.provider_args = None
+        if self.PlanArgsModel:
+            self.plan_args = self.PlanArgsModel(**plan_args)
+        else:
+            self.plan_args = None
         self.currency = currency
 
     @abc.abstractmethod

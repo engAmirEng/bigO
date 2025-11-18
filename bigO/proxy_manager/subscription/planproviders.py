@@ -37,6 +37,11 @@ class TypeSimpleStrict1(BaseSubscriptionPlanProvider):
 
     PlanArgsModel = None
 
+    def calc_init_price(self):
+        price_amount = self.provider_args.price
+        price = Money(amount=price_amount, currency=self.currency)
+        return price
+
     def get_total_limit_bytes(self):
         return self.provider_args.total_usage_limit_bytes
 
@@ -88,8 +93,20 @@ class TypeSimpleDynamic1(BaseSubscriptionPlanProvider):
         total_usage_limit_bytes: int
         expiry_seconds: int
 
+        def title(self, currency):
+            limit_bytes = humanize.naturalsize(self.total_usage_limit_bytes)
+            return f"{limit_bytes}/{humanize.precisedelta(timedelta(seconds=self.expiry_seconds))}"
+
+        def verbose_title(self):
+            limit_bytes = humanize.naturalsize(self.total_usage_limit_bytes)
+            return "حجم {0} در مدت {1}".format(
+                str(limit_bytes), humanize.precisedelta(timedelta(seconds=self.expiry_seconds))
+            )
+
     def calc_init_price(self):
-        price_amount = (self.plan_args.total_usage_limit_bytes / 1000_000) * self.provider_args.per_gb_price
+        price_amount = (
+            Decimal(self.plan_args.total_usage_limit_bytes / 1_000_000_000) * self.provider_args.per_gb_price
+        )
         price = Money(amount=price_amount, currency=self.currency)
         return price
 

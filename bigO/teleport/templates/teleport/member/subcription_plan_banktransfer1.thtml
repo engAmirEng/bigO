@@ -1,0 +1,23 @@
+{% load digits_locale %}
+{% include "teleport/member/subcription_plan_checkout.thtml" with price_strike=True %}
+{% digits_locale on %}
+<br>
+مبلغ
+&nbsp;<strong>{{ payment.amount }}</strong>&nbsp;
+را به
+<br>
+{% digits_locale off %}
+<code>{{ provider_args.card_number }}</code>
+{% enddigits_locale %}
+&nbsp;&nbsp;({{ provider_args.card_info }})
+<br>
+واریز نمایید و دکمه
+&nbsp;<strong>
+"
+واریز شد
+"
+</strong>&nbsp;
+را بزنید
+<br>
+مبلغ را بطور دقیق همراه با خرده آن واریز نمایید تا سیستم آن را تشخیص دهد.
+{% enddigits_locale %}

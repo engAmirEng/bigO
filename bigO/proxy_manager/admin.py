@@ -687,3 +687,12 @@ class SubscriptionPlanInvoiceItemModelAdmin(polymorphic.admin.PolymorphicChildMo
         "plan",
         "total_price",
     )
+
+
+@admin.register(models.AgencyPaymentType)
+class AgencyPaymentTypeModelAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "agencyusergroup__agency",
+        "agencyusergroup",
+    )

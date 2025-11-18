@@ -103,29 +103,13 @@ async def inline_profiles_startlink_handler(
 
     results = []
     async for subscriptionprofile_obj in subprofiles_qs[:50]:
-        ikbuilder = InlineKeyboardBuilder()
-        ikbuilder.button(
-            text=gettext("تمدید"),
-            callback_data=AgentAgencyProfileCallbackData(
-                profile_id=subscriptionprofile_obj.id, action=AgentAgencyProfileAction.RENEW
-            ),
-        )
-        ikbuilder.button(
-            text=gettext("مشاهده منو"),
-            callback_data=SimpleButtonCallbackData(button_name=SimpleButtonName.MENU),
-        )
-        msg = ""
-        text = await thtml_render_to_string(
-            "teleport/member/subscription_profile_startlink.thtml",
-            context={"msg": msg, "subscriptionprofile": subscriptionprofile_obj},
-        )
+        text = f"manage profile {subscriptionprofile_obj.uuid.hex}"
         results.append(
             InlineQueryResultArticle(
                 id=f"{subscriptionprofile_obj.id}",
                 title=str(subscriptionprofile_obj),
                 description=subscriptionprofile_obj.description,
                 input_message_content=InputTextMessageContent(message_text=text),
-                reply_markup=ikbuilder.as_markup(),
             )
         )
     return inline_query.answer(results=results, is_personal=True, cache_time=0)
@@ -211,11 +195,11 @@ async def inline_profiles_startlink_handler(
         normal_sublink = await sync_to_async(subscriptionprofile_obj.get_sublink)()
         ikbuilder.row(
             InlineKeyboardButton(
-                text=gettext("کپی لینک اشتراک اندروید"),
+                text="⚿ " + gettext("کپی لینک اشتراک اندروید"),
                 copy_text=CopyTextButton(text=normal_sublink),
             ),
             InlineKeyboardButton(
-                text=gettext("کپی لینک اشتراک ios"),
+                text="⚿ " + gettext("کپی لینک اشتراک ios"),
                 copy_text=CopyTextButton(text=normal_sublink + "?base64=true"),
             ),
         )
@@ -265,15 +249,30 @@ async def agent_manage_profile_handler(
     except proxy_manager_models.SubscriptionProfile.DoesNotExist:
         return message.reply(gettext("پیدا نشد."))
     ikbuilder = InlineKeyboardBuilder()
-    ikbuilder.button(
-        text=gettext("تمدید"),
-        callback_data=AgentAgencyProfileCallbackData(
-            profile_id=subscriptionprofile_obj.id, action=AgentAgencyProfileAction.RENEW
-        ),
+    ikbuilder.row(
+        InlineKeyboardButton(
+            text="🔙 " + gettext("بازکشت به منو"),
+            callback_data=SimpleButtonCallbackData(button_name=SimpleButtonName.MENU).pack(),
+        )
     )
-    ikbuilder.button(
-        text=gettext("مشاهده منو"),
-        callback_data=SimpleButtonCallbackData(button_name=SimpleButtonName.MENU),
+    ikbuilder.row(
+        InlineKeyboardButton(
+            text="💳 " + gettext("تمدید"),
+            callback_data=AgentAgencyProfileCallbackData(
+                profile_id=subscriptionprofile_obj.id, action=AgentAgencyProfileAction.RENEW
+            ).pack(),
+        )
+    )
+    normal_sublink = await sync_to_async(subscriptionprofile_obj.get_sublink)()
+    ikbuilder.row(
+        InlineKeyboardButton(
+            text="⚿ " + gettext("کپی لینک اشتراک اندروید"),
+            copy_text=CopyTextButton(text=normal_sublink),
+        ),
+        InlineKeyboardButton(
+            text="⚿ " + gettext("کپی لینک اشتراک ios"),
+            copy_text=CopyTextButton(text=normal_sublink + "?base64=true"),
+        ),
     )
     msg = gettext("خدمت شما")
     text = await thtml_render_to_string(

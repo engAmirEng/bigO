@@ -279,9 +279,7 @@ TEMPLATES = [
 
 FORM_RENDERER = "django.forms.renderers.TemplatesSetting"
 
-FORMAT_MODULE_PATH = [
-    "bigO.utils.formats"
-]
+FORMAT_MODULE_PATH = ["bigO.utils.formats"]
 
 # FIXTURES
 # ------------------------------------------------------------------------------

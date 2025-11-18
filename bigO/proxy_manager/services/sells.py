@@ -28,7 +28,7 @@ def get_user_available_plans(*, user, agency):
 def get_user_available_paymentproviders(*, user, agency):
     qs1 = models.AgencyUserGroup.objects.filter(agency=agency, users=user)
     qs_2 = models.AgencyPaymentType.objects.filter(
-        agencyusergroups__id__in=qs1.values("id"),
+        agencyusergroup_id__in=qs1.values("id"),
         payments__id=OuterRef("id"),
     )
     paymentprovider_qs = finance_models.PaymentProvider.objects.filter(Q(is_active=True), Exists(qs_2))
@@ -56,21 +56,13 @@ def member_create_bill(
     profile: models.SubscriptionProfile | None,
     actor: User,
 ):
-    plan_provider = plan.plan_provider_cls(
-        provider_args=plan.plan_provider_args, plan_args=plan_args, currency=plan.base_currency
-    )
-    total_price = plan_provider.calc_init_price()
-    now = timezone.now()
-
     invoice_obj = finance_models.Invoice()
     invoice_obj.uuid = uuid.uuid4()
-    invoice_obj.total_price = total_price
-    invoice_obj.due_date = now + timedelta(days=1)
-    invoice_obj.status = finance_models.Invoice.StatusChoices.ISSUED
+
+    invoice_obj.status = finance_models.Invoice.StatusChoices.DRAFT
 
     subscriptionplaninvoiceitem_obj = models.SubscriptionPlanInvoiceItem()
     subscriptionplaninvoiceitem_obj.created_by = actor
-    subscriptionplaninvoiceitem_obj.total_price = total_price
     subscriptionplaninvoiceitem_obj.invoice = invoice_obj
     subscriptionplaninvoiceitem_obj.plan = plan
     subscriptionplaninvoiceitem_obj.plan_args = plan_args
@@ -78,7 +70,24 @@ def member_create_bill(
     subscriptionplaninvoiceitem_obj.issued_for = agency_user
     subscriptionplaninvoiceitem_obj.issued_to = agency_user
 
+    subscriptionplaninvoiceitem_obj.total_price = subscriptionplaninvoiceitem_obj.calc_price()
+    invoice_obj.total_price = invoice_obj.calc_price(items=[subscriptionplaninvoiceitem_obj])
+
     invoice_obj.save()
     subscriptionplaninvoiceitem_obj.save()
 
     return invoice_obj
+
+
+def member_prepare_checkout(invoice_obj: finance_models.Invoice):
+    assert invoice_obj.status in (
+        finance_models.Invoice.StatusChoices.DRAFT,
+        finance_models.Invoice.StatusChoices.ISSUED,
+    )
+    now = timezone.now()
+    invoice_obj.status = finance_models.Invoice.StatusChoices.ISSUED
+    changed = False
+    if invoice_obj.due_date is None or invoice_obj.due_date <= now:
+        invoice_obj.due_date = now + timedelta(days=1)
+        changed = invoice_obj.redo()
+    return changed

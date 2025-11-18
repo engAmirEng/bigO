@@ -1,6 +1,11 @@
-{% load digits_locale %}
+{% load calander_type digits_locale %}
+
 {% digits_locale on %}
-تایید میکنید؟
+صورت حساب
+&nbsp;
+{% digits_locale off %}
+(<code>{{ invoice.uuid.hex|slice:":8" }}</code>)
+{% enddigits_locale %}
 <br>
 {% for invoice_item in invoice.items.all %}
     <br>
@@ -28,6 +33,17 @@
 -------------------------------------------
 <br>
 قابل پرداخت:
-&nbsp;{{ invoice.total_price }}
-
+&nbsp;
+&nbsp;
+{% if price_strike %}
+<strike>{{ invoice.total_price }}</strike>
+{% else %}
+{{ invoice.total_price }}
+{% endif %}
+{% if invoice.due_date %}
+<br>
+مهلت پرداخت:
+&nbsp;
+{{ invoice.due_date|time_format:"%Y/%m/%d %H:%M" }}
+{% endif %}
 {% enddigits_locale %}
