@@ -1,12 +1,22 @@
 import json
 import random
 import string
+from enum import Enum
 
+from asgiref.sync import sync_to_async
+
+from aiogram.filters.callback_data import CallbackData
+from aiogram.types import InlineKeyboardButton
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+from bigO.finance import models as finance_models
 from bigO.proxy_manager import models as proxy_manager_models
 from bigO.telegram_bot import models as telegram_bot_models
 from bigO.users.models import User
 from django.core.cache import cache
+from django.db.models import Exists, OuterRef, Q
+from django.utils.translation import gettext
 
+from ..telegram_bot.utils import thtml_render_to_string
 from . import models
 
 
@@ -18,7 +28,7 @@ def get_user_startlink(bot_obj: telegram_bot_models.TelegramBot, user: User, tra
     from .dispatchers import QueryPathName, get_dispatch_query
 
     key = set_secret_key(data={"user_id": user.id, "transfer_ownership": transfer_ownership}, length=10)
-    link = get_dispatch_query(bot_username=bot_obj.tusername, pathname=QueryPathName.ASSOCIATE_TO_USER, key=key)
+    link = get_dispatch_query(bot_username=bot_obj.tusername, pathname=QueryPathName.ASSOCIATE_TO_USER, k=key)
     return link
 
 
@@ -32,7 +42,7 @@ def get_subscription_profile_startlink(
     key = set_secret_key(
         data={"subscription_profile_id": subscription_profile.id, "transfer_ownership": transfer_ownership}, length=10
     )
-    link = get_dispatch_query(bot_username=bot_obj.tusername, pathname=QueryPathName.ASSOCIATE_TO_ACCOUNT, key=key)
+    link = get_dispatch_query(bot_username=bot_obj.tusername, pathname=QueryPathName.ASSOCIATE_TO_ACCOUNT, k=key)
     return link
 
 
@@ -63,3 +73,75 @@ async def make_username(base=None, length=15) -> str:
         username = base + "".join(random.choice(characters) for _ in range(length))
         if not await User.objects.filter(username=username).aexists():
             return username
+
+
+class AdminBankTransfer1Action(str, Enum):
+    YES_PAID = "yes_paid"
+    NOT_YET_PAID = "not_yet_paid"
+    CANCEL_PAID = "cancel_paid"
+    OVERVIEW = "overview"
+
+
+class AdminBankTransfer1CallbackData(CallbackData, prefix="adminbanktransfer1"):
+    payment_id: str | int
+    action: AdminBankTransfer1Action
+
+
+async def bank_transfer1_pend(sender, admin: User, payment: finance_models.Payment, **kwargs):
+    invoice = await sync_to_async(lambda: payment.invoice)()
+    payment_provider = await sync_to_async(lambda: payment.provider)()
+    provider_args = payment_provider.provider_args
+    payment_tuser = (
+        await telegram_bot_models.TelegramUser.objects.filter(user_id=payment.user_id).select_related("bot").afirst()
+    )
+    payment_tuser_aiobot = payment_tuser.bot.get_aiobot()
+    panel_qs = models.Panel.objects.filter(is_active=True, bot=OuterRef("bot"))
+    tusers_qs = (
+        telegram_bot_models.TelegramUser.objects.filter(
+            Q(user=admin, bot__is_revoked=False, bot__is_powered_off=False) & Exists(panel_qs)
+        )
+        .select_related("bot")
+        .order_by("-last_accessed_at")
+    )
+
+    ikbuilder = InlineKeyboardBuilder()
+
+    ikbuilder.row(
+        InlineKeyboardButton(
+            text="✅ " + gettext("بلی شده"),
+            callback_data=AdminBankTransfer1CallbackData(
+                payment_id=payment.id, action=AdminBankTransfer1Action.YES_PAID
+            ).pack(),
+        ),
+        InlineKeyboardButton(
+            text="❓ " + gettext("هنوز نشده"),
+            callback_data=AdminBankTransfer1CallbackData(
+                payment_id=payment.id, action=AdminBankTransfer1Action.NOT_YET_PAID
+            ).pack(),
+        ),
+    )
+    ikbuilder.row(
+        InlineKeyboardButton(
+            text="🔄 " + gettext("بروزرسانی وضعیت"),
+            callback_data=AdminBankTransfer1CallbackData(
+                payment_id=payment.id, action=AdminBankTransfer1Action.OVERVIEW
+            ).pack(),
+        )
+    )
+
+    text = await thtml_render_to_string(
+        "teleport/admin/subcription_plan_banktransfer1.thtml",
+        context={
+            "state": None,
+            "invoice": invoice,
+            "payment": payment,
+            "provider_args": provider_args,
+            "payment_tuser": payment_tuser,
+        },
+    )
+
+    async for tuser in tusers_qs:
+        tuser: telegram_bot_models.TelegramUser
+        aiobot = tuser.bot.get_aiobot()
+
+        await aiobot.send_message(chat_id=tuser.tid, text=text, reply_markup=ikbuilder.as_markup())

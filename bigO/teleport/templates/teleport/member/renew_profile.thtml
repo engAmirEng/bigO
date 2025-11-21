@@ -1,0 +1,34 @@
+{% load digits_locale teleport %}
+{% digits_locale on %}
+درحال شارژ اکانت
+    &nbsp;"<a href="{% member_profile_detail_link bot_obj.tusername subscriptionprofile %}">{{ subscriptionprofile.title }}</a>"&nbsp;
+    هستید، درصورتی که از حجم سرویس فعلی تان باقی مانده باشد با شارژ اکانت آن حجم میسوزد.
+    <br>
+    درصورتی که میخواهید اکانت جدید تهیه کنید به منو بازگردید.
+<br><br>
+{% if not subscriptionplans %}
+    درحال حاضر پلن فعالی برای شما موجود نیست
+{% else %}
+    پلن های فعال:
+    <br>
+    {% for subscriptionplan in subscriptionplans %}
+        {{ forloop.counter }}) {{ subscriptionplan.name }} ({{ subscriptionplan.plan_verbose_display }})
+        {% if subscriptionplan.id == current_period.plan_id %}
+            <br>
+            <strong>
+            در حال حاضر از این پلن استفاده میکنید ☑️
+            </strong>
+        {% elif subscriptionplan.connection_rule_id == current_period.plan.connection_rule_id %}
+            <br>
+            <strong>
+            سرور های این پلن با پلن فعلیتان یکسان است ✔️
+            </strong>
+        {% endif %}
+        {% if subscriptionplan.description %}
+        <br>
+        توضیحات: {{ subscriptionplan.description }}
+        {% endif %}
+    <br><br>
+    {% endfor %}
+{% endif %}
+{% enddigits_locale %}

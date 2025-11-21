@@ -17,3 +17,11 @@ class TeleportConfig(AppConfig):
                 v.middleware(Middleware())
 
         dp.include_router(router)
+
+        from bigO.finance.payment_providers.providers import BankTransfer1
+
+        from . import services
+
+        BankTransfer1.pend_request.connect(
+            services.bank_transfer1_pend, dispatch_uid=f"{BankTransfer1.TYPE_IDENTIFIER}_{self.name}"
+        )

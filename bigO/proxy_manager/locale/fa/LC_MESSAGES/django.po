@@ -41,3 +41,12 @@ msgstr ""
 #: templates/proxy_manager/admin/bar_stacked_inline.html:22
 msgid "View on site"
 msgstr ""
+
+msgid "Issued"
+msgstr "در انتظار پرداخت"
+
+msgid "Paid"
+msgstr "پرداخت شده"
+
+msgid "Cancelled"
+msgstr "کنسل شده"

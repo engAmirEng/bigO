@@ -1,7 +1,8 @@
-{% load calander_type digits_locale teleport %}
+{% load calander_type digits_locale tbot_widgets %}
 
 {% digits_locale on %}
-صورت حساب
+{% trender_messages "teleport/partials/messages.thtml" %}
+صورت حساب پرداخت
 &nbsp;
 {% digits_locale off %}
 (<code>{{ invoice.uuid.hex|slice:":8" }}</code>)
@@ -10,11 +11,20 @@
 وضعیت:
 &nbsp;
 {{ invoice.get_status_display }}
-{% if invoice.status == 2 %}
 <br>
-{{ invoice.completed_at }}
+به نام:
+&nbsp;
+{{ payment.user }}
+{% if payment_tuser %}
+    {% if payment_tuser.tusername %}
+        &nbsp;@{{ payment_tuser.tusername }}
+        &nbsp;<a href="https://t.me/{{ payment_tuser.tusername }}">send message</a>
+    {% endif %}
+    &nbsp;
+    {% digits_locale off %}
+    <a href="tg://user?id={{ payment_tuser.tid }}">(id deep link)</a>
+    {% enddigits_locale %}
 {% endif %}
-<br>
 <br>
 {% for invoice_item in invoice.items.all %}
     <br>
@@ -23,9 +33,8 @@
         {% if invoice_item.apply_to %}
             شارژ بر روی:
             &nbsp;
-            {% member_profile_detail_link bot_obj.tusername invoice_item.apply_to as link %}
             {% digits_locale off %}
-            <a href="{{ link }}">{{ invoice_item.apply_to.title }}</a>
+            {{ invoice_item.apply_to.title }}
             {% enddigits_locale %}
         {% else %}
             &nbsp;
@@ -47,10 +56,10 @@
 قابل پرداخت:
 &nbsp;
 &nbsp;
-{% if price_strike %}
-<strike>{{ invoice.total_price }}</strike>
+{% if payment.amount != invoice.total_price %}
+<strike>{{ invoice.total_price }}</strike>&nbsp;<strong>{{ payment.amount }}</strong>
 {% else %}
-{{ invoice.total_price }}
+<strong>{{ payment.amount }}</strong>
 {% endif %}
 {% if invoice.due_date %}
 <br>
@@ -58,8 +67,10 @@
 &nbsp;
 {{ invoice.due_date|time_format:"%Y/%m/%d %H:%M" }}
 {% endif %}
-{% if not payment and paymentproviders_list %}
-<br><br>
-روش پرداخت را انتخاب کنید:
-{% endif %}
+<br>
+{% digits_locale off %}
+<code>{{ provider_args.card_number }}</code>
+{% enddigits_locale %}
+&nbsp;&nbsp;({{ provider_args.card_info }})
+<br>
 {% enddigits_locale %}

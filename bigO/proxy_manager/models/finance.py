@@ -1,3 +1,5 @@
+import uuid
+
 from djmoney.models.fields import MoneyField
 
 from bigO.finance import models as finance_models
@@ -14,6 +16,9 @@ class SubscriptionPlanInvoiceItem(finance_models.InvoiceItem):
     )
     issued_for = models.ForeignKey("AgencyUser", on_delete=models.CASCADE, related_name="+")
     issued_to = models.ForeignKey("AgencyUser", on_delete=models.CASCADE, related_name="+")
+    delivered_period = models.ForeignKey(
+        "SubscriptionPeriod", on_delete=models.PROTECT, related_name="+", null=True, blank=True
+    )
 
     def __str__(self):
         return f"{self.id}-{self.plan.name}({self.total_price})"
@@ -31,6 +36,43 @@ class SubscriptionPlanInvoiceItem(finance_models.InvoiceItem):
         total_price = plan_provider.calc_init_price()
         return total_price
 
+    def deliver(self, actor):
+        from .. import services
+
+        can_be_delivered = True
+        if can_be_delivered:
+            if self.apply_to:
+                period = services.create_period(
+                    plan=self.plan, plan_args=self.plan_args, subscriptionprofile=self.apply_to, actor=actor
+                )
+            else:
+                profile_uuid = uuid.uuid1()
+                title = f"account({profile_uuid.hex[:3]})"
+                period = services.create_prfile_with_period(
+                    plan=self.plan,
+                    plan_args=self.plan_args,
+                    agency=self.issued_for.agency,
+                    title=title,
+                    description="",
+                    actor=actor,
+                    profile_uuid=profile_uuid,
+                    user_profile=self.issued_for.user,
+                )
+            self.delivered_period = period
+            self.save()
+        else:
+            memberwalletinvoiceitem = MemberWalletInvoiceItem()
+            memberwalletinvoiceitem.invoice = self.invoice
+            memberwalletinvoiceitem.is_replacement = True
+            memberwalletinvoiceitem.total_price = self.total_price
+            memberwalletinvoiceitem.created_by = self.created_by
+            memberwalletinvoiceitem.agency_user = self.issued_for
+            memberwalletinvoiceitem.issued_to = self.issued_to
+            memberwalletinvoiceitem.save()
+            memberwalletinvoiceitem.deliver(actor=actor)
+            self.replacement = memberwalletinvoiceitem
+            self.save()
+
 
 class SubscriptionPeriodInvoiceItem(finance_models.InvoiceItem):
     period = models.ForeignKey("SubscriptionPeriod", on_delete=models.CASCADE, related_name="+")
@@ -43,6 +85,19 @@ class MemberWalletInvoiceItem(finance_models.InvoiceItem):
 
     def __str__(self):
         return f"{self.id}-{self.agency_user}({self.total_price})"
+
+    def deliver(self, actor):
+        membercredit = MemberCredit()
+        membercredit.payed_invoice_item = self
+        membercredit.agency_user = self.agency_user
+        membercredit.credit = self.total_price
+        membercredit.created_by = actor
+        if self.is_replacement:
+            description = "charge instead of deliver"
+        else:
+            description = "charge by invoice"
+        membercredit.description = description
+        membercredit.save()
 
 
 class MemberCredit(TimeStampedModel, models.Model):

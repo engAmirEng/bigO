@@ -299,6 +299,12 @@ class SubscriptionProfile(TimeStampedModel, models.Model):
     def __str__(self):
         return f"{self.pk}-{self.title}"
 
+    async def get_current_period(self, related: tuple["str"] = None) -> SubscriptionPeriod | None:
+        qs = self.periods.filter(selected_as_current=True)
+        if related:
+            qs = qs.select_related(*related)
+        return await qs.afirst()
+
     @property
     def last_sublink_at(self):
         return self._last_sublink_at

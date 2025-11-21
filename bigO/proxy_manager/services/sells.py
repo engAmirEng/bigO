@@ -1,7 +1,10 @@
 import uuid
 from datetime import timedelta
 
+from asgiref.sync import async_to_sync
+
 from bigO.finance import models as finance_models
+from django.db import transaction
 from django.db.models import Exists, OuterRef, Q, QuerySet, Subquery
 from django.utils import timezone
 
@@ -9,19 +12,20 @@ from ...users.models import User
 from .. import models
 
 
-def get_user_available_plans(*, user, agency):
+def get_user_available_plans(*, user, agency, current_period: models.SubscriptionPeriod | None = None):
     qs1 = models.AgencyPlanRestriction.objects.filter(agency=agency).ann_remained_count().filter(remained_count__gt=0)
     qs2 = models.AgencyUserGroup.objects.filter(agency=agency, users=user)
-    subscriptionplan_qs = (
-        models.SubscriptionPlan.objects.filter(
-            is_active=True,
-            connection_rule__in=qs1.values("connection_rule"),
-            agency=agency,
-            allowed_agencyusergroups__id__in=qs2.values("id"),
-        )
-        .ann_remained_count()
-        .filter(remained_count__gt=0)
-    )
+    subscriptionplan_qs = models.SubscriptionPlan.objects.filter(
+        is_active=True,
+        connection_rule__in=qs1.values("connection_rule"),
+        agency=agency,
+        allowed_agencyusergroups__id__in=qs2.values("id"),
+    ).ann_remained_count()
+    if current_period is None:
+        subscriptionplan_qs = subscriptionplan_qs.filter(remained_count__gt=0)
+
+    else:
+        subscriptionplan_qs = subscriptionplan_qs.filter(Q(remained_count__gt=0) | Q(id=current_period.plan_id))
     return subscriptionplan_qs
 
 
@@ -91,3 +95,61 @@ def member_prepare_checkout(invoice_obj: finance_models.Invoice):
         invoice_obj.due_date = now + timedelta(days=1)
         changed = invoice_obj.redo()
     return changed
+
+
+def create_prfile_with_period(
+    *, plan, plan_args, agency, title, description, actor, profile_uuid=None, user_profile=None
+):
+    subscriptionprofile = models.SubscriptionProfile()
+    subscriptionprofile.initial_agency = agency
+    subscriptionprofile.title = title
+    subscriptionprofile.uuid = profile_uuid or uuid.uuid4()
+    subscriptionprofile.xray_uuid = uuid.uuid4()
+    subscriptionprofile.description = description
+    subscriptionprofile.is_active = True
+    if user_profile:
+        subscriptionprofile.user = user_profile
+    subscriptionperiod = models.SubscriptionPeriod()
+    subscriptionperiod.profile = subscriptionprofile
+    subscriptionperiod.plan = plan
+    if plan.plan_provider_cls.PlanArgsModel:
+        subscriptionperiod.plan_args = plan.plan_provider_cls.PlanArgsModel(**plan_args).model_dump()
+    else:
+        subscriptionperiod.plan_args = None
+    subscriptionperiod.selected_as_current = True
+    subscriptionevent = models.SubscriptionEvent()
+    subscriptionevent.related_agency = agency
+    subscriptionevent.agentuser = actor
+    subscriptionevent.profile = subscriptionprofile
+    subscriptionevent.period = subscriptionperiod
+    subscriptionevent.title = "New Profile Created"
+    with transaction.atomic(using="main"):
+        subscriptionprofile.save()
+        subscriptionperiod.save()
+        subscriptionevent.save()
+        return subscriptionperiod
+
+
+def create_period(*, plan, plan_args, subscriptionprofile: models.SubscriptionProfile, actor):
+    current_period = async_to_sync(subscriptionprofile.get_current_period)()
+    current_period.selected_as_current = False
+
+    subscriptionperiod = models.SubscriptionPeriod()
+    subscriptionperiod.profile = subscriptionprofile
+    subscriptionperiod.plan = plan
+    if plan.plan_provider_cls.PlanArgsModel:
+        subscriptionperiod.plan_args = plan.plan_provider_cls.PlanArgsModel(**plan_args).model_dump()
+    else:
+        subscriptionperiod.plan_args = None
+    subscriptionperiod.selected_as_current = True
+    subscriptionevent = models.SubscriptionEvent()
+    subscriptionevent.related_agency = subscriptionprofile.initial_agency
+    subscriptionevent.agentuser = actor
+    subscriptionevent.profile = subscriptionprofile
+    subscriptionevent.period = subscriptionperiod
+    subscriptionevent.title = "New Profile Created"
+    with transaction.atomic(using="main"):
+        current_period.save()
+        subscriptionperiod.save()
+        subscriptionevent.save()
+        return subscriptionperiod

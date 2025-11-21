@@ -47,21 +47,16 @@ class QueryPathName(str, Enum):
     Path names that are used in start deep link command
     """
 
-    ASSOCIATE_TO_USER = "associate_to_user"
-    ASSOCIATE_TO_ACCOUNT = "associate_to_account"
+    ASSOCIATE_TO_USER = "atu"
+    ASSOCIATE_TO_ACCOUNT = "ata"
+    MEMBER_PROFILE_DETAIL = "mpd"
 
 
 def query_magic_dispatcher(pathname: QueryPathName) -> aiogram.MagicFilter:
     """
     Pass the return value to StartCommandQueryFilter.query_magic to  Dispatches deep link start commands
     """
-    if pathname == QueryPathName.ASSOCIATE_TO_USER:
-        # `a`ction == `u`p`l`oadder`l`ink
-        return aiogram.F.get("a") == "atu"
-    elif pathname == QueryPathName.ASSOCIATE_TO_ACCOUNT:
-        # `a`ction == `u`p`l`oadder`l`ink
-        return aiogram.F.get("a") == "ata"
-    raise NotImplementedError
+    return aiogram.F.get("a") == pathname.value
 
 
 def get_dispatch_query(bot_username: str, pathname: QueryPathName, **kwargs) -> str:
@@ -69,19 +64,9 @@ def get_dispatch_query(bot_username: str, pathname: QueryPathName, **kwargs) -> 
     returns start command deep link that can be dispatched with pathname
     """
     qd = QueryDict(mutable=True)
-    if pathname == QueryPathName.ASSOCIATE_TO_USER:
-        key = kwargs["key"]
-        assert isinstance(key, str)
-        qd.update({"a": "atu", "k": key})
-        res = qd.urlencode()
-        return create_deep_link(username=bot_username, link_type="start", payload=res, encode=True)
-    elif pathname == QueryPathName.ASSOCIATE_TO_ACCOUNT:
-        key = kwargs["key"]
-        assert isinstance(key, str)
-        qd.update({"a": "ata", "k": key})
-        res = qd.urlencode()
-        return create_deep_link(username=bot_username, link_type="start", payload=res, encode=True)
-    raise NotImplementedError
+    qd.update({"a": pathname.value, **kwargs})
+    res = qd.urlencode()
+    return create_deep_link(username=bot_username, link_type="start", payload=res, encode=True)
 
 
 class StartCommandQueryFilter(CommandStart):

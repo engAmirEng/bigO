@@ -76,16 +76,26 @@ class MemberAgencyCallbackData(CallbackData, prefix="member_agency"):
     action: MemberAgencyAction
 
 
-class ProfileAction(str, Enum):
+class MemberAgencyProfileAction(str, Enum):
     DETAIL = "detail"
-    RENEW = "renew"
+    LIST_AVAILABLE_PLANS = "list_available_plans"
     PASS_CHANGE = "pass_change"
     TRANSFER_TO_ANOTHER = "transfer_to_another"
 
 
-class ProfileCallbackData(CallbackData, prefix="profile"):
+class MemberAgencyProfileCallbackData(CallbackData, prefix="profile"):
     profile_id: int
-    action: ProfileAction
+    action: MemberAgencyProfileAction
+
+
+class MemberBillAction(str, Enum):
+    OVERVIEW = "overview"
+    CANCEL = "cancel"
+
+
+class MemberBillCallbackData(CallbackData, prefix="member_init_paybill"):
+    bill_id: int
+    action: MemberBillAction
 
 
 def clear_state(fn):
@@ -181,8 +191,8 @@ async def menu_handler(
                 btns.append(
                     InlineKeyboardButton(
                         text=str(subscriptionprofile),
-                        callback_data=ProfileCallbackData(
-                            profile_id=subscriptionprofile.id, action=ProfileAction.DETAIL
+                        callback_data=MemberAgencyProfileCallbackData(
+                            profile_id=subscriptionprofile.id, action=MemberAgencyProfileAction.DETAIL
                         ).pack(),
                     ),
                 )

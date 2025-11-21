@@ -9,7 +9,9 @@
         {% if invoice_item.apply_to %}
             شارژ بر روی:
             &nbsp;
+            {% digits_locale off %}
             {{ invoice_item.apply_to.title }}
+            {% enddigits_locale %}
         {% else %}
             &nbsp;
             پروفایل چدید

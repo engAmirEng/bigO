@@ -241,6 +241,7 @@ class TelegramUser(TimeStampedModel, models.Model):
             tuser_obj.last_accessed_at = now
             tuser_obj.tfirst_name = tuser.first_name
             tuser_obj.tlast_name = tuser.last_name
+            tuser_obj.tusername = tuser.username
             tuser_obj.tlanguage_code = tuser.language_code
             tuser_obj.tis_premium = tuser.is_premium
             tuser_obj.tadded_to_attachment_menu = tuser.added_to_attachment_menu

@@ -21,6 +21,8 @@ def progress_bar(current: int, total: int, width: int = 20) -> str:
 @register.simple_tag(takes_context=True)
 def trender_messages(context, template_name: str):
     state = context["state"]
+    if state is None:
+        return ""
     message_list = async_to_sync(get_message)(state=state)
     return mark_safe(
         render_to_string(

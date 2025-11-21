@@ -9,7 +9,7 @@
         اکانت های شما:
     {% endif %}
     <br>
-    ---{{ forloop.counter }}-----------------------------
+    --- {{ forloop.counter }} -----------------------------
     <br>
     {% include "teleport/partials/subscriptionperiod_status.thtml" with subscriptionprofile=subscriptionprofile %}
     {% if forloop.last %}

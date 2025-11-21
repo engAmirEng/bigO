@@ -27,8 +27,10 @@ from .. import models, services
 from .base import (
     MemberAgencyAction,
     MemberAgencyCallbackData,
-    ProfileAction,
-    ProfileCallbackData,
+    MemberBillAction,
+    MemberBillCallbackData,
+    MemberAgencyProfileAction,
+    MemberAgencyProfileCallbackData,
     SimpleBoolCallbackData,
     SimpleButtonCallbackData,
     SimpleButtonName,
@@ -47,14 +49,18 @@ class MemberAgencyPlanCallbackData(CallbackData, prefix="member_agency"):
     action: MemberAgencyPlanAction
 
 
-class MemberBillAction(str, Enum):
-    OVERVIEW = "overview"
-    CANCEL = "cancel"
+class MemberProfilePlanAction(str, Enum):
+    RENEW = "renew"
 
 
-class MemberBillCallbackData(CallbackData, prefix="member_init_paybill"):
-    bill_id: int
-    action: MemberBillAction
+class MemberProfilePlanCallbackData(CallbackData, prefix="member_agency"):
+    profile_id: int
+    plan_id: int
+    action: MemberProfilePlanAction
+
+
+class MemberPaybillBankTransfer1Action(str, Enum):
+    CHECK_I_PAID = "check_i_paid"
 
 
 class MemberInitPaybillCallbackData(CallbackData, prefix="member_init_paybill"):
@@ -63,11 +69,9 @@ class MemberInitPaybillCallbackData(CallbackData, prefix="member_init_paybill"):
     payment_id: str | int | None = None
 
 
-class MemberPaybillBankTransfer1Action(str, Enum):
-    CHECK_I_PAID = "check_i_paid"
-
-
-class MemberPaybillBankTransfer1CallbackData(MemberInitPaybillCallbackData, prefix="member_init_paybill"):
+class MemberPaybillBankTransfer1CallbackData(
+    MemberInitPaybillCallbackData, prefix="member_init_paybill_banktransfer1"
+):
     action: MemberPaybillBankTransfer1Action
 
 
@@ -123,7 +127,94 @@ async def new_profile_me_handler(
     return message.message.edit_text(text=text, reply_markup=ikbuilder.as_markup())
 
 
-class MemberNewSimpleDynamic1PlanForm(StatesGroup):
+@router.callback_query(
+    MemberAgencyProfileCallbackData.filter(aiogram.F.action == MemberAgencyProfileAction.LIST_AVAILABLE_PLANS)
+)
+async def new_profile_me_handler(
+    message: CallbackQuery,
+    callback_data: MemberAgencyProfileCallbackData,
+    tuser: TelegramUser | None,
+    state: FSMContext,
+    aiobot: Bot,
+    bot_obj: TelegramBot,
+    panel_obj: models.Panel,
+) -> Optional[aiogram.methods.TelegramMethod]:
+    agency = panel_obj.agency
+    useragency = (
+        await proxy_manager_models.AgencyUser.objects.filter(user=tuser.user, agency=agency)
+        .select_related("user", "agency")
+        .afirst()
+    )
+    if useragency is None:
+        return message.message.edit_text(gettext("تغییری ایجاد شده، ار ابتدا اقدام کنید."))
+
+    try:
+        subscriptionprofile_obj = await proxy_manager_models.SubscriptionProfile.objects.filter(
+            user=tuser.user, initial_agency=agency
+        ).aget(id=callback_data.profile_id)
+    except proxy_manager_models.SubscriptionProfile.DoesNotExist:
+        return message.answer(gettext("اکانت یافت نشد."))
+
+    current_period = await subscriptionprofile_obj.get_current_period(related=("plan__connection_rule",))
+
+    subscriptionplan_qs = proxy_manager_services.get_user_available_plans(
+        user=useragency.user, agency=useragency.agency, current_period=current_period
+    )
+    subscriptionplan_list = [i async for i in subscriptionplan_qs]
+    # not_same_plan_subscriptionplan_list = [i for i in subscriptionplan_list if current_period.plan_id != i.id]
+    # same_plan_subscriptionplan_list = [i for i in subscriptionplan_list if current_period.plan_id == i.id]
+    # not_same_crule_subscriptionplan_list = [i for i in subscriptionplan_list if current_period.plan.connection_rule_id != i.connection_rule_id]
+    # same_crule_subscriptionplan_list = [i for i in subscriptionplan_list if current_period.plan.connection_rule_id == i.connection_rule_id]
+    ikbuilder = InlineKeyboardBuilder()
+    ikbuilder.row(
+        InlineKeyboardButton(
+            text="🔙 " + gettext("بازکشت"),
+            callback_data=MemberAgencyProfileCallbackData(
+                profile_id=subscriptionprofile_obj.id, action=MemberAgencyProfileAction.DETAIL
+            ).pack(),
+        ),
+        InlineKeyboardButton(
+            text="🔄 Refresh",
+            callback_data=MemberAgencyProfileCallbackData(
+                profile_id=subscriptionprofile_obj.id, action=MemberAgencyProfileAction.LIST_AVAILABLE_PLANS
+            ).pack(),
+        ),
+    )
+    ikbuilder_plan = InlineKeyboardBuilder()
+    for i, subscriptionplan in enumerate(subscriptionplan_list):
+        if subscriptionplan.id == current_period.plan_id:
+            text = f"{i + 1})☑️ {subscriptionplan.name}"
+        elif subscriptionplan.connection_rule_id == current_period.plan.connection_rule_id:
+            text = f"{i + 1})✔️ {subscriptionplan.name}"
+        else:
+            text = f"{i + 1}) {subscriptionplan.name}"
+        ikbuilder_plan.button(
+            text=text,
+            callback_data=MemberProfilePlanCallbackData(
+                profile_id=subscriptionprofile_obj.id,
+                plan_id=subscriptionplan.id,
+                action=MemberProfilePlanAction.RENEW,
+            ),
+        )
+    ikbuilder_plan.adjust(2, repeat=True)
+    ikbuilder.attach(ikbuilder_plan)
+    text = await thtml_render_to_string(
+        "teleport/member/renew_profile.thtml",
+        context={
+            "bot_obj": bot_obj,
+            "subscriptionplans": subscriptionplan_list,
+            "subscriptionprofile": subscriptionprofile_obj,
+            "current_period": current_period,
+        },
+    )
+    return message.message.edit_text(text=text, reply_markup=ikbuilder.as_markup())
+
+
+class MemberNewPlanForm(StatesGroup):
+    profile_id: int | str | None = None
+
+
+class MemberNewSimpleDynamic1PlanForm(MemberNewPlanForm):
     plan_id = State()
     trafficGB = State()
     days = State()
@@ -131,16 +222,17 @@ class MemberNewSimpleDynamic1PlanForm(StatesGroup):
     final_check = State()
 
 
-class MemberNewSimpleStrict1PlanForm(StatesGroup):
+class MemberNewSimpleStrict1PlanForm(MemberNewPlanForm):
     plan_id = State()
     bill_id = State()
     final_check = State()
 
 
 @router.callback_query(MemberAgencyPlanCallbackData.filter(aiogram.F.action == MemberAgencyPlanAction.NEW_PROFILE))
+@router.callback_query(MemberProfilePlanCallbackData.filter(aiogram.F.action == MemberProfilePlanAction.RENEW))
 async def member_new_profile_plan_choosed_handler(
     message: CallbackQuery,
-    callback_data: MemberAgencyPlanCallbackData,
+    callback_data: MemberAgencyPlanCallbackData | MemberProfilePlanCallbackData,
     tuser: TelegramUser | None,
     state: FSMContext,
     aiobot: Bot,
@@ -151,23 +243,37 @@ async def member_new_profile_plan_choosed_handler(
     choosed_plan_id = callback_data.plan_id
     agency = panel_obj.agency
     useragency = (
-        await proxy_manager_models.AgencyUser.objects.filter(
-            user=tuser.user, agency=agency, agency_id=callback_data.agency_id
-        )
+        await proxy_manager_models.AgencyUser.objects.filter(user=tuser.user, agency=agency)
         .select_related("user", "agency")
         .afirst()
     )
     if useragency is None:
         return message.message.edit_text(gettext("تغییری ایجاد شده، ار ابتدا اقدام کنید."))
 
+    subscriptionprofile_obj = None
+    current_period = None
+    if isinstance(callback_data, MemberProfilePlanCallbackData):
+        try:
+            subscriptionprofile_obj = await proxy_manager_models.SubscriptionProfile.objects.filter(
+                user=tuser.user, initial_agency=agency
+            ).aget(id=callback_data.profile_id)
+        except proxy_manager_models.SubscriptionProfile.DoesNotExist:
+            return message.answer(gettext("اکانت یافت نشد."))
+
+        current_period = await subscriptionprofile_obj.get_current_period(related=("plan__connection_rule",))
+
     choosed_plan_obj = (
-        await proxy_manager_services.get_user_available_plans(user=useragency.user, agency=useragency.agency)
+        await proxy_manager_services.get_user_available_plans(
+            user=useragency.user, agency=useragency.agency, current_period=current_period
+        )
         .filter(id=choosed_plan_id)
         .afirst()
     )
     if choosed_plan_obj is None:
         return message.message.answer(gettext("این پلن فعال نیست."))
     await state.update_data(plan_id=choosed_plan_id)
+    if subscriptionprofile_obj:
+        await state.update_data(profile_id=subscriptionprofile_obj.id)
     if choosed_plan_obj.plan_provider_cls == TypeSimpleDynamic1:
         await state.set_state(MemberNewSimpleDynamic1PlanForm.trafficGB)
         rkbuilder = ReplyKeyboardBuilder()
@@ -178,7 +284,11 @@ async def member_new_profile_plan_choosed_handler(
     elif choosed_plan_obj.plan_provider_cls == TypeSimpleStrict1:
         await state.set_state(MemberNewSimpleStrict1PlanForm.final_check)
         invoice_obj = await sync_to_async(proxy_manager_services.member_create_bill)(
-            plan=choosed_plan_obj, plan_args={}, agency_user=useragency, profile=None, actor=tuser.user
+            plan=choosed_plan_obj,
+            plan_args={},
+            agency_user=useragency,
+            profile=subscriptionprofile_obj,
+            actor=tuser.user,
         )
         await state.update_data(bill_id=invoice_obj.id)
         rkbuilder = ReplyKeyboardBuilder()
@@ -223,8 +333,22 @@ async def agent_new_profile_plan_newsimpledynamic1plan_handler(
     )
     if useragency is None:
         return message.reply(gettext("تغییری ایجاد شده، ار ابتدا اقدام کنید."))
+    profile_id = state_data.get("profile_id")
+    subscriptionprofile_obj = None
+    current_period = None
+    if profile_id:
+        try:
+            subscriptionprofile_obj = await proxy_manager_models.SubscriptionProfile.objects.filter(
+                user=tuser.user, initial_agency=agency
+            ).aget(id=profile_id)
+        except proxy_manager_models.SubscriptionProfile.DoesNotExist:
+            return message.answer(gettext("اکانت یافت نشد."))
+
+        current_period = await subscriptionprofile_obj.get_current_period(related=("plan__connection_rule",))
     choosed_plan_obj = (
-        await proxy_manager_services.get_user_available_plans(user=useragency.user, agency=useragency.agency)
+        await proxy_manager_services.get_user_available_plans(
+            user=useragency.user, agency=useragency.agency, current_period=current_period
+        )
         .filter(id=choosed_plan_id)
         .afirst()
     )
@@ -263,7 +387,11 @@ async def agent_new_profile_plan_newsimpledynamic1plan_handler(
             "expiry_seconds": entered_days * 24 * 60 * 60,
         }
         invoice_obj = await sync_to_async(proxy_manager_services.member_create_bill)(
-            plan=choosed_plan_obj, plan_args=plan_args, agency_user=useragency, profile=None, actor=tuser.user
+            plan=choosed_plan_obj,
+            plan_args=plan_args,
+            agency_user=useragency,
+            profile=subscriptionprofile_obj,
+            actor=tuser.user,
         )
         await state.update_data(days=entered_days)
         await state.set_state(MemberNewSimpleDynamic1PlanForm.final_check)
@@ -280,7 +408,7 @@ async def agent_new_profile_plan_newsimpledynamic1plan_handler(
     elif state_name == MemberNewSimpleDynamic1PlanForm.final_check.state:
         bill_id = state_data["bill_id"]
         return await tmp_return_bill(
-            message=message, bill_id=bill_id, useragency=useragency, user=tuser.user, state=state
+            message=message, bill_id=bill_id, useragency=useragency, user=tuser.user, state=state, bot_obj=bot_obj
         )
 
     raise NotImplementedError
@@ -323,12 +451,12 @@ async def agent_new_profile_plan_simplestrict1_handler(
         state_data = await state.get_data()
         bill_id = state_data["bill_id"]
         return await tmp_return_bill(
-            message=message, bill_id=bill_id, useragency=useragency, user=tuser.user, state=state
+            message=message, bill_id=bill_id, useragency=useragency, user=tuser.user, state=state, bot_obj=bot_obj
         )
     raise NotImplementedError
 
 
-async def tmp_return_bill(*, message, bill_id, useragency, user, state):
+async def tmp_return_bill(*, message, bill_id, useragency, user, state, bot_obj):
     agency = useragency.agency
     subscriptionplaninvoiceitem_obj = (
         await proxy_manager_models.SubscriptionPlanInvoiceItem.objects.select_related("invoice")
@@ -368,9 +496,13 @@ async def tmp_return_bill(*, message, bill_id, useragency, user, state):
         ),
     )
     for paymentprovider in paymentproviders_list:
+        if paymentprovider.provider_cls == BankTransfer1:
+            title = gettext("پرداخت کارت به کارت ({0})").format(paymentprovider.id)
+        else:
+            title = gettext("پرداخت با ") + paymentprovider.name
         ikbuilder.row(
             InlineKeyboardButton(
-                text=gettext("پرداخت با ") + paymentprovider.name,
+                text=title,
                 callback_data=MemberInitPaybillCallbackData(
                     bill_id=invoice.id, payment_provider_id=paymentprovider.id
                 ).pack(),
@@ -378,7 +510,7 @@ async def tmp_return_bill(*, message, bill_id, useragency, user, state):
         )
     text = await thtml_render_to_string(
         "teleport/member/subcription_plan_checkout.thtml",
-        context={"invoice": invoice},
+        context={"bot_obj": bot_obj, "invoice": invoice},
     )
     return message.answer(text, reply_markup=ikbuilder.as_markup())
 
@@ -436,9 +568,13 @@ async def new_billoverview_handler(
             ),
         )
         for paymentprovider in paymentproviders_list:
+            if paymentprovider.provider_cls == BankTransfer1:
+                title = gettext("پرداخت کارت به کارت ({0})").format(paymentprovider.id)
+            else:
+                title = gettext("پرداخت با ") + paymentprovider.name
             ikbuilder.row(
                 InlineKeyboardButton(
-                    text=gettext("پرداخت با ") + paymentprovider.name,
+                    text=title,
                     callback_data=MemberInitPaybillCallbackData(
                         bill_id=invoice.id, payment_provider_id=paymentprovider.id
                     ).pack(),
@@ -446,10 +582,25 @@ async def new_billoverview_handler(
             )
         text = await thtml_render_to_string(
             "teleport/member/subcription_plan_checkout.thtml",
-            context={"invoice": invoice},
+            context={"bot_obj": bot_obj, "invoice": invoice},
         )
         return message.message.edit_text(text, reply_markup=ikbuilder.as_markup())
-    raise NotImplementedError
+    ikbuilder = InlineKeyboardBuilder()
+    ikbuilder.row(
+        InlineKeyboardButton(
+            text="❌ " + gettext("انصراف"),
+            callback_data=MemberBillCallbackData(bill_id=invoice.id, action=MemberBillAction.CANCEL).pack(),
+        ),
+        InlineKeyboardButton(
+            text="🔄 " + gettext("بروزرسانی وضعیت"),
+            callback_data=MemberBillCallbackData(bill_id=invoice.id, action=MemberBillAction.OVERVIEW).pack(),
+        ),
+    )
+    text = await thtml_render_to_string(
+        "teleport/member/subcription_plan_checkout.thtml",
+        context={"bot_obj": bot_obj, "invoice": invoice},
+    )
+    return message.message.edit_text(text, reply_markup=ikbuilder.as_markup())
 
 
 @router.callback_query(MemberInitPaybillCallbackData.filter())
@@ -488,9 +639,10 @@ async def member_initpaybill_handler(
     if subscriptionplaninvoiceitem_obj is None:
         return
     if invoice.status != finance_models.Invoice.StatusChoices.ISSUED:
-        return message.answer(
-            gettext(("امکان پذیر نیست، این صورت حساب در وضعیت {0} قرار دارد")).format(invoice.get_status_diplay())
-        )
+        if invoice.status != finance_models.Invoice.StatusChoices.PAID:
+            return message.answer(
+                gettext(("امکان پذیر نیست، این صورت حساب در وضعیت {0} قرار دارد")).format(invoice.get_status_display())
+            )
     paymentproviders_qs = proxy_manager_services.get_user_available_paymentproviders(user=tuser.user, agency=agency)
     paymentprovider_obj: finance_models.PaymentProvider | None = await paymentproviders_qs.filter(
         id=payment_provider_id
@@ -500,9 +652,6 @@ async def member_initpaybill_handler(
     provider_cls = paymentprovider_obj.provider_cls
     if isinstance(callback_data, MemberPaybillBankTransfer1CallbackData) and provider_cls != BankTransfer1:
         return message.answer(gettext("عدم تطابق"))
-    other_paymentproviders_list: list[finance_models.PaymentProvider] = [
-        i async for i in paymentproviders_qs if str(i.id) != str(payment_provider_id)
-    ]
     changed = await sync_to_async(proxy_manager_services.member_prepare_checkout)(invoice)
     if changed:
         await add_message(state=state, level=messages.INFO, message=gettext("تغییر قیمت اعمال شد."))
@@ -520,10 +669,13 @@ async def member_initpaybill_handler(
     if provider_cls == BankTransfer1:
         if isinstance(callback_data, MemberPaybillBankTransfer1CallbackData):
             if callback_data.action == MemberPaybillBankTransfer1Action.CHECK_I_PAID:
+                await payment.pend()
                 res = gettext(
-                    "درصورتی که مبلغ {0} واریز شده باشد توسط سیستم برسی میشود و به شما اطلاع داده خواهد شد"
+                    "درصورتی که مبلغ {0} واریز شده باشد توسط سیستم برسی میشود و به شما اطلاع داده خواهد شد،"
+                    "\n"
+                    "ممنون از صبوری تان"
                 ).format(str(payment.amount))
-                return message.answer(res)
+                return message.answer(res, show_alert=True)
         ikbuilder.row(
             InlineKeyboardButton(
                 text="👍 " + gettext("واریز شد"),
@@ -537,7 +689,7 @@ async def member_initpaybill_handler(
         )
         text = await thtml_render_to_string(
             "teleport/member/subcription_plan_banktransfer1.thtml",
-            context={"invoice": invoice, "payment": payment, "provider_args": provider_args},
+            context={"bot_obj": bot_obj, "invoice": invoice, "payment": payment, "provider_args": provider_args},
         )
     else:
         raise NotImplementedError
@@ -553,22 +705,6 @@ async def member_initpaybill_handler(
             ).pack(),
         ),
     )
-    if other_paymentproviders_list:
-        ikbuilder.row(
-            InlineKeyboardButton(
-                text=gettext("پرداخت با سایر متد های پرداخت") + " 👇",
-                callback_data="dummy",
-            )
-        )
-    for paymentprovider in other_paymentproviders_list:
-        ikbuilder.row(
-            InlineKeyboardButton(
-                text=gettext("پرداخت با ") + paymentprovider.name,
-                callback_data=MemberInitPaybillCallbackData(
-                    bill_id=invoice.id, payment_provider_id=paymentprovider.id
-                ).pack(),
-            )
-        )
     return message.message.edit_text(text, reply_markup=ikbuilder.as_markup())
 
 
@@ -721,23 +857,27 @@ async def my_account_detail_handler(
     return message.answer(gettext("یکی از اکانت های خود را انتخاب کنید"))
 
 
-@router.callback_query(ProfileCallbackData.filter(aiogram.F.action == ProfileAction.DETAIL))
+@router.callback_query(MemberAgencyProfileCallbackData.filter(aiogram.F.action == MemberAgencyProfileAction.DETAIL))
+@router.message(StartCommandQueryFilter(query_magic=query_magic_dispatcher(QueryPathName.MEMBER_PROFILE_DETAIL)))
 async def my_account_detail_handler(
-    message: CallbackQuery,
-    callback_data: ProfileCallbackData,
+    message: CallbackQuery | Message,
     tuser: TelegramUser | None,
     state: FSMContext,
     aiobot: Bot,
     bot_obj: TelegramBot,
     panel_obj: models.Panel,
+    command_query: QueryDict | None = None,
+    callback_data: MemberAgencyProfileCallbackData | None = None,
 ) -> Optional[aiogram.methods.TelegramMethod]:
-    await state.clear()
-
     agency = panel_obj.agency
     if tuser is None or tuser.user is None:
         text = gettext("برای استفاده از خدمات ما از معرف خود لینک معرفی دریافت کنید.")
         return message.answer(text, show_alert=True)
     user = tuser.user
+    if callback_data:
+        profile_id = callback_data.profile_id
+    else:
+        profile_id = command_query["id"]
     try:
         subscriptionprofile_obj = await (
             proxy_manager_models.SubscriptionProfile.objects.filter(user=user, initial_agency=agency)
@@ -746,7 +886,7 @@ async def my_account_detail_handler(
             .ann_current_period_fields()
             .filter(current_created_at__isnull=False)
             .order_by("-current_created_at")
-        ).aget(id=callback_data.profile_id)
+        ).aget(id=profile_id)
     except proxy_manager_models.SubscriptionProfile.DoesNotExist:
         return message.answer(gettext("اکانت یافت نشد."))
 
@@ -758,16 +898,16 @@ async def my_account_detail_handler(
         ),
         InlineKeyboardButton(
             text="🔄 Refresh",
-            callback_data=ProfileCallbackData(
-                profile_id=subscriptionprofile_obj.id, action=ProfileAction.DETAIL
+            callback_data=MemberAgencyProfileCallbackData(
+                profile_id=subscriptionprofile_obj.id, action=MemberAgencyProfileAction.DETAIL
             ).pack(),
         ),
     )
     ikbuilder.row(
         InlineKeyboardButton(
             text="💳 " + gettext("شارژ این اکانت"),
-            callback_data=ProfileCallbackData(
-                profile_id=subscriptionprofile_obj.id, action=ProfileAction.RENEW
+            callback_data=MemberAgencyProfileCallbackData(
+                profile_id=subscriptionprofile_obj.id, action=MemberAgencyProfileAction.LIST_AVAILABLE_PLANS
             ).pack(),
         ),
     )
@@ -785,14 +925,14 @@ async def my_account_detail_handler(
     ikbuilder.row(
         InlineKeyboardButton(
             text="🔐 " + gettext("عوض کردن رمز اتصال"),
-            callback_data=ProfileCallbackData(
-                profile_id=subscriptionprofile_obj.id, action=ProfileAction.PASS_CHANGE
+            callback_data=MemberAgencyProfileCallbackData(
+                profile_id=subscriptionprofile_obj.id, action=MemberAgencyProfileAction.PASS_CHANGE
             ).pack(),
         ),
         InlineKeyboardButton(
             text="🎁 " + gettext("هدیه به دوست"),
-            callback_data=ProfileCallbackData(
-                profile_id=subscriptionprofile_obj.id, action=ProfileAction.TRANSFER_TO_ANOTHER
+            callback_data=MemberAgencyProfileCallbackData(
+                profile_id=subscriptionprofile_obj.id, action=MemberAgencyProfileAction.TRANSFER_TO_ANOTHER
             ).pack(),
         ),
     )
@@ -801,13 +941,18 @@ async def my_account_detail_handler(
         "teleport/member/subscription_profile_startlink.thtml",
         context={"msg": "", "subscriptionprofile": subscriptionprofile_obj},
     )
-    return message.message.edit_text(text, reply_markup=ikbuilder.as_markup())
+    if isinstance(message, CallbackQuery):
+        return message.message.edit_text(text, reply_markup=ikbuilder.as_markup())
+    else:
+        return message.answer(text, reply_markup=ikbuilder.as_markup())
 
 
-@router.callback_query(ProfileCallbackData.filter(aiogram.F.action == ProfileAction.TRANSFER_TO_ANOTHER))
+@router.callback_query(
+    MemberAgencyProfileCallbackData.filter(aiogram.F.action == MemberAgencyProfileAction.TRANSFER_TO_ANOTHER)
+)
 async def my_account_transfer_to_another_handler(
     message: CallbackQuery,
-    callback_data: ProfileCallbackData,
+    callback_data: MemberAgencyProfileCallbackData,
     tuser: TelegramUser | None,
     state: FSMContext,
     aiobot: Bot,
@@ -835,8 +980,8 @@ async def my_account_transfer_to_another_handler(
     ikbuilder.row(
         InlineKeyboardButton(
             text="🔙 " + gettext("بازگشت"),
-            callback_data=ProfileCallbackData(
-                profile_id=subscriptionprofile_obj.id, action=ProfileAction.DETAIL
+            callback_data=MemberAgencyProfileCallbackData(
+                profile_id=subscriptionprofile_obj.id, action=MemberAgencyProfileAction.DETAIL
             ).pack(),
         )
     )
@@ -847,10 +992,12 @@ async def my_account_transfer_to_another_handler(
     return message.message.edit_text(text, reply_markup=ikbuilder.as_markup())
 
 
-@router.callback_query(ProfileCallbackData.filter(aiogram.F.action == ProfileAction.PASS_CHANGE))
+@router.callback_query(
+    MemberAgencyProfileCallbackData.filter(aiogram.F.action == MemberAgencyProfileAction.PASS_CHANGE)
+)
 async def my_account_passchange_request_handler(
     message: CallbackQuery,
-    callback_data: ProfileCallbackData,
+    callback_data: MemberAgencyProfileCallbackData,
     tuser: TelegramUser | None,
     state: FSMContext,
     aiobot: Bot,
@@ -877,8 +1024,8 @@ async def my_account_passchange_request_handler(
     ikbuilder.row(
         InlineKeyboardButton(
             text="🔙 " + gettext("انصراف"),
-            callback_data=ProfileCallbackData(
-                profile_id=subscriptionprofile_obj.id, action=ProfileAction.DETAIL
+            callback_data=MemberAgencyProfileCallbackData(
+                profile_id=subscriptionprofile_obj.id, action=MemberAgencyProfileAction.DETAIL
             ).pack(),
         ),
         InlineKeyboardButton(
@@ -902,7 +1049,7 @@ class PassChangeForm(StatesGroup):
 @router.callback_query(SimpleBoolCallbackData.filter(aiogram.F.result == True), PassChangeForm.requested)
 async def my_account_passchange_done_handler(
     message: CallbackQuery,
-    callback_data: ProfileCallbackData,
+    callback_data: MemberAgencyProfileCallbackData,
     tuser: TelegramUser | None,
     state: FSMContext,
     aiobot: Bot,
@@ -932,8 +1079,8 @@ async def my_account_passchange_done_handler(
     ikbuilder.row(
         InlineKeyboardButton(
             text="🔙 " + gettext("بازکشت"),
-            callback_data=ProfileCallbackData(
-                profile_id=subscriptionprofile_obj.id, action=ProfileAction.DETAIL
+            callback_data=MemberAgencyProfileCallbackData(
+                profile_id=subscriptionprofile_obj.id, action=MemberAgencyProfileAction.DETAIL
             ).pack(),
         )
     )
