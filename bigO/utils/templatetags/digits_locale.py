@@ -4,7 +4,7 @@ from django import template
 register = template.Library()
 
 
-class DigitsLocaleNode(template.Node):
+class DigitsLocaleNodeOld(template.Node):
     def __init__(self, nodelist, active=True):
         self.nodelist = nodelist
         self.active = active
@@ -18,7 +18,7 @@ class DigitsLocaleNode(template.Node):
         result = ""
         for node in nodelist:
             # nested control node
-            if isinstance(node, DigitsLocaleControlNode):
+            if isinstance(node, DigitsLocaleControlNodeOld):
                 stack.append(node.active)
                 result += self._render_nodelist(node.nodelist, context, stack)
                 stack.pop()
@@ -34,14 +34,14 @@ class DigitsLocaleNode(template.Node):
         return result
 
 
-class DigitsLocaleControlNode(template.Node):
+class DigitsLocaleControlNodeOld(template.Node):
     def __init__(self, active, nodelist):
         self.active = active
         self.nodelist = nodelist
 
 
-@register.tag("digits_locale")
-def digits_locale(parser, token):
+@register.tag("digits_locale_old")
+def digits_locale_old(parser, token):
     bits = token.split_contents()
     # Default for outermost tag
     active = True
@@ -67,5 +67,35 @@ def digits_locale(parser, token):
                 raise template.TemplateSyntaxError("digits_locale tag only supports 'on' or 'off'")
             child_nodelist = parser.parse(("enddigits_locale",))
             parser.delete_first_token()
-            nodelist.append(DigitsLocaleControlNode(parts[1] == "on", child_nodelist))
+            nodelist.append(DigitsLocaleControlNodeOld(parts[1] == "on", child_nodelist))
+    return DigitsLocaleNodeOld(nodelist, active)
+
+
+@register.tag("digits_locale")
+def digits_locale(parser, token):
+    bits = list(token.split_contents())
+    if len(bits) == 1:
+        active = True
+    elif len(bits) > 2 or bits[1] not in ("on", "off"):
+        raise template.TemplateSyntaxError("%r argument should be 'on' or 'off'" % bits[0])
+    else:
+        active = bits[1] == "on"
+    nodelist = parser.parse(("enddigits_locale",))
+    parser.delete_first_token()
     return DigitsLocaleNode(nodelist, active)
+
+
+class DigitsLocaleNode(template.Node):
+    def __init__(self, nodelist, active):
+        self.nodelist = nodelist
+        self.active = active
+
+    def __repr__(self):
+        return "<%s>" % self.__class__.__name__
+
+    def render(self, context):
+        old_setting = getattr(context, "active_digits_locale", False)
+        context.active_digits_locale = self.active
+        output = self.nodelist.render(context)
+        context.active_digits_locale = old_setting
+        return output
