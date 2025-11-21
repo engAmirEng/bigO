@@ -1,4 +1,4 @@
-{% load calander_type digits_locale tbot_widgets %}
+{% load calander_type digits_locale tbot_widgets teleport %}
 
 {% digits_locale on %}
 {% trender_messages "teleport/partials/messages.thtml" %}
@@ -19,11 +19,11 @@
     {% if payment_tuser.tusername %}
         &nbsp;@{{ payment_tuser.tusername }}
         &nbsp;<a href="https://t.me/{{ payment_tuser.tusername }}">send message</a>
+        &nbsp;
+        {% digits_locale off %}
+        <a href="tg://user?id={{ payment_tuser.tid }}">id deep link</a>
+        {% enddigits_locale %}
     {% endif %}
-    &nbsp;
-    {% digits_locale off %}
-    <a href="tg://user?id={{ payment_tuser.tid }}">(id deep link)</a>
-    {% enddigits_locale %}
 {% endif %}
 <br>
 {% for invoice_item in invoice.items.all %}
@@ -34,7 +34,8 @@
             شارژ بر روی:
             &nbsp;
             {% digits_locale off %}
-            {{ invoice_item.apply_to.title }}
+            <a href="{% admin_profile_detail_link bot_obj.tusername invoice_item.apply_to %}">{{ invoice_item.apply_to.title }}</a>
+
             {% enddigits_locale %}
         {% else %}
             &nbsp;

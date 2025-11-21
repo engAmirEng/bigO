@@ -27,10 +27,10 @@ from .. import models, services
 from .base import (
     MemberAgencyAction,
     MemberAgencyCallbackData,
-    MemberBillAction,
-    MemberBillCallbackData,
     MemberAgencyProfileAction,
     MemberAgencyProfileCallbackData,
+    MemberBillAction,
+    MemberBillCallbackData,
     SimpleBoolCallbackData,
     SimpleButtonCallbackData,
     SimpleButtonName,
@@ -136,6 +136,7 @@ async def member_initpaybill_handler(
         "teleport/admin/subcription_plan_banktransfer1.thtml",
         context={
             "state": state,
+            "bot_obj": bot_obj,
             "invoice": invoice,
             "payment": payment,
             "provider_args": provider_args,

@@ -18,10 +18,10 @@ def new_render_value_in_context(value, context):
     1-digits_locale
     """
     # 1-digits_locale
-    from django.utils.timezone import template_localtime
+    import django.utils.formats
     from django.utils.formats import localize
     from django.utils.html import conditional_escape
-    import django.utils.formats
+    from django.utils.timezone import template_localtime
 
     if isinstance(value, str):
         if getattr(context, "active_digits_locale"):

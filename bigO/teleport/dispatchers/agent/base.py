@@ -216,6 +216,7 @@ async def inline_profiles_startlink_handler(
 
 
 @router.message(aiogram.F.text.startswith("manage profile "))
+@router.message(StartCommandQueryFilter(query_magic=query_magic_dispatcher(QueryPathName.ADMIN_PROFILE_DETAIL)))
 async def agent_manage_profile_handler(
     message: Message,
     tuser: TelegramUser | None,
@@ -223,12 +224,17 @@ async def agent_manage_profile_handler(
     aiobot: Bot,
     bot_obj: TelegramBot,
     panel_obj: models.Panel,
+    command_query: QueryDict | None = None,
 ) -> Optional[aiogram.methods.TelegramMethod]:
-    await state.clear()
-    profile_uuid_res = re.search(r"manage profile (?P<profile_uuid_res>[0-9a-f:]{32})", message.text)
-    profile_uuid = profile_uuid_res.group("profile_uuid_res")
-    if profile_uuid is None:
-        return message.reply(gettext("معتبر نیست"))
+    profile_id = None
+    profile_uuid = None
+    if command_query:
+        profile_id = command_query["id"]
+    else:
+        profile_uuid_res = re.search(r"manage profile (?P<profile_uuid_res>[0-9a-f:]{32})", message.text)
+        profile_uuid = profile_uuid_res.group("profile_uuid_res")
+        if profile_uuid is None:
+            return message.reply(gettext("معتبر نیست"))
     agency = panel_obj.agency
     try:
         agent_obj = await proxy_manager_models.Agent.objects.select_related("agency").aget(
@@ -237,15 +243,17 @@ async def agent_manage_profile_handler(
     except proxy_manager_models.Agent.DoesNotExist:
         return
     try:
-        subscriptionprofile_obj = (
-            await proxy_manager_services.get_agent_current_subscriptionprofiled_qs(agent=agent_obj)
+        subscriptionprofile_qs = (
+            proxy_manager_services.get_agent_current_subscriptionprofiled_qs(agent=agent_obj)
             .select_related("initial_agency", "user")
             .ann_last_usage_at()
             .ann_last_sublink_at()
             .ann_current_period_fields()
-            .filter(current_created_at__isnull=False)
-            .aget(uuid=profile_uuid)
         )
+        if profile_uuid:
+            subscriptionprofile_obj = await subscriptionprofile_qs.aget(uuid=profile_uuid)
+        else:
+            subscriptionprofile_obj = await subscriptionprofile_qs.aget(id=profile_id)
     except proxy_manager_models.SubscriptionProfile.DoesNotExist:
         return message.reply(gettext("پیدا نشد."))
     ikbuilder = InlineKeyboardBuilder()

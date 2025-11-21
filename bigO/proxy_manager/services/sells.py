@@ -153,3 +153,27 @@ def create_period(*, plan, plan_args, subscriptionprofile: models.SubscriptionPr
         subscriptionperiod.save()
         subscriptionevent.save()
         return subscriptionperiod
+
+
+async def get_invoice_agency(invoice):
+    subscriptionplaninvoiceitem_obj = (
+        await models.SubscriptionPlanInvoiceItem.objects.filter(invoice=invoice)
+        .select_related("issued_for__agency")
+        .afirst()
+    )
+    if subscriptionplaninvoiceitem_obj:
+        return subscriptionplaninvoiceitem_obj.issued_for.agency
+    memberwalletinvoiceitem_obj = (
+        await models.MemberWalletInvoiceItem.objects.filter(invoice=invoice)
+        .select_related("agency_user__agency")
+        .afirst()
+    )
+    if memberwalletinvoiceitem_obj:
+        return memberwalletinvoiceitem_obj.agency_user.agency
+    subscriptionperiodinvoiceitem_obj = (
+        await models.SubscriptionPeriodInvoiceItem.objects.filter(invoice=invoice)
+        .select_related("issued_to__agency")
+        .afirst()
+    )
+    if subscriptionperiodinvoiceitem_obj:
+        return subscriptionperiodinvoiceitem_obj.issued_to.agency

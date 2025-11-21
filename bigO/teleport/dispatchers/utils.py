@@ -50,6 +50,7 @@ class QueryPathName(str, Enum):
     ASSOCIATE_TO_USER = "atu"
     ASSOCIATE_TO_ACCOUNT = "ata"
     MEMBER_PROFILE_DETAIL = "mpd"
+    ADMIN_PROFILE_DETAIL = "apd"
 
 
 def query_magic_dispatcher(pathname: QueryPathName) -> aiogram.MagicFilter:

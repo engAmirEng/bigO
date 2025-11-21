@@ -10,6 +10,7 @@ from aiogram.types import InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from bigO.finance import models as finance_models
 from bigO.proxy_manager import models as proxy_manager_models
+from bigO.proxy_manager import services as proxy_manager_services
 from bigO.telegram_bot import models as telegram_bot_models
 from bigO.users.models import User
 from django.core.cache import cache
@@ -89,20 +90,29 @@ class AdminBankTransfer1CallbackData(CallbackData, prefix="adminbanktransfer1"):
 
 async def bank_transfer1_pend(sender, admin: User, payment: finance_models.Payment, **kwargs):
     invoice = await sync_to_async(lambda: payment.invoice)()
+    related_agency = await proxy_manager_services.get_invoice_agency(invoice=invoice)
+    if related_agency is None:
+        return
     payment_provider = await sync_to_async(lambda: payment.provider)()
     provider_args = payment_provider.provider_args
+    agency_user_qs = proxy_manager_models.AgencyUser.objects.filter(agency=related_agency, user=OuterRef("user"))
     payment_tuser = (
-        await telegram_bot_models.TelegramUser.objects.filter(user_id=payment.user_id).select_related("bot").afirst()
+        await telegram_bot_models.TelegramUser.objects.filter(Q(user_id=payment.user_id) & Exists(agency_user_qs))
+        .select_related("bot")
+        .order_by("-last_accessed_at")
+        .afirst()
     )
-    payment_tuser_aiobot = payment_tuser.bot.get_aiobot()
-    panel_qs = models.Panel.objects.filter(is_active=True, bot=OuterRef("bot"))
-    tusers_qs = (
+    panel_qs = models.Panel.objects.filter(is_active=True, agency=related_agency, bot=OuterRef("bot"))
+    admin_tusers_qs = (
         telegram_bot_models.TelegramUser.objects.filter(
             Q(user=admin, bot__is_revoked=False, bot__is_powered_off=False) & Exists(panel_qs)
         )
         .select_related("bot")
         .order_by("-last_accessed_at")
     )
+    admin_tusers_list = [i async for i in admin_tusers_qs]
+    if not admin_tusers_list:
+        return
 
     ikbuilder = InlineKeyboardBuilder()
 
@@ -129,19 +139,20 @@ async def bank_transfer1_pend(sender, admin: User, payment: finance_models.Payme
         )
     )
 
-    text = await thtml_render_to_string(
-        "teleport/admin/subcription_plan_banktransfer1.thtml",
-        context={
-            "state": None,
-            "invoice": invoice,
-            "payment": payment,
-            "provider_args": provider_args,
-            "payment_tuser": payment_tuser,
-        },
-    )
-
-    async for tuser in tusers_qs:
+    for tuser in admin_tusers_list:
         tuser: telegram_bot_models.TelegramUser
         aiobot = tuser.bot.get_aiobot()
+
+        text = await thtml_render_to_string(
+            "teleport/admin/subcription_plan_banktransfer1.thtml",
+            context={
+                "state": None,
+                "bot_obj": tuser.bot,
+                "invoice": invoice,
+                "payment": payment,
+                "provider_args": provider_args,
+                "payment_tuser": payment_tuser,
+            },
+        )
 
         await aiobot.send_message(chat_id=tuser.tid, text=text, reply_markup=ikbuilder.as_markup())

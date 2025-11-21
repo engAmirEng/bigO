@@ -5,7 +5,7 @@ from djmoney.models.fields import MoneyField
 from bigO.finance import models as finance_models
 from bigO.users.models import User
 from bigO.utils.models import TimeStampedModel
-from django.db import models
+from django.db import models, transaction
 
 
 class SubscriptionPlanInvoiceItem(finance_models.InvoiceItem):
@@ -36,6 +36,7 @@ class SubscriptionPlanInvoiceItem(finance_models.InvoiceItem):
         total_price = plan_provider.calc_init_price()
         return total_price
 
+    @transaction.atomic(using="main")
     def deliver(self, actor):
         from .. import services
 
@@ -82,13 +83,16 @@ class SubscriptionPeriodInvoiceItem(finance_models.InvoiceItem):
 class MemberWalletInvoiceItem(finance_models.InvoiceItem):
     agency_user = models.ForeignKey("AgencyUser", on_delete=models.CASCADE, related_name="+")
     issued_to = models.ForeignKey("AgencyUser", on_delete=models.CASCADE, related_name="+")
+    delivered_credit = models.OneToOneField(
+        "MemberCredit", on_delete=models.PROTECT, related_name="+", null=True, blank=True
+    )
 
     def __str__(self):
         return f"{self.id}-{self.agency_user}({self.total_price})"
 
+    @transaction.atomic(using="main")
     def deliver(self, actor):
         membercredit = MemberCredit()
-        membercredit.payed_invoice_item = self
         membercredit.agency_user = self.agency_user
         membercredit.credit = self.total_price
         membercredit.created_by = actor
@@ -99,11 +103,21 @@ class MemberWalletInvoiceItem(finance_models.InvoiceItem):
         membercredit.description = description
         membercredit.save()
 
+        self.delivered_credit = membercredit
+        self.save()
+
+
+class SubscriptionPeriodCreditUsage(TimeStampedModel, models.Model):
+    period = models.ForeignKey("SubscriptionPeriod", on_delete=models.CASCADE, related_name="+")
+    credit = models.OneToOneField("MemberCredit", on_delete=models.CASCADE, related_name="+")
+
+
+class InvoiceCreditUsage(TimeStampedModel, models.Model):
+    invoice = models.ForeignKey("finance.Invoice", on_delete=models.CASCADE, related_name="+")
+    credit = models.OneToOneField("MemberCredit", on_delete=models.CASCADE, related_name="+")
+
 
 class MemberCredit(TimeStampedModel, models.Model):
-    payed_invoice_item = models.ForeignKey(
-        MemberWalletInvoiceItem, on_delete=models.PROTECT, related_name="+", null=True, blank=True
-    )
     agency_user = models.ForeignKey("AgencyUser", on_delete=models.CASCADE, related_name="+")
     credit = MoneyField(max_digits=14, decimal_places=2, default_currency="USD")
     debt = MoneyField(max_digits=14, decimal_places=2, default_currency="USD")
