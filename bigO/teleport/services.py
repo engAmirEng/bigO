@@ -231,6 +231,11 @@ def handle_profile_startlink(
         else:
             agencyuser.link_referred_by = referlink_obj
             agencyuser.save()
+
+            groups_qs = proxy_manager_models.AgencyUserGroup.objects.filter(users=referred_by.user, agency=referred_by.agency)
+            for group in groups_qs:
+                group.users.add(agencyuser.user)
+
     return True, msg
 
 
@@ -263,11 +268,15 @@ def agencyuser_from_referlink(from_user_t, user, tuser, agency, referlink, bot_o
     agencyuser.link_referred_by = referlink
     agencyuser.save()
 
-    referlink = proxy_manager_models.ReferLink()
-    referlink.agency_user = agencyuser
-    referlink.capacity = 4
+    new_referlink = proxy_manager_models.ReferLink()
+    new_referlink.agency_user = agencyuser
+    new_referlink.capacity = 4
     characters = string.ascii_letters + string.digits
-    referlink.secret = "".join(random.choice(characters) for _ in range(10))
-    referlink.save()
+    new_referlink.secret = "".join(random.choice(characters) for _ in range(10))
+    new_referlink.save()
+
+    groups_qs = proxy_manager_models.AgencyUserGroup.objects.filter(users=referlink.agency_user.user, agency=agency)
+    for group in groups_qs:
+        group.users.add(agencyuser.user)
 
     return agencyuser
