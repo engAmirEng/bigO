@@ -28,10 +28,10 @@ def new_render_value_in_context(value, context):
     # 1-digits_locale
     if not issubclass(type(value), str):
         value = str(value)
-        if getattr(context, "active_digits_locale", False):
-            locale_digits_fn = django.utils.formats.get_format("LOCALE_DIGITS")
-            if callable(locale_digits_fn):
-                value = locale_digits_fn(text=value)
+    if getattr(context, "active_digits_locale", False):
+        locale_digits_fn = django.utils.formats.get_format("LOCALE_DIGITS")
+        if callable(locale_digits_fn):
+            value = locale_digits_fn(text=value)
     # end 1
 
     if context.autoescape:
