@@ -33,7 +33,8 @@ def get_webhook_view(dp: Dispatcher):
         method = await dp.feed_webhook_update(bot=bot, update=update, **kw)
         data = {}
         if method is not None:
-            if not settings.TELEGRAM_PREFER_REPLY_TO_WEBHOOK:
+            if not True:
+                # todo
                 await method
             else:
                 method_name = method.__api_method__
