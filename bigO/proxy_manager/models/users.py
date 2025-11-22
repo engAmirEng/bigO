@@ -1,5 +1,6 @@
 import datetime
 
+import pydantic
 from djmoney.models.fields import CurrencyField
 from djmoney.settings import CURRENCY_CHOICES
 from moneyed import get_currency
@@ -106,9 +107,12 @@ class SubscriptionPlan(TimeStampedModel, models.Model):
     def plan_display(self) -> str:
         plan_provider_cls = self.plan_provider_cls
         if plan_provider_cls.ProviderArgsModel and self.plan_provider_args:
-            return plan_provider_cls.ProviderArgsModel(**self.plan_provider_args).title(
-                get_currency(self.base_currency)
-            )
+            try:
+                return plan_provider_cls.ProviderArgsModel(**self.plan_provider_args).title(
+                    get_currency(self.base_currency)
+                )
+            except pydantic.ValidationError:
+                return "Nan"
 
     @property
     def plan_verbose_display(self) -> str:
