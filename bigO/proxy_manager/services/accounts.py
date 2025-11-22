@@ -9,14 +9,8 @@ logger = logging.getLogger(__name__)
 
 
 def get_connectable_subscriptionperiod_qs():
-    return (
-        models.SubscriptionPeriod.objects.ann_expires_at()
-        .ann_dl_bytes_remained()
-        .ann_up_bytes_remained()
-        .filter(
-            Q(selected_as_current=True, profile__is_active=True, expires_at__gt=timezone.now())
-            & Q(Q(up_bytes_remained__gt=0) | Q(dl_bytes_remained__gt=0))
-        )
+    return models.SubscriptionPeriod.objects.ann_limit_passed_type().filter(
+        Q(limit_passed_type__isnull=True, selected_as_current=True, profile__is_active=True)
     )
 
 

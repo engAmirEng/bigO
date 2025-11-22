@@ -1,0 +1,6 @@
+{% load digits_locale %}
+{% digits_locale on %}
+{{ msg }}
+<br>
+{% include "teleport/partials/subscriptionperiod_status.thtml" %}
+{% enddigits_locale %}

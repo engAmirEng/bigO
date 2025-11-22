@@ -1,0 +1,35 @@
+{% load digits_locale %}
+{% digits_locale on %}
+تایید میکنید؟
+<br>
+{% for invoice_item in invoice.items.all %}
+    <br>
+    <strong>
+        {{ forloop.counter }})&nbsp;
+        {% if invoice_item.apply_to %}
+            شارژ بر روی:
+            &nbsp;
+            {% digits_locale off %}
+            {{ invoice_item.apply_to.title }}
+            {% enddigits_locale %}
+        {% else %}
+            &nbsp;
+            پروفایل چدید
+        {% endif %}
+        &nbsp;({{ invoice_item.plan.plan_verbose_display }})
+    </strong>
+    {% with plan_spec_verbose_display=invoice_item.plan_spec_verbose_display %}
+        {% if plan_spec_verbose_display %}
+            <br>
+            {{ plan_spec_verbose_display }}
+        {% endif %}
+    {% endwith %}
+    <br>
+{% endfor %}
+<br>
+-------------------------------------------
+<br>
+قابل پرداخت:
+&nbsp;{{ invoice.total_price }}
+
+{% enddigits_locale %}

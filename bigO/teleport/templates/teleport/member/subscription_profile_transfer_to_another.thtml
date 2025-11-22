@@ -1,0 +1,10 @@
+{% load digits_locale %}
+{% digits_locale on %}
+لینک زیر را برای دوست خود ارسال کنید، ایشان با کلیک روی این لینک دسترسی به اکانت ({{ subscriptionprofile }}) را بدست می آورند
+و شما دیگر این اکانت را در لیست اکانت های خود نخواهید دید.
+<br>
+<br>
+{% digits_locale off %}
+<code>{{ startlink }}</code>
+{% enddigits_locale %}
+{% enddigits_locale %}

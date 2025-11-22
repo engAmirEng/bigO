@@ -1,12 +1,36 @@
 import abc
+from typing import Generic, TypeVar
 
 import pydantic
+from moneyed import Currency, Money
+
+ProviderArgsT = TypeVar("ProviderArgsT", bound=pydantic.BaseModel | None)
+PlanArgsT = TypeVar("PlanArgsT", bound=pydantic.BaseModel | None)
 
 
-class BaseSubscriptionPlanProvider(abc.ABC):
-    ProviderArgsModel: pydantic.BaseModel | None
-    PlanArgsModel: pydantic.BaseModel | None
+class BaseSubscriptionPlanProvider(abc.ABC, Generic[ProviderArgsT, PlanArgsT]):
+    ProviderArgsModel: type[ProviderArgsT]
+    PlanArgsModel: type[PlanArgsT]
     TYPE_IDENTIFIER: str
+
+    def __init__(self, provider_args: ProviderArgsT, plan_args: PlanArgsT, currency: Currency):
+        if self.ProviderArgsModel:
+            self.provider_args = self.ProviderArgsModel(**provider_args)
+        else:
+            self.provider_args = None
+        if self.PlanArgsModel:
+            self.plan_args = self.PlanArgsModel(**plan_args)
+        else:
+            self.plan_args = None
+        self.currency = currency
+
+    @abc.abstractmethod
+    def calc_init_price(self) -> Money:
+        ...
+
+    @abc.abstractmethod
+    def get_total_limit_bytes(self):
+        ...
 
     @classmethod
     @abc.abstractmethod

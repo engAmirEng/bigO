@@ -1,0 +1,77 @@
+{% load calander_type digits_locale tbot_widgets teleport %}
+
+{% digits_locale on %}
+{% trender_messages "teleport/partials/messages.thtml" %}
+صورت حساب پرداخت
+&nbsp;
+{% digits_locale off %}
+(<code>{{ invoice.uuid.hex|slice:":8" }}</code>)
+{% enddigits_locale %}
+<br>
+وضعیت:
+&nbsp;
+{{ invoice.get_status_display }}
+<br>
+به نام:
+&nbsp;
+{{ payment.user }}
+{% if payment_tuser %}
+    {% if payment_tuser.tusername %}
+        &nbsp;@{{ payment_tuser.tusername }}
+        &nbsp;<a href="https://t.me/{{ payment_tuser.tusername }}">send message</a>
+        &nbsp;
+        {% digits_locale off %}
+        <a href="tg://user?id={{ payment_tuser.tid }}">id deep link</a>
+        {% enddigits_locale %}
+    {% endif %}
+{% endif %}
+<br>
+{% for invoice_item in invoice.items.all %}
+    <br>
+    <strong>
+        {{ forloop.counter }})&nbsp;
+        {% if invoice_item.apply_to %}
+            شارژ بر روی:
+            &nbsp;
+            {% digits_locale off %}
+            <a href="{% admin_profile_detail_link bot_obj.tusername invoice_item.apply_to %}">{{ invoice_item.apply_to.title }}</a>
+
+            {% enddigits_locale %}
+        {% else %}
+            &nbsp;
+            پروفایل چدید
+        {% endif %}
+        &nbsp;({{ invoice_item.plan.plan_verbose_display }})
+    </strong>
+    {% with plan_spec_verbose_display=invoice_item.plan_spec_verbose_display %}
+        {% if plan_spec_verbose_display %}
+            <br>
+            {{ plan_spec_verbose_display }}
+        {% endif %}
+    {% endwith %}
+    <br>
+{% endfor %}
+<br>
+-------------------------------------------
+<br>
+قابل پرداخت:
+&nbsp;
+&nbsp;
+{% if payment.amount != invoice.total_price %}
+<strike>{{ invoice.total_price }}</strike>&nbsp;<strong>{{ payment.amount }}</strong>
+{% else %}
+<strong>{{ payment.amount }}</strong>
+{% endif %}
+{% if invoice.due_date %}
+<br>
+مهلت پرداخت:
+&nbsp;
+{{ invoice.due_date|time_format:"%Y/%m/%d %H:%M" }}
+{% endif %}
+<br>
+{% digits_locale off %}
+<code>{{ provider_args.card_number }}</code>
+{% enddigits_locale %}
+&nbsp;&nbsp;({{ provider_args.card_info }})
+<br>
+{% enddigits_locale %}

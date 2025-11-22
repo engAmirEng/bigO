@@ -1,0 +1,20 @@
+{% load tbot_widgets digits_locale %}
+{% digits_locale on %}
+{% trender_messages "teleport/partials/messages.thtml" %}
+به ربات {{ agency.name }} خوش آمدید
+{% for subscriptionprofile in subscriptionprofiles %}
+    {% if forloop.first %}
+        <br>
+        <br>
+        اکانت های شما:
+    {% endif %}
+    <br>
+    --- {{ forloop.counter }} -----------------------------
+    <br>
+    {% include "teleport/partials/subscriptionperiod_status.thtml" with subscriptionprofile=subscriptionprofile %}
+    {% if forloop.last %}
+        <br>
+        -----------------------------------
+    {% endif %}
+{% endfor %}
+{% enddigits_locale %}

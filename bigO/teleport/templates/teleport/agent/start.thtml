@@ -1,0 +1,4 @@
+{% load digits_locale %}
+{% digits_locale on %}
+به ربات {{ agency.name }} خوش آمدید
+{% enddigits_locale %}

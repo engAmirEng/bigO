@@ -4,6 +4,7 @@ import humanize
 from django_jsonform.forms.fields import JSONFormField
 
 from django import forms
+from django.db.models import Exists
 from django.utils.translation import gettext
 
 from . import models
@@ -107,3 +108,20 @@ class ConnectionRuleOutboundModelForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["base_conn_uuid"].initial = uuid.uuid4()
+
+
+class AgencyUserGroupModelForm(forms.ModelForm):
+    class Meta:
+        model = models.AgencyUserGroup
+        fields = "__all__"
+
+    def clean_users(self):
+        users = self.cleaned_data.get("users")
+        agency = self.cleaned_data.get("agency")
+        if users and agency:
+            agencyuser_qs = models.AgencyUser.objects.filter(agency=agency, user_id=OuterRef("id"))
+            invalid_users = users.exclude(Exists(agencyuser_qs))
+            if invalid_users.exists():
+                invalid_users_txt = ", ".join([i.name for i in invalid_users])
+                raise forms.ValidationError(f"{invalid_users_txt} are not related to agency ({agency})")
+        return users

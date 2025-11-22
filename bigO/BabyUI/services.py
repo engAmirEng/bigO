@@ -97,3 +97,18 @@ def unsuspend_user(profile: proxy_manager_models.SubscriptionProfile, agentuser:
     with transaction.atomic(using="main"):
         profile.save()
         subscriptionevent.save()
+
+
+def pass_change_profile(profile: proxy_manager_models.SubscriptionProfile, user: User):
+    profile.xray_uuid = uuid.uuid4()
+    profile.uuid = uuid.uuid4()
+
+    subscriptionevent = proxy_manager_models.SubscriptionEvent()
+    subscriptionevent.related_agency = profile.initial_agency
+    subscriptionevent.agentuser = user
+    subscriptionevent.profile = subscriptionevent
+    subscriptionevent.title = "Pass Change by Profile owner"
+
+    with transaction.atomic(using="main"):
+        profile.save()
+        subscriptionevent.save()

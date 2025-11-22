@@ -52,3 +52,13 @@ def async_related_obj_str(instance: models.Model, field: models.query_utils.Defe
         return getattr(instance, field_name + "_id")
     else:
         return str(field_value)
+
+
+def get_search_q(query: str, fields: list):
+    m_q = models.Q()
+    for q_part in query.split(" "):
+        s_q = models.Q()
+        for field in fields:
+            s_q |= models.Q(**{field + "__icontains": q_part})
+        m_q &= s_q
+    return m_q
