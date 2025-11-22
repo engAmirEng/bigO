@@ -39,20 +39,19 @@ def get_user_available_paymentproviders(*, user, agency):
     return paymentprovider_qs
 
 
-def get_agent_available_plans(*, agency, current_period: models.SubscriptionPeriod | None = None) -> QuerySet[models.SubscriptionPlan]:
+def get_agent_available_plans(
+    *, agency, current_period: models.SubscriptionPeriod | None = None
+) -> QuerySet[models.SubscriptionPlan]:
     qs1 = models.AgencyPlanRestriction.objects.filter(agency=agency).ann_remained_count()
     if current_period is None:
         qs1 = qs1.filter(remained_count__gt=0)
     else:
         qs1 = qs1.filter(Q(remained_count__gt=0) | Q(connection_rule_id=current_period.plan.connection_rule_id))
-    subscriptionplan_qs = (
-        models.SubscriptionPlan.objects.filter(
-            is_active=True,
-            connection_rule__in=qs1.values("connection_rule"),
-            agency=agency,
-        )
-        .ann_remained_count()
-    )
+    subscriptionplan_qs = models.SubscriptionPlan.objects.filter(
+        is_active=True,
+        connection_rule__in=qs1.values("connection_rule"),
+        agency=agency,
+    ).ann_remained_count()
     if current_period is None:
         subscriptionplan_qs = subscriptionplan_qs.filter(remained_count__gt=0)
     else:

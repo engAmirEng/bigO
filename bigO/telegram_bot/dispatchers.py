@@ -7,10 +7,13 @@ from aiogram import Dispatcher
 from aiogram import Router as BaseRouter
 from aiogram.dispatcher.event.bases import UNHANDLED
 from aiogram.fsm.storage.redis import DefaultKeyBuilder, RedisStorage
+
 from . import settings
 
 if settings.REDIS_STORAGE_URL:
-    fsm_storage = RedisStorage(Redis.from_url(settings.REDIS_STORAGE_URL), key_builder=DefaultKeyBuilder(with_bot_id=True))
+    fsm_storage = RedisStorage(
+        Redis.from_url(settings.REDIS_STORAGE_URL), key_builder=DefaultKeyBuilder(with_bot_id=True)
+    )
 else:
     # for docker build run managements
     fsm_storage = None

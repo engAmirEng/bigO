@@ -314,7 +314,9 @@ async def dashboard_users(request):
     # user detail
     selected_user = None
     if profile_id := request.GET.get("profile_id"):
-        selected_user: proxy_manager_models.SubscriptionProfile = await users_qs.filter(id=profile_id).select_related("initial_agency").afirst()
+        selected_user: proxy_manager_models.SubscriptionProfile = (
+            await users_qs.filter(id=profile_id).select_related("initial_agency").afirst()
+        )
         selected_user.current_period = (
             await selected_user.periods.filter(selected_as_current=True).select_related("plan").afirst()
         )
@@ -341,7 +343,9 @@ async def dashboard_users(request):
 
         # form
         if request.POST and request.POST.get("action") == "renew_user":
-            renewuser_form = forms.RenewUserForm(request.POST, profile=selected_user, current_period=selected_user.current_period, prefix="renewuser1")
+            renewuser_form = forms.RenewUserForm(
+                request.POST, profile=selected_user, current_period=selected_user.current_period, prefix="renewuser1"
+            )
             if await sync_to_async(renewuser_form.is_valid)():
                 await sync_to_async(services.renew_user)(
                     agency=agent_obj.agency,
@@ -353,7 +357,9 @@ async def dashboard_users(request):
                 return redirect(request.get_full_path())
             errors.update(**renewuser_form.errors)
         else:
-            renewuser_form = forms.RenewUserForm(profile=selected_user, current_period=selected_user.current_period, prefix="newuser1")
+            renewuser_form = forms.RenewUserForm(
+                profile=selected_user, current_period=selected_user.current_period, prefix="newuser1"
+            )
         # end
 
         creatable_plans_qs = renewuser_form.fields["plan"].queryset

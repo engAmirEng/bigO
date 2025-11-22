@@ -1,7 +1,8 @@
 from bigO.proxy_manager import models as proxy_manager_models
+from bigO.proxy_manager import services as proxy_manager_services
 from bigO.proxy_manager.subscription import planproviders
 from django import forms
-from bigO.proxy_manager import services as proxy_manager_services
+
 
 class NewUserForm(forms.Form):
     title = forms.CharField()
@@ -46,10 +47,17 @@ class RenewUserForm(forms.Form):
     expiry_days = forms.IntegerField(required=False)
     volume_gb = forms.IntegerField(required=False)
 
-    def __init__(self, *args, profile: proxy_manager_models.SubscriptionProfile, current_period: proxy_manager_models.SubscriptionPeriod|None, **kwargs):
+    def __init__(
+        self,
+        *args,
+        profile: proxy_manager_models.SubscriptionProfile,
+        current_period: proxy_manager_models.SubscriptionPeriod | None,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
         subscriptionplan_qs = proxy_manager_services.get_agent_available_plans(
-            agency=profile.initial_agency, current_period=current_period)
+            agency=profile.initial_agency, current_period=current_period
+        )
         self.fields["plan"].queryset = subscriptionplan_qs
 
     def get_plan_args(self) -> dict:

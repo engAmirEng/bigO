@@ -232,7 +232,9 @@ def handle_profile_startlink(
             agencyuser.link_referred_by = referlink_obj
             agencyuser.save()
 
-            groups_qs = proxy_manager_models.AgencyUserGroup.objects.filter(users=referred_by.user, agency=referred_by.agency)
+            groups_qs = proxy_manager_models.AgencyUserGroup.objects.filter(
+                users=referred_by.user, agency=referred_by.agency
+            )
             for group in groups_qs:
                 group.users.add(agencyuser.user)
 
