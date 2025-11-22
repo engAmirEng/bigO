@@ -191,7 +191,7 @@ export default function UserDialogForm({ isOpen, setOpen, plans }: Props) {
                 }
                 let selectedPlan = plans.find((plan) => plan.id == selected);
                 if (selectedPlan == undefined) {
-                  throw new Error();
+                  return <em>Not Available</em>;
                 }
                 return selectedPlan.name;
               }}
