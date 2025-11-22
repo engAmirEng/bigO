@@ -22,6 +22,7 @@ from celery import current_task
 import aiogram
 import bigO.utils.logging
 import django.template
+from aiogram.client.default import DefaultBotProperties
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.enums import ParseMode
 from bigO.core import models as core_models
@@ -84,7 +85,9 @@ def check_node_latest_sync(
 
     async def inner():
         async with AiohttpSession() as session:
-            bot = aiogram.Bot(settings.TELEGRAM_BOT_TOKEN, session=session, parse_mode=ParseMode.HTML)
+            bot = aiogram.Bot(
+                settings.TELEGRAM_BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML), session=session
+            )
             await bot.send_message(chat_id=superuser.telegram_chat_tid, text=message)
 
     async_to_sync(inner)()
