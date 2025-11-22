@@ -63,6 +63,7 @@ class AgentAgencyPlanCallbackData(CallbackData, prefix="agent_agency"):
 
 class AgentAgencyProfileAction(str, Enum):
     RENEW = "renew"
+    DETAIL = "detail"
 
 
 class AgentAgencyProfileCallbackData(CallbackData, prefix="agent_agency"):
@@ -217,19 +218,23 @@ async def inline_profiles_startlink_handler(
 
 @router.message(aiogram.F.text.startswith("manage profile "))
 @router.message(StartCommandQueryFilter(query_magic=query_magic_dispatcher(QueryPathName.ADMIN_PROFILE_DETAIL)))
+@router.callback_query(AgentAgencyProfileCallbackData.filter(aiogram.F.action == AgentAgencyProfileAction.DETAIL))
 async def agent_manage_profile_handler(
-    message: Message,
+    message: Message | CallbackQuery,
     tuser: TelegramUser | None,
     state: FSMContext,
     aiobot: Bot,
     bot_obj: TelegramBot,
     panel_obj: models.Panel,
     command_query: QueryDict | None = None,
+    callback_data: AgentAgencyProfileCallbackData | None = None,
 ) -> Optional[aiogram.methods.TelegramMethod]:
     profile_id = None
     profile_uuid = None
     if command_query:
         profile_id = command_query["id"]
+    elif callback_data:
+        profile_id = callback_data.profile_id
     else:
         profile_uuid_res = re.search(r"manage profile (?P<profile_uuid_res>[0-9a-f:]{32})", message.text)
         profile_uuid = profile_uuid_res.group("profile_uuid_res")
@@ -261,7 +266,13 @@ async def agent_manage_profile_handler(
         InlineKeyboardButton(
             text="🔙 " + gettext("بازکشت به منو"),
             callback_data=SimpleButtonCallbackData(button_name=SimpleButtonName.MENU).pack(),
-        )
+        ),
+        InlineKeyboardButton(
+            text="🔄 Refresh",
+            callback_data=AgentAgencyProfileCallbackData(
+                profile_id=subscriptionprofile_obj.id, action=AgentAgencyProfileAction.DETAIL
+            ).pack(),
+        ),
     )
     ikbuilder.row(
         InlineKeyboardButton(
@@ -287,5 +298,7 @@ async def agent_manage_profile_handler(
         "teleport/member/subscription_profile_startlink.thtml",
         context={"msg": msg, "subscriptionprofile": subscriptionprofile_obj},
     )
-
-    return message.reply(text, reply_markup=ikbuilder.as_markup())
+    if isinstance(message, Message):
+        return message.reply(text, reply_markup=ikbuilder.as_markup())
+    else:
+        return message.message.edit_text(text, reply_markup=ikbuilder.as_markup())
