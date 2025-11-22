@@ -101,10 +101,25 @@ class SubscriptionProfileModelAdmin(admin.ModelAdmin):
             )
 
 
+class ReferLinkInline(admin.StackedInline):
+    extra = 0
+    model = models.ReferLink
+    ordering = ("created_at",)
+
+
+@admin.register(models.AgencyUser)
+class AgencyUserModelAdmin(admin.ModelAdmin):
+    list_display = ("id", "user", "agency")
+    list_filter = ("agency",)
+    search_fields = ("user__username",)
+    autocomplete_fields = ("agency", "user")
+    inlines = (ReferLinkInline,)
+
+
 @admin.register(models.AgencyUserGroup)
 class AgencyUserGroupModelAdmin(admin.ModelAdmin):
     list_display = ("id", "name", "agency", "members_count_display")
-    list_filter = ("users__username",)
+    search_fields = ("users__username",)
     autocomplete_fields = ("agency", "users")
 
     def get_queryset(self, request):

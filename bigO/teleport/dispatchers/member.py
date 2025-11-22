@@ -758,7 +758,7 @@ async def subscription_profile_startlink_handler(
         return
     data = await services.get_secret_key(secret_key=secret_key)
     if not data or not (subscription_profile_id := data.get("subscription_profile_id")):
-        return message.reply_to_message(gettext("شناسایی نشد"))
+        return message.reply(gettext("شناسایی نشد"))
 
     subscriptionprofile_obj = (
         await proxy_manager_models.SubscriptionProfile.objects.filter(id=subscription_profile_id)
@@ -769,72 +769,85 @@ async def subscription_profile_startlink_handler(
         .filter(current_created_at__isnull=False)
         .aget()
     )
-    transfer_ownership: bool = data.get("transfer_ownership")
-    referred_by = None
-    if not user:
-        if transfer_ownership:
-            user = None
-        else:
-            user = subscriptionprofile_obj.user
-        if user is None:
-            user = User()
-            user.name = message.from_user.full_name
-            user.username = await services.make_username(base=message.from_user.username)
-        await user.asave()
-        if tuser is None:
-            tuser = TelegramUser()
-            tuser.user = user
-            tuser.tid = message.from_user.id
-            tuser.bot = bot_obj
-        else:
-            tuser.user = user
-        await tuser.asave()
+    transfer_ownership: bool = bool(data.get("transfer_ownership"))
 
-    if subscriptionprofile_obj.user is None:
-        subscriptionprofile_obj.user = user
-        await subscriptionprofile_obj.asave()
-        msg = gettext("مالکیت اکانت {0} به شما({1}) منتقل شد.").format(str(subscriptionprofile_obj), str(user))
-    else:
-        if subscriptionprofile_obj.user != user:
-            if transfer_ownership:
-                try:
-                    referred_by = await proxy_manager_models.AgencyUser.objects.aget(
-                        user=subscriptionprofile_obj.user, agency=agency
-                    )
-                except proxy_manager_models.AgencyUser.DoesNotExist:
-                    pass
-                subscriptionprofile_obj.user = user
-                await subscriptionprofile_obj.asave()
-                msg = gettext("مالکیت اکانت {0} از {1} به شما({2}) منتقل شد.").format(
-                    str(subscriptionprofile_obj), str(referred_by), str(user)
-                )
-            else:
-                msg = gettext("مالکیت اکانت {0} از قبل به دیگری اختصاص یافته.").format(str(subscriptionprofile_obj))
-        else:
-            msg = gettext("از قبل به اکانت خود متصل بودید.")
-    agencyuser, created = await proxy_manager_models.AgencyUser.objects.aget_or_create(
-        user=tuser.user, agency=subscriptionprofile_obj.initial_agency
+    ok, msg = await sync_to_async(services.handle_profile_startlink)(
+        transfer_ownership=transfer_ownership,
+        user=user,
+        tuser=tuser,
+        subscriptionprofile_obj=subscriptionprofile_obj,
+        bot_obj=bot_obj,
+        from_user_t=message.from_user,
+        agency=agency,
     )
-    if created and referred_by:
-        referral_obj = proxy_manager_models.Referral()
-        referral_obj.referrer = referred_by
-        referral_obj.referee = agencyuser
+    if not ok:
+        return message.answer(text=msg)
 
     ikbuilder = InlineKeyboardBuilder()
     ikbuilder.button(
         text=gettext("مشاهده منو"),
         callback_data=SimpleButtonCallbackData(button_name=SimpleButtonName.MENU),
     )
-    # ikbuilder.button(
-    #     text=gettext("مشاهده منو"),
-    #     callback_data=ContentCallbackData(pk=subscriptionprofile_obj.pk, action=SubscriptionProfileAction.GET_LINK),
-    # )
     text = await thtml_render_to_string(
         "teleport/member/subscription_profile_startlink.thtml",
         context={"msg": msg, "subscriptionprofile": subscriptionprofile_obj},
     )
 
     return message.answer(text, reply_markup=ikbuilder.as_markup())
+
+
+@router.message(StartCommandQueryFilter(query_magic=query_magic_dispatcher(QueryPathName.MEMBER_REFERLINK)))
+async def member_referlink_handler(
+    message: Message,
+    command_query: QueryDict,
+    tuser: TelegramUser | None,
+    state: FSMContext,
+    aiobot: Bot,
+    bot_obj: TelegramBot,
+    panel_obj: models.Panel,
+) -> Optional[aiogram.methods.TelegramMethod]:
+    from .base import menu_handler
+
+    await state.clear()
+    user = tuser and tuser.user
+    agency = panel_obj.agency
+
+    useragency = None
+    if user:
+        useragency = (
+            await proxy_manager_models.AgencyUser.objects.filter(user=tuser.user, agency=agency)
+            .select_related("user", "agency")
+            .afirst()
+        )
+    if useragency is not None:
+        await add_message(state=state, level=messages.INFO, message=gettext("از قبل عضو بودید"))
+    else:
+        link_secret = command_query.get("secret")
+        if not link_secret:
+            return
+        referlink_obj = (
+            await proxy_manager_models.ReferLink.objects.filter(secret=link_secret, agency_user__agency=agency)
+            .ann_remainded_cap_count()
+            .afirst()
+        )
+        if not referlink_obj:
+            return message.reply(gettext("لینک معرفی شناسایی نشد"))
+        if referlink_obj.remainded_cap_count <= 0:
+            return message.reply(gettext("ظرفیت لینک معرفی تمام شده است"))
+
+        agencyuser_obj = await sync_to_async(services.agencyuser_from_referlink)(
+            from_user_t=message.from_user,
+            user=user,
+            tuser=tuser,
+            agency=agency,
+            referlink=referlink_obj,
+            bot_obj=bot_obj,
+        )
+        await add_message(state=state, level=messages.INFO, message=gettext("با موفقیت عضو شدید"))
+
+    return await menu_handler(
+        message=message, tuser=tuser, state=state, aiobot=aiobot, bot_obj=bot_obj, panel_obj=panel_obj
+    )
 
 
 @router.callback_query(SimpleButtonCallbackData.filter(aiogram.F.button_name == SimpleButtonName.ACCOUNTS_ME))

@@ -17,7 +17,7 @@ def get_webhook_view(dp: Dispatcher):
     @require_http_methods(["POST"])
     async def webhook_view(request, url_specifier: str):
         telegram_bot_obj: models.TelegramBot = await sync_to_async(get_object_or_404)(
-            models.TelegramBot.objects.filter(url_specifier=url_specifier)
+            models.TelegramBot.objects.filter(webhook_url_specifier=url_specifier)
         )
         request_secret_token = request.headers.get("x-telegram-bot-api-secret-token")
 

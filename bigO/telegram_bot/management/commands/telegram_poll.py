@@ -30,6 +30,9 @@ class Command(BaseCommand):
     def run(self, handle_signals: bool):
         HELPER_MONKEY_ATTR = "bot_obj_monkey"
         first_10_telegram_bots = list(models.TelegramBot.objects.all()[:10])
+        if not first_10_telegram_bots:
+            self.stdout.write("no telegram bots to run")
+            return
 
         class PollingNormalizerMiddleware(aiogram.BaseMiddleware):
             async def __call__(

@@ -3,7 +3,7 @@ import random
 import string
 from enum import Enum
 
-from asgiref.sync import sync_to_async
+from asgiref.sync import async_to_sync, sync_to_async
 
 from aiogram.filters.callback_data import CallbackData
 from aiogram.types import InlineKeyboardButton
@@ -14,6 +14,7 @@ from bigO.proxy_manager import services as proxy_manager_services
 from bigO.telegram_bot import models as telegram_bot_models
 from bigO.users.models import User
 from django.core.cache import cache
+from django.db import transaction
 from django.db.models import Exists, OuterRef, Q
 from django.utils.translation import gettext
 
@@ -156,3 +157,117 @@ async def bank_transfer1_pend(sender, admin: User, payment: finance_models.Payme
         )
 
         await aiobot.send_message(chat_id=tuser.tid, text=text, reply_markup=ikbuilder.as_markup())
+
+
+@transaction.atomic(using="main")
+def handle_profile_startlink(
+    transfer_ownership: bool, user, tuser, subscriptionprofile_obj, bot_obj, agency, from_user_t
+):
+    referred_by = None
+    referlink_obj = None
+    if not user:
+        if transfer_ownership:
+            user = None
+        else:
+            user = subscriptionprofile_obj.user
+        if user is None:
+            user = User()
+            user.name = from_user_t.full_name
+            user.username = async_to_sync(make_username)(base=from_user_t.username)
+        user.save()
+        if tuser is None:
+            tuser = telegram_bot_models.TelegramUser()
+            tuser.user = user
+            tuser.tid = from_user_t.id
+            tuser.bot = bot_obj
+        else:
+            tuser.user = user
+        tuser.save()
+
+    if subscriptionprofile_obj.user is None:
+        subscriptionprofile_obj.user = user
+        subscriptionprofile_obj.save()
+        msg = gettext("مالکیت اکانت {0} به شما({1}) منتقل شد.").format(str(subscriptionprofile_obj), str(user))
+    else:
+        if subscriptionprofile_obj.user != user:
+            if transfer_ownership:
+                try:
+                    referred_by = proxy_manager_models.AgencyUser.objects.get(
+                        user=subscriptionprofile_obj.user, agency=agency
+                    )
+                except proxy_manager_models.AgencyUser.DoesNotExist:
+                    pass
+                else:
+                    referlink_obj = (
+                        proxy_manager_models.ReferLink.objects.filter(agency_user=referred_by, is_active=True)
+                        .ann_remainded_cap_count()
+                        .filter(remainded_cap_count__gt=0)
+                        .first()
+                    )
+                subscriptionprofile_obj.user = user
+                subscriptionprofile_obj.save()
+                msg = gettext("مالکیت اکانت {0} از {1} به شما({2}) منتقل شد.").format(
+                    str(subscriptionprofile_obj), str(referred_by), str(user)
+                )
+            else:
+                msg = gettext("مالکیت اکانت {0} از قبل به دیگری اختصاص یافته.").format(str(subscriptionprofile_obj))
+        else:
+            msg = gettext("از قبل به اکانت خود متصل بودید.")
+    agencyuser, created = proxy_manager_models.AgencyUser.objects.get_or_create(
+        user=tuser.user, agency=subscriptionprofile_obj.initial_agency
+    )
+    if created:
+        referlink = proxy_manager_models.ReferLink()
+        referlink.agency_user = agencyuser
+        referlink.capacity = 4
+        characters = string.ascii_letters + string.digits
+        referlink.secret = "".join(random.choice(characters) for _ in range(10))
+        referlink.save()
+    if created and referred_by:
+        if not referlink_obj:
+            transaction.set_rollback(True)
+            msg = gettext("غیر قابل انجام، ظرفیت معرفی کاربر {0} به اتمام رسیده است").format(referred_by.user)
+            return False, msg
+        else:
+            agencyuser.link_referred_by = referlink_obj
+            agencyuser.save()
+    return True, msg
+
+
+def get_referlinklink(bot_obj: telegram_bot_models.TelegramBot, referlink: proxy_manager_models.ReferLink):
+    from .dispatchers import QueryPathName, get_dispatch_query
+
+    return get_dispatch_query(
+        bot_username=bot_obj.tusername, pathname=QueryPathName.MEMBER_REFERLINK, secret=referlink.secret
+    )
+
+
+@transaction.atomic(using="main")
+def agencyuser_from_referlink(from_user_t, user, tuser, agency, referlink, bot_obj):
+    if user is None:
+        user = User()
+        user.name = from_user_t.full_name
+        user.username = async_to_sync(make_username)(base=from_user_t.username)
+        user.save()
+    if tuser is None:
+        tuser = telegram_bot_models.TelegramUser()
+        tuser.user = user
+        tuser.tid = from_user_t.id
+        tuser.bot = bot_obj
+    else:
+        tuser.user = user
+    tuser.save()
+    agencyuser = proxy_manager_models.AgencyUser()
+    agencyuser.user = user
+    agencyuser.agency = agency
+    agencyuser.link_referred_by = referlink
+    agencyuser.save()
+
+    referlink = proxy_manager_models.ReferLink()
+    referlink.agency_user = agencyuser
+    referlink.capacity = 4
+    characters = string.ascii_letters + string.digits
+    referlink.secret = "".join(random.choice(characters) for _ in range(10))
+    referlink.save()
+
+    return agencyuser

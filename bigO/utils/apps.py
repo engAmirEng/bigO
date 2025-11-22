@@ -24,7 +24,7 @@ def new_render_value_in_context(value, context):
     from django.utils.timezone import template_localtime
 
     if isinstance(value, str):
-        if getattr(context, "active_digits_locale"):
+        if getattr(context, "active_digits_locale", False):
             locale_digits_fn = django.utils.formats.get_format("LOCALE_DIGITS")
             if callable(locale_digits_fn):
                 value = locale_digits_fn(text=value)

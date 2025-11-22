@@ -5,6 +5,7 @@ import string
 from enum import Enum
 from typing import Literal
 
+from asgiref.sync import sync_to_async
 from wonderwords import RandomWord
 
 import aiogram
@@ -55,8 +56,10 @@ class TelegramBot(TimeStampedModel, models.Model):
     title = models.CharField(max_length=63)
     api_token = models.CharField(max_length=127)
     secret_token = models.CharField(max_length=255)
-    url_specifier = models.CharField(max_length=255, unique=True, db_index=True)
-    domain_name = models.CharField(max_length=255)
+    webhook_url_specifier = models.CharField(max_length=255, db_index=True, null=True, blank=True)
+    webhook_domain = models.ForeignKey(
+        "core.Domain", on_delete=models.PROTECT, related_name="+", null=True, blank=True
+    )
     webhook_synced_at = models.DateTimeField(null=True, blank=True)
     is_revoked = models.BooleanField(default=False)
     is_powered_off = models.BooleanField(default=False)
@@ -68,8 +71,10 @@ class TelegramBot(TimeStampedModel, models.Model):
 
     @property
     def webhook_url(self):
-        path = reverse("telegram_bot:webhook", kwargs={"url_specifier": self.url_specifier})
-        return f"{self.domain_name}{path}"
+        if self.webhook_domain is None or not self.webhook_url_specifier:
+            return None
+        path = reverse("telegram_bot:webhook", kwargs={"url_specifier": self.webhook_url_specifier})
+        return f"{self.webhook_domain.name}{path}"
 
     @property
     def is_active(self):
@@ -131,7 +136,8 @@ class TelegramBot(TimeStampedModel, models.Model):
         return new_bot_obj, cls.RegisterResult.DONE
 
     async def sync_webhook(self):
-        webhook_url = self.webhook_url
+        webhook_url = await sync_to_async(lambda: self.webhook_url)()
+        assert webhook_url
         aiobot = self.get_aiobot()
         success = await aiobot.set_webhook(webhook_url, secret_token=self.secret_token)
         self.webhook_synced_at = timezone.now()

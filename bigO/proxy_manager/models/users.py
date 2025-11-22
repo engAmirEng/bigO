@@ -329,14 +329,28 @@ class SubscriptionProfile(TimeStampedModel, models.Model):
         return f"https://{domain}/sub/{self.uuid}/"
 
 
-class Referral(TimeStampedModel, models.Model):
-    referrer = models.ForeignKey("AgencyUser", on_delete=models.CASCADE, related_name="referrer_referrals")
-    referee = models.OneToOneField("AgencyUser", on_delete=models.CASCADE, related_name="referee_referral")
+class ReferLink(TimeStampedModel, models.Model):
+    class ReferLinkQuerySet(models.QuerySet):
+        def ann_used_count(self):
+            return self.annotate(used_count=Count("linkreferredby_agencyuser"))
+
+        def ann_remainded_cap_count(self):
+            return self.ann_used_count().annotate(remainded_cap_count=F("capacity") - F("used_count"))
+
+    secret = models.CharField(max_length=255, unique=True)
+    agency_user = models.ForeignKey("AgencyUser", on_delete=models.CASCADE, related_name="agencyuser_referlinks")
+    capacity = models.PositiveIntegerField()
+    is_active = models.BooleanField(default=True)
+
+    objects = ReferLinkQuerySet.as_manager()
 
 
 class AgencyUser(TimeStampedModel, models.Model):
     user = models.ForeignKey("users.User", on_delete=models.CASCADE, related_name="+")
     agency = models.ForeignKey("Agency", on_delete=models.CASCADE, related_name="+")
+    link_referred_by = models.ForeignKey(
+        ReferLink, on_delete=models.PROTECT, related_name="linkreferredby_agencyuser", null=True, blank=True
+    )
 
     class Meta:
         ordering = ["-created_at"]

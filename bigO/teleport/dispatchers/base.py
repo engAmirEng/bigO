@@ -12,6 +12,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import (
     CallbackQuery,
     ChatMemberUpdated,
+    CopyTextButton,
     InlineQuery,
     InlineQueryResultArticle,
     InputTextMessageContent,
@@ -25,7 +26,7 @@ from bigO.telegram_bot.models import TelegramBot, TelegramUser
 from bigO.telegram_bot.utils import thtml_render_to_string
 from django.utils.translation import gettext
 
-from .. import models
+from .. import models, services
 
 
 async def app_filter_callback(*args, **kwargs):
@@ -154,12 +155,33 @@ async def menu_handler(
 
         text = await thtml_render_to_string("teleport/agent/start.thtml", context={"agency": agency})
     else:
+        useragency = (
+            await proxy_manager_models.AgencyUser.objects.filter(user=tuser.user, agency=agency)
+            .select_related("user", "agency")
+            .afirst()
+        )
+        if useragency is None:
+            return message.reply(gettext("تغییری ایجاد شده، ار ابتدا اقدام کنید."))
+        referlink = (
+            await proxy_manager_models.ReferLink.objects.filter(agency_user=useragency, is_active=True)
+            .ann_remainded_cap_count()
+            .filter(remainded_cap_count__gt=0)
+            .afirst()
+        )
         ikbuilder.row(
             InlineKeyboardButton(
                 text="🔄 Refresh",
                 callback_data=SimpleButtonCallbackData(button_name=SimpleButtonName.MENU).pack(),
             ),
         )
+        if referlink:
+            referlink_btn = InlineKeyboardButton(
+                text="👥 " + gettext("لینک معرفی"),
+                copy_text=CopyTextButton(text=services.get_referlinklink(bot_obj=bot_obj, referlink=referlink)),
+            )
+        else:
+            txt = "👥 " + gettext("طرفیت معرفی شما به پایان رسیده")
+            referlink_btn = InlineKeyboardButton(text=txt, copy_text=CopyTextButton(text=txt))
         ikbuilder.row(
             InlineKeyboardButton(
                 text=gettext("دریافت اکانت جدید"),
@@ -167,6 +189,7 @@ async def menu_handler(
                     agency_id=agency.id, action=MemberAgencyAction.LIST_AVAILABLE_PLANS
                 ).pack(),
             ),
+            referlink_btn,
         )
         subscriptionprofile_qs = (
             proxy_manager_models.SubscriptionProfile.objects.filter(user=user, initial_agency=agency)

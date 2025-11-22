@@ -1,6 +1,6 @@
 import asyncio
 
-from asgiref.sync import async_to_sync
+from asgiref.sync import async_to_sync, sync_to_async
 
 import aiogram
 from django.contrib import admin, messages
@@ -13,6 +13,7 @@ class TelegramBotModelAdmin(admin.ModelAdmin):
     actions = ("set_webhook_action", "delete_webhook_action", "get_webhook_info_action")
     search_fields = ("tid", "tusername", "title")
     list_display = ("id", "title", "tid", "tusername", "is_revoked", "is_powered_off")
+    autocomplete_fields = ("webhook_domain",)
 
     @async_to_sync
     async def set_webhook_action(what, self, request, queryset):
@@ -48,18 +49,19 @@ class TelegramBotModelAdmin(admin.ModelAdmin):
     @async_to_sync
     async def get_webhook_info_action(what, self, request, queryset):
         async def get_webhook_info(telegram_bot_obj):
+            webhook_url_shouldbe = await sync_to_async(lambda: telegram_bot_obj.webhook_url)()
             bot = telegram_bot_obj.get_aiobot()
             info: aiogram.types.WebhookInfo = await bot.get_webhook_info()
 
             m = str(telegram_bot_obj) + " "
             if not info.url:
-                message = m + f"webhook url is not set, should be {telegram_bot_obj.webhook_url}"
+                message = m + f"webhook url is not set, should be {webhook_url_shouldbe}"
                 level = messages.INFO
-            elif telegram_bot_obj.webhook_url == info.url:
+            elif webhook_url_shouldbe == info.url:
                 message = m + f"webhook url correctly set to {info.url}"
                 level = messages.SUCCESS
             else:
-                message = m + f"webhook url is {info.url}, should be {telegram_bot_obj.webhook_url}"
+                message = m + f"webhook url is {info.url}, should be {webhook_url_shouldbe}"
                 level = messages.ERROR
             self.message_user(request, message, level=level)
 
