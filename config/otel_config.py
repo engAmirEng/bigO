@@ -19,25 +19,19 @@ def configure_opentelemetry():
         return
     _ALREADY = True
 
-    trace_processor = None
-    metric_reader = None
-    if os.environ.get("OTEL_DEBUG", False):
-        trace_processor = BatchSpanProcessor(ConsoleSpanExporter())
-        metric_reader = PeriodicExportingMetricReader(ConsoleMetricExporter())
-    elif os.environ.get("OTEL_ENDPOINT", None):
-        headers = {"Authorization": os.environ["OTEL_AUTH"]}
-        trace_processor = BatchSpanProcessor(
-            OTLPSpanExporter(endpoint=f"{os.environ['OTEL_ENDPOINT']}/v1/traces", headers=headers)
-        )
-        metric_reader = PeriodicExportingMetricReader(
-            OTLPMetricExporter(endpoint=f"{os.environ['OTEL_ENDPOINT']}/v1/metrics", headers=headers)
-        )
+    if os.environ.get("OTEL_DEBUG", ""):
+        trace_exporter = ConsoleSpanExporter()
+        metric_exporter = ConsoleMetricExporter()
+    else:
+        trace_exporter = OTLPSpanExporter()
+        metric_exporter = OTLPMetricExporter()
+    trace_processor = BatchSpanProcessor(trace_exporter)
+    metric_reader = PeriodicExportingMetricReader(metric_exporter)
 
     resource = Resource.create(
         attributes={
             SERVICE_NAME: "bigO",
-            SERVICE_NAMESPACE: "bigO",
-            DEPLOYMENT_ENVIRONMENT: "develop",
+            DEPLOYMENT_ENVIRONMENT: os.environ.get("OTEL_DEPLOYMENT_ENVIRONMENT", "develop"),
         }
     )
     if trace_processor:
