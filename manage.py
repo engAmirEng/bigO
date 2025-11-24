@@ -3,8 +3,13 @@ import os
 import sys
 from pathlib import Path
 
+from config import otel_config
+
 if __name__ == "__main__":
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+
+    # configure open-telemetry
+    otel_config.configure_opentelemetry()
 
     try:
         from django.core.management import execute_from_command_line

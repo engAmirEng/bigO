@@ -21,6 +21,8 @@ from opentelemetry.instrumentation.wsgi import OpenTelemetryMiddleware
 
 from django.core.wsgi import get_wsgi_application
 
+from . import otel_config
+
 # This allows easy placement of apps within the interior
 # bigO directory.
 BASE_DIR = Path(__file__).resolve(strict=True).parent.parent
@@ -30,6 +32,9 @@ sys.path.append(str(BASE_DIR / "bigO"))
 # mod_wsgi daemon mode with each site in its own daemon process, or use
 # os.environ["DJANGO_SETTINGS_MODULE"] = "config.settings"
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+
+# configure open-telemetry
+otel_config.configure_opentelemetry()
 
 # This application object is used by any WSGI server configured to use this
 # file. This includes Django's development server, if the WSGI_APPLICATION

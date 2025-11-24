@@ -25,13 +25,5 @@ CERTBOT_CONFIG_DIR = pathlib.Path(settings.MEDIA_ROOT) / "protected" / "certbot"
 # ------------------------------------------------------------------------------
 ANSIBLE_WORKING_DIR = pathlib.Path(settings.MEDIA_ROOT) / "protected" / "ansible"
 
-# OTEL
-# ------------------------------------------------------------------------------
-
-OTEL_DEBUG = env.bool("OTEL_DEBUG", default=False)
-OTEL_ENDPOINT = env.url("OTEL_ENDPOINT", default=None)
-OTEL_AUTH = env.str("OTEL_AUTH", default=None)
-
-
 # other
 TELEGRAM_BOT_TOKEN = env.str("TELEGRAM_BOT_TOKEN")

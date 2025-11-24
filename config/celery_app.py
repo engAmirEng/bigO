@@ -1,9 +1,31 @@
 import os
 
 from celery import Celery
+from celery.signals import worker_init, worker_process_init
+from opentelemetry.instrumentation.celery import CeleryInstrumentor
+
+from . import otel_config
 
 # set the default Django settings module for the 'celery' program.
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+
+
+@worker_init.connect
+def worker_init_handler(sender, **kwargs):
+    pool_cls = str(sender.pool_cls) if hasattr(sender, "pool_cls") else None
+
+    if "threads" in pool_cls:  # only if --pool=threads
+        # configure open-telemetry
+        otel_config.configure_opentelemetry()
+        CeleryInstrumentor().instrument()
+
+
+@worker_process_init.connect
+def worker_process_init_handler(**kwargs):
+    # configure open-telemetry
+    otel_config.configure_opentelemetry()
+    CeleryInstrumentor().instrument()
+
 
 app = Celery("bigO")
 
