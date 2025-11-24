@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 
 from channels.routing import ProtocolTypeRouter
+from opentelemetry.instrumentation.asgi import OpenTelemetryMiddleware
 
 from django.core.asgi import get_asgi_application
 
@@ -31,3 +32,5 @@ application = ProtocolTypeRouter(
         "http": django_asgi_app,
     }
 )
+
+application = OpenTelemetryMiddleware(application)
