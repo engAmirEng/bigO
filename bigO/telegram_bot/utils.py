@@ -8,15 +8,24 @@ from django.template.loader import render_to_string
 from django.utils.translation import get_language
 
 
-async def thtml_render_to_string(template_name, context=None, request=None, using=None):
-    rendered = await sync_to_async(render_to_string)(template_name, context=context, request=request, using=using)
+def normalize_markup(rendered_content: str):
     lines_list = []
-    for line in rendered.split("\n"):
+    for line in rendered_content.split("\n"):
         lines_list.append(line.lstrip().rstrip())
     result_lines_list = []
     for line in "".join(lines_list).split("<br>"):
         result_lines_list.append(line.lstrip().rstrip().replace("&nbsp;", " "))
     return "\n".join(result_lines_list)
+
+
+async def thtml_render_to_string(template_name, context=None, request=None, using=None):
+    rendered = await sync_to_async(render_to_string)(template_name, context=context, request=request, using=using)
+    return normalize_markup(rendered_content=rendered)
+
+
+def sync_thtml_render_to_string(template_name, context=None, request=None, using=None):
+    rendered = render_to_string(template_name, context=context, request=request, using=using)
+    return normalize_markup(rendered_content=rendered)
 
 
 class TMessage(TypedDict):

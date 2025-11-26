@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 import ipaddress
 import json
@@ -19,13 +20,10 @@ import tomli_w
 from asgiref.sync import async_to_sync
 from celery import current_task
 
-import aiogram
 import bigO.utils.logging
 import django.template
-from aiogram.client.default import DefaultBotProperties
-from aiogram.client.session.aiohttp import AiohttpSession
-from aiogram.enums import ParseMode
 from bigO.core import models as core_models
+from bigO.telegram_bot import models as telegram_bot_models
 from config.celery_app import app
 from django.conf import settings
 from django.core.cache import cache
@@ -35,7 +33,7 @@ from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
 
-from ..users.models import User
+from ..telegram_bot.utils import sync_thtml_render_to_string
 from . import models, typing
 
 
@@ -43,14 +41,18 @@ from . import models, typing
 def check_node_latest_sync(
     *, limit_seconds: int, responsetime_miliseconds: int = 1_200, ignore_node_ids: list[int] | None = None
 ):
-    from bigO.core.models import SiteConfiguration
-
-    siteconfiguration_obj = SiteConfiguration.objects.get()
+    siteconfiguration_obj = core_models.SiteConfiguration.get_solo()
     if siteconfiguration_obj.sync_brake:
         return "sync_brake is on"
-    superuser = User.objects.filter(is_superuser=True, telegram_chat_tid__isnull=False).first()
-    if not superuser:
-        return "no_superuser_to_send"
+    if siteconfiguration_obj.notif_telegram_bot is None:
+        return "no notif_telegram_bot"
+    superusers_tuser_list: list[telegram_bot_models.TelegramUser] = list(
+        telegram_bot_models.TelegramUser.objects.filter(
+            bot=siteconfiguration_obj.notif_telegram_bot, user__is_superuser=True
+        ).select_related("bot")
+    )
+    if not superusers_tuser_list:
+        return "no_superusers_tchats_to_send"
     ignore_node_ids = ignore_node_ids or []
     # at least has one successful sync
     all_problematic_qs = (
@@ -75,7 +77,7 @@ def check_node_latest_sync(
     if reporting_problematic_qs.count() == 0 and not back_onlines_qs.exists():
         return "all_good"
 
-    message = render_to_string(
+    message = sync_thtml_render_to_string(
         "node_manager/annonces/node_latest_sync.thtml",
         context={
             "reporting_offlines_qs": reporting_problematic_qs,
@@ -84,11 +86,13 @@ def check_node_latest_sync(
     )
 
     async def inner():
-        async with AiohttpSession() as session:
-            bot = aiogram.Bot(
-                settings.TELEGRAM_BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML), session=session
-            )
-            await bot.send_message(chat_id=superuser.telegram_chat_tid, text=message)
+        aiobots = {}
+        tasks = []
+        for superuser_tuser in superusers_tuser_list:
+            bot = aiobots.get(superuser_tuser.bot.id, superuser_tuser.bot.get_aiobot())
+            aiobots[superuser_tuser.bot.id] = bot
+            tasks.append(asyncio.create_task(bot.send_message(chat_id=superuser_tuser.tid, text=message)))
+        await asyncio.gather(*tasks)
 
     async_to_sync(inner)()
     cache.set("offline_nodes", json.dumps([i.id for i in all_problematic_qs]))

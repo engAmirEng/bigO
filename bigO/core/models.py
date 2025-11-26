@@ -47,6 +47,9 @@ class SiteConfiguration(SingletonModel):
     basic_username = models.CharField(max_length=255, blank=False, null=True)
     basic_password = models.CharField(max_length=255, blank=False, null=True)
     htpasswd_content = models.TextField(blank=True, null=True)
+    notif_telegram_bot = models.ForeignKey(
+        "telegram_bot.TelegramBot", on_delete=models.PROTECT, related_name="+", null=True, blank=True
+    )
 
     def clean(self):
         if self.nodes_ca_cert:
