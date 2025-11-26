@@ -100,6 +100,70 @@ def check_node_latest_sync(
 
 
 @app.task
+def check_node_down_processes(*, ignore_node_ids: list[int] | None = None):
+    ignore_node_ids = ignore_node_ids or []
+    siteconfiguration_obj = core_models.SiteConfiguration.get_solo()
+    if siteconfiguration_obj.sync_brake:
+        return "sync_brake is on"
+    if siteconfiguration_obj.notif_telegram_bot is None:
+        return "no notif_telegram_bot"
+    superusers_tuser_list: list[telegram_bot_models.TelegramUser] = list(
+        telegram_bot_models.TelegramUser.objects.filter(
+            bot=siteconfiguration_obj.notif_telegram_bot, user__is_superuser=True
+        ).select_related("bot")
+    )
+    if not superusers_tuser_list:
+        return "no_superusers_tchats_to_send"
+
+    problematic_supervisorprocessinfo_qs = models.SupervisorProcessInfo.objects.filter(
+        last_state__in=(
+            models.SupervisorProcessInfo.ProcessState.STARTING,
+            models.SupervisorProcessInfo.ProcessState.BACKOFF,
+            models.SupervisorProcessInfo.ProcessState.STOPPING,
+            models.SupervisorProcessInfo.ProcessState.EXITED,
+            models.SupervisorProcessInfo.ProcessState.FATAL,
+            models.SupervisorProcessInfo.ProcessState.UNKNOWN,
+        ),
+    )
+    reporting_problematic_supervisorprocessinfo_qs = problematic_supervisorprocessinfo_qs.filter(
+        is_down_attended=False
+    ).exclude(node_id__in=ignore_node_ids)
+    perv_problematic_supervisorpeoccesses = cache.get("problematic_supervisorpeoccesses")
+    resolved_problematic_supervisorprocessinfo_qs = models.SupervisorProcessInfo.objects.none()
+    if perv_problematic_supervisorpeoccesses:
+        perv_problematic_supervisorpeoccesses_ids = json.loads(perv_problematic_supervisorpeoccesses)
+        resolved_problematic_supervisorprocessinfo_qs = models.SupervisorProcessInfo.objects.filter(
+            id__in=perv_problematic_supervisorpeoccesses_ids
+        ).exclude(id__in=Subquery(problematic_supervisorprocessinfo_qs.values("id")))
+    if (
+        not reporting_problematic_supervisorprocessinfo_qs.exists()
+        and not resolved_problematic_supervisorprocessinfo_qs.exists()
+    ):
+        return "all_good"
+
+    message = sync_thtml_render_to_string(
+        "node_manager/annonces/node_down_processes.thtml",
+        context={
+            "reporting_problematic_supervisorprocessinfo_qs": reporting_problematic_supervisorprocessinfo_qs,
+            "resolved_problematic_supervisorprocessinfo_qs": resolved_problematic_supervisorprocessinfo_qs,
+        },
+    )
+
+    async def inner():
+        aiobots = {}
+        tasks = []
+        for superuser_tuser in superusers_tuser_list:
+            bot = aiobots.get(superuser_tuser.bot.id, superuser_tuser.bot.get_aiobot())
+            aiobots[superuser_tuser.bot.id] = bot
+            tasks.append(asyncio.create_task(bot.send_message(chat_id=superuser_tuser.tid, text=message)))
+        await asyncio.gather(*tasks)
+
+    async_to_sync(inner)()
+    cache.set("problematic_supervisorpeoccesses", json.dumps([i.id for i in problematic_supervisorprocessinfo_qs]))
+    return f"{str(problematic_supervisorprocessinfo_qs.count())} are down and {str(resolved_problematic_supervisorprocessinfo_qs.count())} are back ok"
+
+
+@app.task
 def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str, Any]):
     from bigO.proxy_manager.models import ConnectionRuleOutbound, ConnectionTunnelOutbound
     from bigO.proxy_manager.services import (

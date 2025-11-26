@@ -449,6 +449,7 @@ class SupervisorProcessInfo(TimeStampedModel, models.Model):
         UNKNOWN = 1000, "unknown"
 
     node = models.ForeignKey("Node", on_delete=models.CASCADE, related_name="node_processstates")
+    is_down_attended = models.BooleanField(default=False)
     name = models.CharField(max_length=255)
     group: models.CharField(max_length=255)
     description = models.CharField(max_length=255)

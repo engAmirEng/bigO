@@ -308,11 +308,13 @@ class SupervisorProcessInfoModelAdmin(admin.ModelAdmin):
         "node",
         "name",
         "last_changed_at_display",
+        "is_down_attended",
         "description",
         "statename_display",
         "last_captured_at_display",
     )
     list_filter = ("node", "name", "last_state")
+    list_editable = ("is_down_attended",)
     search_fields = ("name",)
     autocomplete_fields = ("node",)
 

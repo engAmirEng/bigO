@@ -1,0 +1,17 @@
+{% load humanize %}
+{% if reporting_problematic_supervisorprocessinfo_qs %}
+پروسه های مشکل دار:
+<br>
+    {% for i in reporting_problematic_supervisorprocessinfo_qs %}
+        ❌ {{ i.name }} (of {{ i.node }}) ({{ i.perv_statename }} -> {{ i.last_statename }} at {{ i.last_changed_at|naturaltime }})
+        <br>
+    {% endfor %}
+{% endif %}
+{% if resolved_problematic_supervisorprocessinfo_qs %}
+    پروسه های حل شده:
+    <br>
+    {% for i in resolved_problematic_supervisorprocessinfo_qs %}
+        ✅ {{ i.name }} (of {{ i.node }}) ({{ i.perv_statename }} -> {{ i.last_statename }} at {{ i.last_changed_at|naturaltime }})
+        <br>
+    {% endfor %}
+{% endif %}
