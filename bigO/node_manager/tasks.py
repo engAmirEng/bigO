@@ -22,6 +22,7 @@ from celery import current_task
 
 import bigO.utils.logging
 import django.template
+from aiogram.client.session.aiohttp import AiohttpSession
 from bigO.core import models as core_models
 from bigO.telegram_bot import models as telegram_bot_models
 from config.celery_app import app
@@ -29,7 +30,6 @@ from django.conf import settings
 from django.core.cache import cache
 from django.db import transaction
 from django.db.models import Subquery
-from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
 
@@ -88,11 +88,12 @@ def check_node_latest_sync(
     async def inner():
         aiobots = {}
         tasks = []
-        for superuser_tuser in superusers_tuser_list:
-            bot = aiobots.get(superuser_tuser.bot.id, superuser_tuser.bot.get_aiobot())
-            aiobots[superuser_tuser.bot.id] = bot
-            tasks.append(asyncio.create_task(bot.send_message(chat_id=superuser_tuser.tid, text=message)))
-        await asyncio.gather(*tasks)
+        async with AiohttpSession() as session:
+            for superuser_tuser in superusers_tuser_list:
+                bot = aiobots.get(superuser_tuser.bot.id, superuser_tuser.bot.get_aiobot(session=session))
+                aiobots[superuser_tuser.bot.id] = bot
+                tasks.append(asyncio.create_task(bot.send_message(chat_id=superuser_tuser.tid, text=message)))
+            await asyncio.gather(*tasks)
 
     async_to_sync(inner)()
     cache.set("offline_nodes", json.dumps([i.id for i in all_problematic_qs]))
@@ -152,11 +153,12 @@ def check_node_down_processes(*, ignore_node_ids: list[int] | None = None):
     async def inner():
         aiobots = {}
         tasks = []
-        for superuser_tuser in superusers_tuser_list:
-            bot = aiobots.get(superuser_tuser.bot.id, superuser_tuser.bot.get_aiobot())
-            aiobots[superuser_tuser.bot.id] = bot
-            tasks.append(asyncio.create_task(bot.send_message(chat_id=superuser_tuser.tid, text=message)))
-        await asyncio.gather(*tasks)
+        async with AiohttpSession() as session:
+            for superuser_tuser in superusers_tuser_list:
+                bot = aiobots.get(superuser_tuser.bot.id, superuser_tuser.bot.get_aiobot(session=session))
+                aiobots[superuser_tuser.bot.id] = bot
+                tasks.append(asyncio.create_task(bot.send_message(chat_id=superuser_tuser.tid, text=message)))
+            await asyncio.gather(*tasks)
 
     async_to_sync(inner)()
     cache.set("problematic_supervisorpeoccesses", json.dumps([i.id for i in problematic_supervisorprocessinfo_qs]))

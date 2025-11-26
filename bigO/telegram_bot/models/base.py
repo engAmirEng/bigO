@@ -13,6 +13,7 @@ import aiogram.exceptions
 import aiogram.utils.token
 from aiogram.client.default import DefaultBotProperties
 from aiogram.client.session.aiohttp import AiohttpSession
+from aiogram.client.session.base import BaseSession
 from aiogram.enums import ChatMemberStatus, ParseMode
 from bigO.users.models import User
 from bigO.utils.models import TimeStampedModel
@@ -91,8 +92,8 @@ class TelegramBot(TimeStampedModel, models.Model):
         await self.asave()
         return self.ChangePowerResult.DONE
 
-    def get_aiobot(self) -> aiogram.Bot:
-        return self.new_aiobot(self.api_token)
+    def get_aiobot(self, session: BaseSession | None = None) -> aiogram.Bot:
+        return self.new_aiobot(self.api_token, session=session)
 
     class RegisterResult(str, Enum):
         DONE = "done"
@@ -198,10 +199,10 @@ class TelegramBot(TimeStampedModel, models.Model):
         return sub_domain_name
 
     @staticmethod
-    def new_aiobot(token: str) -> aiogram.Bot:
+    def new_aiobot(token: str, session: BaseSession | None = None) -> aiogram.Bot:
         from ..settings import TELEGRAM_SESSION
 
-        session = TELEGRAM_SESSION
+        session = session or TELEGRAM_SESSION
         return aiogram.Bot(token, default=DefaultBotProperties(parse_mode=ParseMode.HTML), session=session)
 
 
