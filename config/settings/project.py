@@ -25,6 +25,5 @@ CERTBOT_CONFIG_DIR = pathlib.Path(settings.MEDIA_ROOT) / "protected" / "certbot"
 # ------------------------------------------------------------------------------
 ANSIBLE_WORKING_DIR = pathlib.Path(settings.MEDIA_ROOT) / "protected" / "ansible"
 
-
 # other
 TELEGRAM_BOT_TOKEN = env.str("TELEGRAM_BOT_TOKEN")

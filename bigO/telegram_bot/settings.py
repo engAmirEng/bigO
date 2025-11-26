@@ -10,6 +10,7 @@ if TELEGRAM_PROXY:
     TELEGRAM_PROXY = environ.urlunparse(TELEGRAM_PROXY)
 
 TELEGRAM_MIDDLEWARE = [
+    "bigO.telegram_bot.t_middleware.TelemetryMiddleware",
     "bigO.telegram_bot.t_middleware.CommonMiddleware",
     "bigO.telegram_bot.t_middleware.AuthenticationMiddleware",
     "bigO.telegram_bot.t_middleware.TimeZoneMiddleware",
