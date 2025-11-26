@@ -1,18 +1,22 @@
 {% load humanize %}
-{% if reporting_offlines_qs.exists %}
+{% if reporting_offlines_qs %}
 نود های زیر غیر فعال اند:
+<br>
 {% endif %}
 {% for i in reporting_offlines_qs %}
-{{ i.name }}:
-    {{ i.node_nodesyncstat.initiated_at }}({{ i.node_nodesyncstat.initiated_at|naturaltime }})
-    {{ i.node_nodesyncstat.respond_at }}({{ i.node_nodesyncstat.respond_at|naturaltime }})
+{{ i }}:<br>
+&nbsp;   {{ i.node_nodesyncstat.initiated_at }}({{ i.node_nodesyncstat.initiated_at|naturaltime }})<br>
+&nbsp;   {{ i.node_nodesyncstat.respond_at }}({{ i.node_nodesyncstat.respond_at|naturaltime }})<br>
+<br>
 {% endfor %}
-
-{% if back_online_qs.exists %}
+------------------------------
+{% if back_online_qs %}
 نود های زیر آنلاین شده اند:
+<br>
 {% endif %}
 {% for i in back_online_qs %}
-{{ i.name }}:
-    {{ i.node_nodesyncstat.initiated_at }}({{ i.node_nodesyncstat.initiated_at|naturaltime }})
-    {{ i.node_nodesyncstat.respond_at }}({{ i.node_nodesyncstat.respond_at|naturaltime }})
+{{ i }}:<br>
+&nbsp;   {{ i.node_nodesyncstat.initiated_at }}({{ i.node_nodesyncstat.initiated_at|naturaltime }})<br>
+&nbsp;   {{ i.node_nodesyncstat.respond_at }}({{ i.node_nodesyncstat.respond_at|naturaltime }})<br>
+<br>
 {% endfor %}
