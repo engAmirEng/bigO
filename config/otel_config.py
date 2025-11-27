@@ -1,4 +1,5 @@
 import os
+import socket
 
 import opentelemetry.sdk.environment_variables
 from opentelemetry import metrics, trace
@@ -7,7 +8,7 @@ from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExport
 from opentelemetry.instrumentation.django import DjangoInstrumentor
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import ConsoleMetricExporter, PeriodicExportingMetricReader
-from opentelemetry.sdk.resources import DEPLOYMENT_ENVIRONMENT, SERVICE_NAME, SERVICE_NAMESPACE, Resource
+from opentelemetry.sdk.resources import DEPLOYMENT_ENVIRONMENT, SERVICE_NAME, SERVICE_INSTANCE_ID, Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
 
@@ -36,6 +37,7 @@ def configure_opentelemetry():
         attributes={
             SERVICE_NAME: "bigO",
             DEPLOYMENT_ENVIRONMENT: os.environ.get("OTEL_DEPLOYMENT_ENVIRONMENT", "develop"),
+            SERVICE_INSTANCE_ID: f"{socket.gethostname()}-{os.getpid()}",  # maybe uuid.uuid4()
         }
     )
     if trace_processor:
