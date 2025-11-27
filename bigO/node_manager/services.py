@@ -197,13 +197,65 @@ def process_process_state(supervisorprocessinfo_list: list[typing.SupervisorProc
         process_instance.save()
 
 
-def node_process_stats(
+def node_handle_stats(
     node_obj: models.Node,
     configs_states: list[typing.ConfigStateSchema] | None,
     smallo1_logs: typing.SupervisorProcessTailLogSerializerSchema | None = None,
     smallo2_logs: typing.SupervisorProcessTailLogSerializerSchema | None = None,
 ):
+    import redis.asyncio
+    redis_client = redis.asyncio.Redis.from_url("redis://127.0.0.1:6379/5")
+    # for i in configs_states:
+    #     await redis_client.xadd(name="configs_states", fields={"data": i.model_dump_json()})
+    # or
+    payload = json.dumps([s.model_dump() for s in configs_states])
+    await redis_client.xadd("configs_states_stream", {"data": payload, "node_id": node_obj.id})
+
+def consume_proccess_stats():
+    import redis
     from bigO.proxy_manager import tasks as proxy_manager_tasks
+    redis_client = redis.Redis.from_url("redis://127.0.0.1:6379/5")
+    STREAM = "configs_states_stream"
+    GROUP = "configs_states_consumers"
+    CONSUMER = "worker-1"
+
+    # Create consumer group if not exists
+    try:
+        redis_client.xgroup_create(STREAM, GROUP, id="0", mkstream=True)
+    except redis.exceptions.ResponseError:
+        pass
+
+    while True:
+        resp = redis_client.xreadgroup(
+            GROUP,
+            CONSUMER,
+            streams={STREAM: ">"},
+            count=100,
+            block=5000
+        )
+        if not resp:
+            continue
+
+        for stream, messages in resp:
+            for msg_id, msg in messages:
+                configs = decode_payload(msg)
+
+                for cfg in configs:
+                    try:
+                        process(log_line)
+
+                        # Optional: send to Loki
+                        send_to_loki(log_line)
+
+                        redis_client.xack(STREAM, GROUP, msg_id)
+
+                    except Exception:
+                        # log the error; leave message pending
+                        # you can build retry logic via XPENDING later
+                        pass
+
+                redis_client.xack(STREAM, GROUP, msg_id)
+
 
     streams: list[typing.LokiStram] = []
     configs_states = configs_states or []

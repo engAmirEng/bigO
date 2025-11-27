@@ -105,7 +105,7 @@ class NodeBaseSyncAPIView(APIView):
         except pydantic.ValidationError as e:
             sentry_sdk.capture_exception(e)
             raise bigO.utils.exceptions.pydantic_to_drf_error(e)
-        services.node_process_stats(
+        services.node_handle_stats(
             node_obj=node_obj, configs_states=input_data.configs_states, smallo1_logs=input_data.smallo1_logs
         )
         services.node_spec_create(node=node_obj, node_sync_stat_obj=node_sync_stat_obj, ip_a=input_data.metrics.ip_a)
@@ -323,7 +323,7 @@ async def node_base_sync_v2(request: HttpRequest):
         sentry_sdk.capture_exception(e)
         return JsonResponse(e.errors(), status=400, safe=False)
     node_config = await sync_to_async(services.node_sync_stat_config)(obj=node_sync_stat_obj, config=input_data.config)
-    await sync_to_async(services.node_process_stats)(
+    await sync_to_async(services.node_handle_stats)(
         node_obj=node_obj,
         configs_states=input_data.configs_states,
         smallo1_logs=None,
