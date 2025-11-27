@@ -513,6 +513,7 @@ def send_to_loki(streams: list[typing.LokiStram]):
         )
         if not res.ok:
             raise Exception(f"faild send to Loki, {res.text=}")
+    return f"sent in {len(streams_list)} chunks"
 
 
 @app.task(soft_time_limit=15 * 60, time_limit=16 * 60)

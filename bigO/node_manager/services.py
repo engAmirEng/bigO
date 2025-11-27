@@ -301,7 +301,8 @@ def node_process_stats(
                     continue
                 values.append([str(int(logged_at.timestamp() * 1e9)), smallo1_log_line])
             streams.append({"stream": stream, "values": values})
-        tasks.send_to_loki.delay(streams=streams)
+        if streams:
+            tasks.send_to_loki.delay(streams=streams)
 
 
 def get_easytier_to_node_ips(*, source_node: models.Node, dest_node_id: int) -> list[ipaddress.IPv4Address]:
