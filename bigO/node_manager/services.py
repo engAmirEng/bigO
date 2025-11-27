@@ -257,7 +257,7 @@ def node_process_stats(
                 proxy_manager_tasks.handle_xray_conf if settings.DEBUG else proxy_manager_tasks.handle_xray_conf.delay
             )
             handle_xray_conf(node_obj.id, xray_lines=i.stderr.bytes, base_labels=base_labels)
-        if node_obj.collect_logs and getattr(settings, "LOKI_PUSH_ENDPOINT", False):
+        if node_obj.collect_logs and getattr(settings, "LOKI_BASE_ENDPOINT", False):
             collected_at = i.time
             if send_stderr and i.stderr.bytes:
                 stderr_lines = i.stderr.bytes.split("\n")
@@ -281,7 +281,7 @@ def node_process_stats(
                 for stdout_line in stdout_lines:
                     values.append([str(int(collected_at.timestamp() * 1e9)), stdout_line])
                 streams.append({"stream": stream, "values": values})
-    if node_obj.collect_logs and getattr(settings, "LOKI_PUSH_ENDPOINT", False):
+    if node_obj.collect_logs and getattr(settings, "LOKI_BASE_ENDPOINT", False):
         if smallo1_logs and smallo1_logs.bytes:
             logtime_pattern = r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}"
             smallo1_log_lines = smallo1_logs.bytes.split("\n")

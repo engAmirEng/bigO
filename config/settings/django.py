@@ -334,8 +334,8 @@ if env("INFLUX_URL", default=None):
     INFLUX_ORG = env.str("INFLUX_ORG")
     INFLUX_BUCKET = env.str("INFLUX_BUCKET")
     INFLUX_TOKEN = env.str("INFLUX_TOKEN")
-if env("LOKI_PUSH_ENDPOINT", default=None):
-    LOKI_PUSH_ENDPOINT = env.url("LOKI_PUSH_ENDPOINT").geturl()
+if env("LOKI_BASE_ENDPOINT", default=None):
+    LOKI_BASE_ENDPOINT = env.url("LOKI_BASE_ENDPOINT").geturl()
     LOKI_USERNAME = env.str("LOKI_USERNAME")
     LOKI_PASSWORD = env.str("LOKI_PASSWORD")
 if env.bool("LOKI_LOGGING", default=False):
@@ -344,7 +344,7 @@ if env.bool("LOKI_LOGGING", default=False):
 
     # Set up the Loki handler
     loki_handler = BasicLokiHandler(
-        url=LOKI_PUSH_ENDPOINT,
+        url=f"{LOKI_BASE_ENDPOINT}/loki/api/v1/push",
         labels=env.json("LOKI_BASE_LABELS"),
         username=LOKI_USERNAME,
         password=LOKI_PASSWORD,

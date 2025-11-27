@@ -85,12 +85,21 @@ CELERY_FLOWER_PASSWORD=debug
 # {str, required if INFLUX_URL}
 #INFLUX_TOKEN=
 
+# OTEL
+# ------------------------------------------------------------------------------
+#OTEL_SDK_DISABLED=
+#OTEL_DEBUG=
+#OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp-gateway-prod-us-east-0.grafana.net/otlp
+# example of grafana cloud Basic + base64(client_id:api_key)
+#OTEL_EXPORTER_OTLP_HEADERS="Authorization=Basic a_base64token"
+
+
 # Logging
 # ------------------------------------------------------------------------------
 # {bool, default to false}
 #LOKI_LOGGING=
 # {url, required if LOKI_LOGGING}
-#LOKI_PUSH_ENDPOINT=
+#LOKI_BASE_ENDPOINT=
 # {str, required if LOKI_LOGGING}
 #LOKI_USERNAME=
 # {str, required if LOKI_LOGGING}

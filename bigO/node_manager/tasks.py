@@ -506,7 +506,7 @@ def send_to_loki(streams: list[typing.LokiStram]):
         payload = {"streams": streams}
         headers = {"Content-Type": "application/json"}
         res = requests_session.post(
-            settings.LOKI_PUSH_ENDPOINT,
+            f"{settings.LOKI_BASE_ENDPOINT}/loki/api/v1/push",
             headers=headers,
             json=payload,
             auth=requests.auth.HTTPBasicAuth(settings.LOKI_USERNAME, settings.LOKI_PASSWORD),
