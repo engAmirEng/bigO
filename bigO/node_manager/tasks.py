@@ -118,7 +118,6 @@ def check_node_down_processes(*, ignore_node_ids: list[int] | None = None):
 
     problematic_supervisorprocessinfo_qs = models.SupervisorProcessInfo.objects.filter(
         last_state__in=(
-            models.SupervisorProcessInfo.ProcessState.STARTING,
             models.SupervisorProcessInfo.ProcessState.BACKOFF,
             models.SupervisorProcessInfo.ProcessState.STOPPING,
             models.SupervisorProcessInfo.ProcessState.EXITED,
