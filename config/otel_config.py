@@ -1,5 +1,6 @@
 import os
 
+import opentelemetry.sdk.environment_variables
 from opentelemetry import metrics, trace
 from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
@@ -16,9 +17,12 @@ _ALREADY = False
 def configure_opentelemetry():
     global _ALREADY
     if _ALREADY:  # avoids the “Overriding …” warnings
-        return
+        return _ALREADY
     _ALREADY = True
 
+    if os.environ.get(opentelemetry.sdk.environment_variables.OTEL_SDK_DISABLED, ""):
+        _ALREADY = False
+        return _ALREADY
     if os.environ.get("OTEL_DEBUG", ""):
         trace_exporter = ConsoleSpanExporter()
         metric_exporter = ConsoleMetricExporter()

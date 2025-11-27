@@ -34,7 +34,7 @@ sys.path.append(str(BASE_DIR / "bigO"))
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 
 # configure open-telemetry
-otel_config.configure_opentelemetry()
+opentelemetry_configured = otel_config.configure_opentelemetry()
 
 # This application object is used by any WSGI server configured to use this
 # file. This includes Django's development server, if the WSGI_APPLICATION
@@ -43,4 +43,5 @@ application = get_wsgi_application()
 # Apply WSGI middleware here.
 # from helloworld.wsgi import HelloWorldApplication
 # application = HelloWorldApplication(application)
-application = OpenTelemetryMiddleware(application)
+if opentelemetry_configured:
+    application = OpenTelemetryMiddleware(application)

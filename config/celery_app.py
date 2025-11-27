@@ -16,15 +16,17 @@ def worker_init_handler(sender, **kwargs):
 
     if "threads" in pool_cls:  # only if --pool=threads
         # configure open-telemetry
-        otel_config.configure_opentelemetry()
-        CeleryInstrumentor().instrument()
+        opentelemetry_configured = otel_config.configure_opentelemetry()
+        if opentelemetry_configured:
+            CeleryInstrumentor().instrument()
 
 
-@worker_process_init.connect
+@worker_process_init.connect(weak=False)
 def worker_process_init_handler(**kwargs):
     # configure open-telemetry
-    otel_config.configure_opentelemetry()
-    CeleryInstrumentor().instrument()
+    opentelemetry_configured = otel_config.configure_opentelemetry()
+    if opentelemetry_configured:
+        CeleryInstrumentor().instrument()
 
 
 app = Celery("bigO")

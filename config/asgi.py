@@ -26,16 +26,19 @@ sys.path.append(str(BASE_DIR / "bigO"))
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 
 # configure open-telemetry
-otel_config.configure_opentelemetry()
+opentelemetry_configured = otel_config.configure_opentelemetry()
 
 # Initialize Django ASGI application early to ensure the AppRegistry
 # is populated before importing code that may import ORM models.
 django_asgi_app = get_asgi_application()
+if opentelemetry_configured:
+    django_asgi_app = OpenTelemetryMiddleware(django_asgi_app)
+
 
 application = ProtocolTypeRouter(
     {
         "http": django_asgi_app,
     }
 )
-
-application = OpenTelemetryMiddleware(application)
+if opentelemetry_configured:
+    application = OpenTelemetryMiddleware(application)
