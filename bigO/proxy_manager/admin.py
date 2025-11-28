@@ -10,8 +10,8 @@ from django.contrib import admin, messages
 from django.contrib.humanize.templatetags.humanize import naturaltime
 from django.db.models import QuerySet
 from django.template.loader import render_to_string
-from django.urls import reverse
 from django.utils.html import format_html
+from django.utils.safestring import mark_safe
 
 from . import forms, models, services
 
@@ -64,7 +64,7 @@ class AgentModelAdmin(admin.ModelAdmin):
 
 @admin.register(models.SubscriptionProfile)
 class SubscriptionProfileModelAdmin(admin.ModelAdmin):
-    list_display = ("__str__", "initial_agency", "user", "last_usage_at", "last_sublink_at")
+    list_display = ("__str__", "initial_agency", "user_display", "telebot_display", "last_usage_at", "last_sublink_at")
     list_editable = []
     search_fields = ("title", "user__name", "description", "uuid", "xray_uuid")
     actions = ("get_teleport_startlink",)
@@ -72,7 +72,32 @@ class SubscriptionProfileModelAdmin(admin.ModelAdmin):
     autocomplete_fields = ("user",)
 
     def get_queryset(self, request):
-        return super().get_queryset(request).ann_last_usage_at().ann_last_sublink_at()
+        return super().get_queryset(request).ann_last_usage_at().ann_last_sublink_at().ann_telebot_tusers_ids()
+
+    @admin.display(ordering="user")
+    def user_display(self, obj):
+        return obj.user and format_html(
+            "<a href='{}'>{}</a>",
+            admin_obj_change_url(obj=obj.user),
+            str(obj.user),
+        )
+
+    @admin.display(ordering="telebot_tusers_ids")
+    def telebot_display(self, obj):
+        from bigO.telegram_bot.models import TelegramUser
+
+        if not obj.telebot_tusers_ids:
+            return
+        r = []
+        for i in obj.telebot_tusers_ids:
+            r.append(
+                format_html(
+                    "<a href='{}'>{}</a>",
+                    admin_obj_change_url(obj_id=i, obj_type=TelegramUser),
+                    f"TelegramUser {i}",
+                )
+            )
+        return mark_safe(", ".join(r))
 
     @admin.display(ordering="last_usage_at")
     def last_usage_at(self, obj):

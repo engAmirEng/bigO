@@ -10,6 +10,7 @@ from bigO.proxy_manager.subscription import AVAILABLE_SUBSCRIPTION_PLAN_PROVIDER
 from bigO.proxy_manager.subscription.base import BaseSubscriptionPlanProvider
 from bigO.utils import calander_type
 from bigO.utils.models import TimeStampedModel
+from django.contrib.postgres.aggregates import ArrayAgg
 from django.db import models
 from django.db.models import Case, Count, Exists, F, OuterRef, Prefetch, Q, Subquery, UniqueConstraint, Value, When
 from django.db.models.functions import Coalesce
@@ -252,6 +253,18 @@ class SubscriptionPeriod(TimeStampedModel, models.Model):
 
 class SubscriptionProfile(TimeStampedModel, models.Model):
     class SubscriptionProfileQuerySet(models.QuerySet):
+        def ann_telebot_tusers_ids(self):
+            from bigO.telegram_bot.models import TelegramUser
+
+            qs1 = TelegramUser.objects.filter(
+                bot=OuterRef("initial_agency__agency_teleportpanels__bot"), user=OuterRef("user")
+            )
+            return self.annotate(
+                telebot_tusers_ids=Subquery(
+                    qs1.order_by().values("bot", "user").annotate(ids=ArrayAgg("id")).values("ids")
+                )
+            )
+
         def ann_last_usage_at(self):
             subscriptionperiod_sub_qs = SubscriptionPeriod.objects.filter(profile=OuterRef("id")).order_by(
                 F("last_usage_at").desc(nulls_last=True)

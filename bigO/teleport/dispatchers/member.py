@@ -782,6 +782,7 @@ async def subscription_profile_startlink_handler(
     )
     if not ok:
         return message.answer(text=msg)
+    await add_message(state=state, level=messages.SUCCESS, message=msg)
 
     ikbuilder = InlineKeyboardBuilder()
     ikbuilder.button(
@@ -789,8 +790,8 @@ async def subscription_profile_startlink_handler(
         callback_data=SimpleButtonCallbackData(button_name=SimpleButtonName.MENU),
     )
     text = await thtml_render_to_string(
-        "teleport/member/subscription_profile_startlink.thtml",
-        context={"msg": msg, "subscriptionprofile": subscriptionprofile_obj},
+        "teleport/member/subscription_profile_overview.thtml",
+        context={"subscriptionprofile": subscriptionprofile_obj},
     )
 
     return message.answer(text, reply_markup=ikbuilder.as_markup())
@@ -951,8 +952,8 @@ async def my_account_detail_handler(
     )
 
     text = await thtml_render_to_string(
-        "teleport/member/subscription_profile_startlink.thtml",
-        context={"msg": "", "subscriptionprofile": subscriptionprofile_obj},
+        "teleport/member/subscription_profile_overview.thtml",
+        context={"subscriptionprofile": subscriptionprofile_obj},
     )
     if isinstance(message, CallbackQuery):
         return message.message.edit_text(text, reply_markup=ikbuilder.as_markup())

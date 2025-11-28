@@ -156,7 +156,8 @@ async def menu_handler(
             InlineKeyboardButton(
                 text="🔘" + gettext("پنل مدیریت") + " 🔀 " + "🟢" + gettext("پنل مشتری"),
                 callback_data=AgentAgencyCallbackData(
-                    pk=agent.agency_id, action=AgentAgencyAction.TO_AGENT_PANEL).pack(),
+                    pk=agent.agency_id, action=AgentAgencyAction.TO_AGENT_PANEL
+                ).pack(),
             )
         )
     elif agent and not member_panel:
@@ -164,7 +165,8 @@ async def menu_handler(
             InlineKeyboardButton(
                 text="🟢" + gettext("پنل مدیریت") + " 🔀 " + "🔘" + gettext("پنل مشتری"),
                 callback_data=AgentAgencyCallbackData(
-                    pk=agent.agency_id, action=AgentAgencyAction.TO_MEMBER_PANEL).pack(),
+                    pk=agent.agency_id, action=AgentAgencyAction.TO_MEMBER_PANEL
+                ).pack(),
             )
         )
 

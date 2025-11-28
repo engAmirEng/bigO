@@ -5,7 +5,7 @@ from django.db.models import Q, UniqueConstraint
 
 class Panel(TimeStampedModel, models.Model):
     is_active = models.BooleanField(default=True)
-    agency = models.ForeignKey("proxy_manager.Agency", on_delete=models.CASCADE, related_name="+")
+    agency = models.ForeignKey("proxy_manager.Agency", on_delete=models.CASCADE, related_name="agency_teleportpanels")
     bot = models.ForeignKey("telegram_bot.TelegramBot", on_delete=models.CASCADE, related_name="+")
 
     class Meta:

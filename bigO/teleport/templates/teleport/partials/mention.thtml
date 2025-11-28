@@ -1,0 +1,7 @@
+{% load digits_locale %}
+@{{ tuser_obj.tusername }}
+&nbsp;<a href="https://t.me/{{ tuser_obj.tusername }}">send message</a>
+&nbsp;
+{% digits_locale off %}
+<a href="tg://user?id={{ tuser_obj.tid }}">{{ tuser_obj.user }}</a>
+{% enddigits_locale %}
