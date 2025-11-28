@@ -1056,7 +1056,6 @@ async def my_account_passchange_request_handler(
 
 class PassChangeForm(StatesGroup):
     requested = State()
-    approved = State()
 
 
 @router.callback_query(SimpleBoolCallbackData.filter(aiogram.F.result == True), PassChangeForm.requested)
@@ -1085,8 +1084,9 @@ async def my_account_passchange_done_handler(
     except proxy_manager_models.SubscriptionProfile.DoesNotExist:
         return message.answer(gettext("اکانت یافت نشد."))
 
-    await sync_to_async(BabyUI_services.pass_change_profile)(profile=subscriptionprofile_obj, user=user)
-    await state.set_state(PassChangeForm.approved)
+    err_message = await sync_to_async(BabyUI_services.pass_change_profile)(profile=subscriptionprofile_obj, user=user)
+    if err_message:
+        return message.answer(text=err_message, show_alert=True)
 
     ikbuilder = InlineKeyboardBuilder()
     ikbuilder.row(
