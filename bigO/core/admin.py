@@ -222,7 +222,7 @@ class CertificateModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.
     def private_key_display(self, obj):
         return obj.private_key and format_html(
             "<a href='{}'>{}</a>",
-            admin_obj_change_url(obj.private_key),
+            admin_obj_change_url(obj=obj.private_key),
             str(obj.private_key),
         )
 
@@ -230,7 +230,7 @@ class CertificateModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.
     def parent_certificate_display(self, obj):
         return obj.parent_certificate and format_html(
             "<a href='{}'>{}</a>",
-            admin_obj_change_url(obj.parent_certificate),
+            admin_obj_change_url(obj=obj.parent_certificate),
             str(obj.parent_certificate),
         )
 
@@ -422,6 +422,6 @@ class CertificateTaskModelAdmin(admin.ModelAdmin):
             return obj.certbot_info_uuid
         return format_html(
             "<a href='{}'>{}</a>",
-            admin_obj_change_url(certbotinfo),
+            admin_obj_change_url(obj=certbotinfo),
             obj.certbot_info_uuid,
         )

@@ -170,7 +170,7 @@ class SubscriptionPlanModelAdmin(admin.ModelAdmin):
     def connection_rule_display(self, obj):
         return obj.connection_rule and format_html(
             "<a href='{}'>{}</a>",
-            admin_obj_change_url(obj.connection_rule),
+            admin_obj_change_url(obj=obj.connection_rule),
             str(obj.connection_rule),
         )
 
@@ -216,7 +216,7 @@ class SubscriptionPeriodModelAdmin(admin.ModelAdmin):
     def profile_display(self, obj):
         return obj.profile and format_html(
             "<a href='{}'>{}</a>",
-            admin_obj_change_url(obj.profile),
+            admin_obj_change_url(obj=obj.profile),
             str(obj.profile),
         )
 
@@ -224,7 +224,7 @@ class SubscriptionPeriodModelAdmin(admin.ModelAdmin):
     def plan_display(self, obj):
         return obj.plan and format_html(
             "<a href='{}'>{}</a>",
-            admin_obj_change_url(obj.plan),
+            admin_obj_change_url(obj=obj.plan),
             str(obj.plan),
         )
 
@@ -286,7 +286,7 @@ class OutboundTypeModelAdmin(SimpleHistoryAdmin):
     def to_inbound_type_display(self, obj):
         return obj.to_inbound_type and format_html(
             "<a href='{}'>{}</a>",
-            admin_obj_change_url(obj.to_inbound_type),
+            admin_obj_change_url(obj=obj.to_inbound_type),
             str(obj.to_inbound_type),
         )
 
@@ -361,7 +361,7 @@ class OutboundConnectorModelAdmin(admin.ModelAdmin):
     def outbound_type_display(self, obj):
         return obj.outbound_type and format_html(
             "<a href='{}'>{}</a>",
-            admin_obj_change_url(obj.outbound_type),
+            admin_obj_change_url(obj=obj.outbound_type),
             str(obj.outbound_type),
         )
 
@@ -369,7 +369,7 @@ class OutboundConnectorModelAdmin(admin.ModelAdmin):
     def inbound_spec_display(self, obj):
         return obj.inbound_spec and format_html(
             "<a href='{}'>{}</a>",
-            admin_obj_change_url(obj.inbound_spec),
+            admin_obj_change_url(obj=obj.inbound_spec),
             str(obj.inbound_spec),
         )
 
@@ -377,7 +377,7 @@ class OutboundConnectorModelAdmin(admin.ModelAdmin):
     def dest_node_display(self, obj):
         return obj.dest_node and format_html(
             "<a href='{}'>{}</a>",
-            admin_obj_change_url(obj.dest_node),
+            admin_obj_change_url(obj=obj.dest_node),
             str(obj.dest_node),
         )
 
@@ -439,7 +439,7 @@ class ConnectionRuleOutboundModelAdmin(admin.ModelAdmin):
     def rule_display(self, obj):
         return obj.rule and format_html(
             "<a href='{}'>{}</a>",
-            admin_obj_change_url(obj.rule),
+            admin_obj_change_url(obj=obj.rule),
             str(obj.rule),
         )
 
@@ -447,7 +447,7 @@ class ConnectionRuleOutboundModelAdmin(admin.ModelAdmin):
     def connector_display(self, obj):
         return obj.connector and format_html(
             "<a href='{}'>{}</a>",
-            admin_obj_change_url(obj.connector),
+            admin_obj_change_url(obj=obj.connector),
             str(obj.connector),
         )
 
@@ -455,7 +455,7 @@ class ConnectionRuleOutboundModelAdmin(admin.ModelAdmin):
     def apply_node_display(self, obj):
         return obj.apply_node and format_html(
             "<a href='{}'>{}</a>",
-            admin_obj_change_url(obj.apply_node),
+            admin_obj_change_url(obj=obj.apply_node),
             str(obj.apply_node),
         )
 
@@ -566,7 +566,7 @@ class ConnectionTunnelOutboundModelAdmin(admin.ModelAdmin):
     def tunnel_display(self, obj):
         return obj.tunnel and format_html(
             "<a href='{}'>{}</a>",
-            admin_obj_change_url(obj.tunnel),
+            admin_obj_change_url(obj=obj.tunnel),
             str(obj.tunnel),
         )
 
@@ -574,7 +574,7 @@ class ConnectionTunnelOutboundModelAdmin(admin.ModelAdmin):
     def connector_display(self, obj):
         return obj.connector and format_html(
             "<a href='{}'>{}</a>",
-            admin_obj_change_url(obj.connector),
+            admin_obj_change_url(obj=obj.connector),
             str(obj.connector),
         )
 
@@ -656,7 +656,7 @@ class InboundSpecModelAdmin(admin.ModelAdmin):
     def inbound_type_display(self, obj):
         return obj.inbound_type and format_html(
             "<a href='{}'>{}</a>",
-            admin_obj_change_url(obj.inbound_type),
+            admin_obj_change_url(obj=obj.inbound_type),
             str(obj.inbound_type),
         )
 
@@ -687,7 +687,7 @@ class RealitySpecModelAdmin(SimpleHistoryAdmin, admin.ModelAdmin):
     def for_ip_display(self, obj):
         return obj.for_ip and format_html(
             "<a href='{}'>{}</a>",
-            admin_obj_change_url(obj.for_ip),
+            admin_obj_change_url(obj=obj.for_ip),
             f"{str(obj.for_ip)} ({obj.for_ip.asn})",
         )
 
