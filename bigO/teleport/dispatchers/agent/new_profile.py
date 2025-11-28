@@ -251,7 +251,7 @@ async def agent_new_profile_plan_finalcheck_handler(
     )
     text = await thtml_render_to_string(
         "teleport/agent/subscription_profile_overview.thtml",
-        context={"subscriptionprofile": subscriptionprofile_obj},
+        context={"state": state, "subscriptionprofile": subscriptionprofile_obj},
     )
 
     return message.answer(text, reply_markup=ikbuilder.as_markup())

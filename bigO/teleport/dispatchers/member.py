@@ -791,7 +791,7 @@ async def subscription_profile_startlink_handler(
     )
     text = await thtml_render_to_string(
         "teleport/member/subscription_profile_overview.thtml",
-        context={"subscriptionprofile": subscriptionprofile_obj},
+        context={"state": state, "subscriptionprofile": subscriptionprofile_obj},
     )
 
     return message.answer(text, reply_markup=ikbuilder.as_markup())
@@ -896,7 +896,6 @@ async def my_account_detail_handler(
             .ann_last_usage_at()
             .ann_last_sublink_at()
             .ann_current_period_fields()
-            .filter(current_created_at__isnull=False)
             .order_by("-current_created_at")
         ).aget(id=profile_id)
     except proxy_manager_models.SubscriptionProfile.DoesNotExist:
@@ -951,7 +950,7 @@ async def my_account_detail_handler(
 
     text = await thtml_render_to_string(
         "teleport/member/subscription_profile_overview.thtml",
-        context={"subscriptionprofile": subscriptionprofile_obj},
+        context={"state": state, "subscriptionprofile": subscriptionprofile_obj},
     )
     if isinstance(message, CallbackQuery):
         return message.message.edit_text(text, reply_markup=ikbuilder.as_markup())

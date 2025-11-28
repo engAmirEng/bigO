@@ -168,7 +168,7 @@ async def inline_profiles_startlink_handler(
         connect_text = gettext("جهت اتصال به اکانت خود از طریق این لینک وارد ربات شوید") + "\n" + startlink
         text = await thtml_render_to_string(
             "teleport/member/subscription_profile_overview.thtml",
-            context={"subscriptionprofile": subscriptionprofile_obj},
+            context={"state": None, "subscriptionprofile": subscriptionprofile_obj},
         )
         text += connect_text
 
@@ -313,7 +313,7 @@ async def agent_manage_profile_handler(
 
     text = await thtml_render_to_string(
         "teleport/agent/subscription_profile_overview.thtml",
-        context={"subscriptionprofile": subscriptionprofile_obj, "profile_tuser": profile_tuser},
+        context={"state": state, "subscriptionprofile": subscriptionprofile_obj, "profile_tuser": profile_tuser},
     )
     if isinstance(message, Message):
         return message.reply(text, reply_markup=ikbuilder.as_markup())

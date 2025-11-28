@@ -1,5 +1,6 @@
-{% load digits_locale %}
+{% load tbot_widgets digits_locale %}
 {% digits_locale on %}
+{% trender_messages "teleport/partials/messages.thtml" %}
 {% if profile_tuser %}
     &nbsp;{% include "teleport/partials/mention.thtml" with tuser_obj=profile_tuser %}
 {% else %}
