@@ -29,7 +29,7 @@ class Command(BaseCommand):
 
     def run(self, handle_signals: bool):
         HELPER_MONKEY_ATTR = "bot_obj_monkey"
-        first_10_telegram_bots = list(models.TelegramBot.objects.all()[:10])
+        first_10_telegram_bots = list(models.TelegramBot.objects.filter(webhook_synced_at__isnull=True)[:10])
         if not first_10_telegram_bots:
             self.stdout.write("no telegram bots to run")
             return
