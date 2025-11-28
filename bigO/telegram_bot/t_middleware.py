@@ -69,7 +69,12 @@ class TelemetryMiddleware(BaseMiddleware):
     ) -> Any:
         bot_obj: models.TelegramBot = data["bot_obj"]
         metrics.update_total_counter.add(
-            1, attributes={"bot_id": bot_obj.id, "update_type": resolve_update_type(event)}
+            1,
+            attributes={
+                "bot_id": bot_obj.id,
+                "update_type": resolve_update_type(event),
+                "from_user_tid": str(data["event_from_user"].id),
+            },
         )
         response = await handler(event, data)
         return response
