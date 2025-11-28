@@ -766,7 +766,6 @@ async def subscription_profile_startlink_handler(
         .ann_last_usage_at()
         .ann_last_sublink_at()
         .ann_current_period_fields()
-        .filter(current_created_at__isnull=False)
         .aget()
     )
     transfer_ownership: bool = bool(data.get("transfer_ownership"))

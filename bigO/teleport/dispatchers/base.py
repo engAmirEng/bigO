@@ -232,7 +232,6 @@ async def menu_handler(
             .ann_last_usage_at()
             .ann_last_sublink_at()
             .ann_current_period_fields()
-            .filter(current_created_at__isnull=False)
             .order_by("-current_created_at")
         )
 
