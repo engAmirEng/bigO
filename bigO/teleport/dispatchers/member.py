@@ -851,7 +851,7 @@ async def member_referlink_handler(
     )
 
 
-@router.callback_query(SimpleButtonCallbackData.filter(aiogram.F.button_name == SimpleButtonName.ACCOUNTS_ME))
+@router.callback_query(SimpleButtonCallbackData.filter(aiogram.F.button_name == SimpleButtonName.DISPLAY_PLACEHOLDER))
 async def my_account_detail_handler(
     message: CallbackQuery,
     callback_data: SimpleButtonCallbackData,
@@ -863,12 +863,10 @@ async def my_account_detail_handler(
 ) -> Optional[aiogram.methods.TelegramMethod]:
     await state.clear()
 
-    agency = panel_obj.agency
     if tuser is None or tuser.user is None:
         text = gettext("برای استفاده از خدمات ما از معرف خود لینک معرفی دریافت کنید.")
         return message.answer(text, show_alert=True)
-    user = tuser.user
-    return message.answer(gettext("یکی از اکانت های خود را انتخاب کنید"))
+    return message.answer(gettext("این دکمه نمایشی است"))
 
 
 @router.callback_query(MemberAgencyProfileCallbackData.filter(aiogram.F.action == MemberAgencyProfileAction.DETAIL))

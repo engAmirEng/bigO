@@ -46,7 +46,7 @@ router = AppRouter(name="teleport", app_filter_callback=app_filter_callback)
 class SimpleButtonName(str, Enum):
     MENU = "menu"
     NEW_ACCOUNT_ME = "new_account_me"
-    ACCOUNTS_ME = "accounts_me"
+    DISPLAY_PLACEHOLDER = "display_placeholder"
 
 
 class SimpleButtonCallbackData(CallbackData, prefix="simplebutton"):
@@ -245,7 +245,7 @@ async def menu_handler(
             ikbuilder.row(
                 InlineKeyboardButton(
                     text=gettext("اکانت های شما 👇"),
-                    callback_data=SimpleButtonCallbackData(button_name=SimpleButtonName.ACCOUNTS_ME).pack(),
+                    callback_data=SimpleButtonCallbackData(button_name=SimpleButtonName.DISPLAY_PLACEHOLDER).pack(),
                 ),
             )
             ikbuilder_profiles = InlineKeyboardBuilder()
