@@ -242,6 +242,14 @@ async def agent_manage_profile_handler(
         subscriptionprofile_obj: proxy_manager_models.SubscriptionProfile
     except proxy_manager_models.SubscriptionProfile.DoesNotExist:
         return message.reply(gettext("پیدا نشد."))
+    all_user_accounts_list = []
+    if subscriptionprofile_obj.user:
+        all_user_accounts_list = [
+            i
+            async for i in proxy_manager_services.get_agent_current_subscriptionprofiled_qs(agent=agent_obj).filter(
+                user=subscriptionprofile_obj.user
+            )
+        ]
     ikbuilder = InlineKeyboardBuilder()
     ikbuilder.row(
         InlineKeyboardButton(
@@ -279,6 +287,23 @@ async def agent_manage_profile_handler(
             text=gettext("ارسال به کاربر"), switch_inline_query=f"profiles status {subscriptionprofile_obj.uuid}"
         ),
     )
+    if len(all_user_accounts_list) > 1:
+        ikbuilder.row(
+            InlineKeyboardButton(
+                text=gettext("اکانت های دیگر این کاربر") + " 👇",
+                callback_data=SimpleButtonCallbackData(button_name=SimpleButtonName.DISPLAY_PLACEHOLDER).pack(),
+            )
+        )
+        ikbuilder_all_user_accounts = InlineKeyboardBuilder()
+        for i in all_user_accounts_list:
+            ikbuilder_all_user_accounts.button(
+                text=("✅" if (i == subscriptionprofile_obj) else "") + str(i),
+                callback_data=AgentAgencyProfileCallbackData(
+                    profile_id=i.id, action=AgentAgencyProfileAction.DETAIL
+                ).pack(),
+            )
+        ikbuilder_all_user_accounts.adjust(3, repeat=True)
+        ikbuilder.attach(ikbuilder_all_user_accounts)
     if subscriptionprofile_obj.user:
         profile_tuser = await telegram_bot_models.TelegramUser.objects.filter(
             bot=bot_obj, user=subscriptionprofile_obj.user
