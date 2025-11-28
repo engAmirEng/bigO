@@ -183,10 +183,6 @@ async def menu_handler(
             InlineKeyboardButton(text=gettext("مدیریت اکانت ها"), switch_inline_query_current_chat="profiles manage "),
         )
 
-        ikbuilder.row(
-            InlineKeyboardButton(text=gettext("ارسال به کاربر"), switch_inline_query="profiles status "),
-        )
-
         text = await thtml_render_to_string("teleport/agent/start.thtml", context={"agency": agency})
     else:
         useragency = (
