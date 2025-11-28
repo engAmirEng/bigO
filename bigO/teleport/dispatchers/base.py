@@ -59,6 +59,8 @@ class SimpleBoolCallbackData(CallbackData, prefix="simplebool"):
 
 class AgentAgencyAction(str, Enum):
     OVERVIEW = "overview"
+    TO_MEMBER_PANEL = "to_member_panel"
+    TO_AGENT_PANEL = "to_agent_panel"
     NEW_PROFILE = "new_profile"
 
 
@@ -99,20 +101,22 @@ class MemberBillCallbackData(CallbackData, prefix="member_init_paybill"):
     action: MemberBillAction
 
 
-def clear_state(fn):
+def remove_state(fn):
     @makefun.wraps(fn)
     async def wrapper(*args, **kwargs):
         resp = await fn(*args, **kwargs)
         state: FSMContext | None = kwargs.get("state")
         if state:
-            await state.clear()
+            await state.set_state(state=None)
         return resp
 
     return wrapper
 
 
-@clear_state
+@remove_state
 @router.callback_query(SimpleButtonCallbackData.filter(aiogram.F.button_name == SimpleButtonName.MENU))
+@router.callback_query(AgentAgencyCallbackData.filter(aiogram.F.action == AgentAgencyAction.TO_AGENT_PANEL))
+@router.callback_query(AgentAgencyCallbackData.filter(aiogram.F.action == AgentAgencyAction.TO_MEMBER_PANEL))
 @router.message(CommandStart(magic=~aiogram.F.args))
 async def menu_handler(
     message: CallbackQuery | Message,
@@ -121,22 +125,50 @@ async def menu_handler(
     aiobot: Bot,
     bot_obj: TelegramBot,
     panel_obj: models.Panel,
+    callback_data: AgentAgencyCallbackData | None = None,
 ) -> Optional[aiogram.methods.TelegramMethod]:
-    ikbuilder = InlineKeyboardBuilder()
     agency = panel_obj.agency
     if tuser is None or tuser.user is None:
         text = gettext("برای استفاده از خدمات ما از معرف خود لینک معرفی دریافت کنید.")
         if isinstance(message, Message):
-            return message.answer(text, reply_markup=ikbuilder.as_markup())
+            return message.answer(text)
         else:
             return message.message.edit_text(text)
+    sdata = await state.get_data()
     user = tuser.user
     try:
         agent = await proxy_manager_models.Agent.objects.aget(user=tuser.user, agency=agency)
     except proxy_manager_models.Agent.DoesNotExist:
         agent = None
+    if isinstance(callback_data, AgentAgencyCallbackData):
+        if not agent:
+            return message.answer(gettext("دسترسی به این مورد را ندارید"), show_alert=True)
+        if callback_data.action == AgentAgencyAction.TO_AGENT_PANEL:
+            sdata["member_panel"] = False
+            await state.set_data(sdata)
+        elif callback_data.action == AgentAgencyAction.TO_MEMBER_PANEL:
+            sdata["member_panel"] = True
+            await state.set_data(sdata)
+    member_panel = bool(sdata.get("member_panel"))
+    ikbuilder = InlineKeyboardBuilder()
+    if agent and member_panel:
+        ikbuilder.row(
+            InlineKeyboardButton(
+                text="🔘" + gettext("پنل مدیریت") + " 🔀 " + "🟢" + gettext("پنل مشتری"),
+                callback_data=AgentAgencyCallbackData(
+                    pk=agent.agency_id, action=AgentAgencyAction.TO_AGENT_PANEL).pack(),
+            )
+        )
+    elif agent and not member_panel:
+        ikbuilder.row(
+            InlineKeyboardButton(
+                text="🟢" + gettext("پنل مدیریت") + " 🔀 " + "🔘" + gettext("پنل مشتری"),
+                callback_data=AgentAgencyCallbackData(
+                    pk=agent.agency_id, action=AgentAgencyAction.TO_MEMBER_PANEL).pack(),
+            )
+        )
 
-    if agent:
+    if agent and not member_panel:
         ikbuilder.row(
             InlineKeyboardButton(
                 text=gettext("مدیریت"),
@@ -161,7 +193,13 @@ async def menu_handler(
             .afirst()
         )
         if useragency is None:
-            return message.reply(gettext("تغییری ایجاد شده، ار ابتدا اقدام کنید."))
+            if agent:
+                useragency = proxy_manager_models.AgencyUser()
+                useragency.user = user
+                useragency.agency = agency
+                await useragency.asave()
+            else:
+                return message.reply(gettext("تغییری ایجاد شده، ار ابتدا اقدام کنید."))
         referlink = (
             await proxy_manager_models.ReferLink.objects.filter(agency_user=useragency, is_active=True)
             .ann_remainded_cap_count()
