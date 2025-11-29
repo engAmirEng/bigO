@@ -72,6 +72,7 @@ class AgentAgencyCallbackData(CallbackData, prefix="agent_agency"):
 class MemberAgencyAction(str, Enum):
     OVERVIEW = "overview"
     LIST_AVAILABLE_PLANS = "list_available_plans"
+    SEE_TOTURIAL_CONTENT = "see_toturial_content"
 
 
 class MemberAgencyCallbackData(CallbackData, prefix="member_agency"):
@@ -182,6 +183,14 @@ async def menu_handler(
             ),
             InlineKeyboardButton(text=gettext("مدیریت اکانت ها"), switch_inline_query_current_chat="profiles manage "),
         )
+        ikbuilder.row(
+            InlineKeyboardButton(
+                text="📚 " + gettext("نحوه اتصال"),
+                callback_data=MemberAgencyCallbackData(
+                    agency_id=agency.id, action=MemberAgencyAction.SEE_TOTURIAL_CONTENT
+                ).pack(),
+            ),
+        )
 
         text = await thtml_render_to_string("teleport/agent/start.thtml", context={"agency": agency})
     else:
@@ -218,6 +227,18 @@ async def menu_handler(
         else:
             txt = "👥 " + gettext("طرفیت معرفی شما به پایان رسیده")
             referlink_btn = InlineKeyboardButton(text=txt, copy_text=CopyTextButton(text=txt))
+        if panel_obj.toturial_content:
+            ikbuilder.row(
+                InlineKeyboardButton(
+                    text="📚 " + gettext("نحوه اتصال"),
+                    callback_data=MemberAgencyCallbackData(
+                        agency_id=agency.id, action=MemberAgencyAction.SEE_TOTURIAL_CONTENT
+                    ).pack(),
+                ),
+                referlink_btn,
+            )
+        else:
+            ikbuilder.row(referlink_btn)
         ikbuilder.row(
             InlineKeyboardButton(
                 text=gettext("دریافت اکانت جدید"),
@@ -225,7 +246,6 @@ async def menu_handler(
                     agency_id=agency.id, action=MemberAgencyAction.LIST_AVAILABLE_PLANS
                 ).pack(),
             ),
-            referlink_btn,
         )
         subscriptionprofile_qs = (
             proxy_manager_models.SubscriptionProfile.objects.filter(user=user, initial_agency=agency)

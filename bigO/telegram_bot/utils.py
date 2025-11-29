@@ -1,14 +1,12 @@
 from typing import TypedDict
 
-from asgiref.sync import async_to_sync, sync_to_async
+from asgiref.sync import sync_to_async
 
 from aiogram.fsm.context import FSMContext
-from django.contrib import messages
 from django.template.loader import render_to_string
-from django.utils.translation import get_language
 
 
-def normalize_markup(rendered_content: str):
+def thtml_normalize_markup(rendered_content: str):
     lines_list = []
     for line in rendered_content.split("\n"):
         lines_list.append(line.lstrip().rstrip())
@@ -20,12 +18,12 @@ def normalize_markup(rendered_content: str):
 
 async def thtml_render_to_string(template_name, context=None, request=None, using=None):
     rendered = await sync_to_async(render_to_string)(template_name, context=context, request=request, using=using)
-    return normalize_markup(rendered_content=rendered)
+    return thtml_normalize_markup(rendered_content=rendered)
 
 
 def sync_thtml_render_to_string(template_name, context=None, request=None, using=None):
     rendered = render_to_string(template_name, context=context, request=request, using=using)
-    return normalize_markup(rendered_content=rendered)
+    return thtml_normalize_markup(rendered_content=rendered)
 
 
 class TMessage(TypedDict):

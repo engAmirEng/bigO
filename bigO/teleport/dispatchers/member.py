@@ -4,11 +4,12 @@ from typing import Optional
 from asgiref.sync import sync_to_async
 
 import aiogram.utils.deep_linking
+import django.template
 from aiogram import Bot
 from aiogram.filters.callback_data import CallbackData
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery, CopyTextButton, Message
+from aiogram.types import CallbackQuery, CopyTextButton, Message, LinkPreviewOptions
 from aiogram.utils.keyboard import InlineKeyboardBuilder, InlineKeyboardButton, ReplyKeyboardBuilder
 from bigO.BabyUI import services as BabyUI_services
 from bigO.finance import models as finance_models
@@ -17,9 +18,10 @@ from bigO.proxy_manager import models as proxy_manager_models
 from bigO.proxy_manager import services as proxy_manager_services
 from bigO.proxy_manager.subscription.planproviders import TypeSimpleDynamic1, TypeSimpleStrict1
 from bigO.telegram_bot.models import TelegramBot, TelegramUser
-from bigO.telegram_bot.utils import add_message, thtml_render_to_string
+from bigO.telegram_bot.utils import add_message, thtml_render_to_string, thtml_normalize_markup
 from bigO.users.models import User
 from django.contrib import messages
+from django.conf import settings
 from django.http import QueryDict
 from django.utils.translation import gettext
 
@@ -73,6 +75,55 @@ class MemberPaybillBankTransfer1CallbackData(
     MemberInitPaybillCallbackData, prefix="member_init_paybill_banktransfer1"
 ):
     action: MemberPaybillBankTransfer1Action
+
+
+@router.callback_query(MemberAgencyCallbackData.filter(aiogram.F.action == MemberAgencyAction.SEE_TOTURIAL_CONTENT))
+async def member_see_toturial_content_handler(
+    message: CallbackQuery,
+    callback_data: MemberAgencyCallbackData,
+    tuser: TelegramUser | None,
+    state: FSMContext,
+    aiobot: Bot,
+    bot_obj: TelegramBot,
+    panel_obj: models.Panel,
+) -> Optional[aiogram.methods.TelegramMethod]:
+    agency = panel_obj.agency
+    useragency = (
+        await proxy_manager_models.AgencyUser.objects.filter(
+            user=tuser.user, agency=agency, agency_id=callback_data.agency_id
+        )
+        .select_related("user", "agency")
+        .afirst()
+    )
+    if useragency is None:
+        return message.message.edit_text(gettext("تغییری ایجاد شده، ار ابتدا اقدام کنید."))
+    if not panel_obj.toturial_content:
+        return message.answer(gettext("مطلبی بارگذاری نشده"))
+
+    ikbuilder = InlineKeyboardBuilder()
+    if settings.DEBUG:
+        ikbuilder.row(
+            InlineKeyboardButton(
+                text="🔄 Refresh",
+                callback_data=MemberAgencyCallbackData(
+                    agency_id=agency.id, action=MemberAgencyAction.SEE_TOTURIAL_CONTENT
+                ).pack(),
+            ),
+        )
+    ikbuilder.row(
+        InlineKeyboardButton(
+            text="🔙 " + gettext("بازکشت به منو"),
+            callback_data=SimpleButtonCallbackData(button_name=SimpleButtonName.MENU).pack(),
+        )
+    )
+
+    text = thtml_normalize_markup(django.template.Template(panel_obj.toturial_content).render(context=django.template.Context({})))
+
+    return message.message.edit_text(
+        text=text, reply_markup=ikbuilder.as_markup(),
+        disable_web_page_preview=True,
+        link_preview_options=LinkPreviewOptions(is_disabled=True)
+    )
 
 
 @router.callback_query(MemberAgencyCallbackData.filter(aiogram.F.action == MemberAgencyAction.LIST_AVAILABLE_PLANS))
@@ -918,6 +969,14 @@ async def my_account_detail_handler(
             text="💳 " + gettext("شارژ این اکانت"),
             callback_data=MemberAgencyProfileCallbackData(
                 profile_id=subscriptionprofile_obj.id, action=MemberAgencyProfileAction.LIST_AVAILABLE_PLANS
+            ).pack(),
+        ),
+    )
+    ikbuilder.row(
+        InlineKeyboardButton(
+            text="📚 " + gettext("نحوه اتصال"),
+            callback_data=MemberAgencyCallbackData(
+                agency_id=agency.id, action=MemberAgencyAction.SEE_TOTURIAL_CONTENT
             ).pack(),
         ),
     )
