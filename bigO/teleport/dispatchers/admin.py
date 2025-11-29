@@ -90,7 +90,7 @@ async def member_initpaybill_handler(
     elif callback_data.action == services.AdminBankTransfer1Action.NOT_YET_PAID:
         if payment.status == finance_models.Payment.PaymentStatusChoices.PENDING:
             await add_message(state=state, level=messages.INFO, message=gettext("اطلاع داده شد"))
-            text = gettext("کارت به کارت مربوط به صورت حساب {0} هنور به حساب ننشسته است.").format(
+            text = gettext("کارت به کارت مربوط به صورت حساب {0} هنوز به حساب ننشسته است.").format(
                 payment.invoice.uuid.hex[:8]
             )
             await payment_tuser_aiobot.send_message(chat_id=payment_tuser.tid, text=text)
