@@ -1112,6 +1112,9 @@ async def my_account_passchange_request_handler(
     except proxy_manager_models.SubscriptionProfile.DoesNotExist:
         return message.answer(gettext("اکانت یافت نشد."))
 
+    sdata = await state.get_data()
+    sdata["passchange_requested_profile_id"] = subscriptionprofile_obj.id
+    await state.set_data(sdata)
     await state.set_state(PassChangeForm.requested)
 
     ikbuilder = InlineKeyboardBuilder()
@@ -1142,25 +1145,24 @@ class PassChangeForm(StatesGroup):
 @router.callback_query(SimpleBoolCallbackData.filter(aiogram.F.result == True), PassChangeForm.requested)
 async def my_account_passchange_done_handler(
     message: CallbackQuery,
-    callback_data: MemberAgencyProfileCallbackData,
+    callback_data: SimpleBoolCallbackData,
     tuser: TelegramUser | None,
     state: FSMContext,
     aiobot: Bot,
     bot_obj: TelegramBot,
     panel_obj: models.Panel,
 ) -> Optional[aiogram.methods.TelegramMethod]:
-    await state.clear()
-
     agency = panel_obj.agency
     if tuser is None or tuser.user is None:
         text = gettext("برای استفاده از خدمات ما از معرف خود لینک معرفی دریافت کنید.")
         return message.answer(text, show_alert=True)
     user = tuser.user
+    sdata = await state.get_data()
     try:
         subscriptionprofile_obj: proxy_manager_models.SubscriptionProfile = await (
             proxy_manager_models.SubscriptionProfile.objects.filter(user=user, initial_agency=agency)
         ).aget(
-            id=callback_data.profile_id
+            id=sdata["passchange_requested_profile_id"]
         )
     except proxy_manager_models.SubscriptionProfile.DoesNotExist:
         return message.answer(gettext("اکانت یافت نشد."))
@@ -1168,7 +1170,7 @@ async def my_account_passchange_done_handler(
     err_message = await sync_to_async(BabyUI_services.pass_change_profile)(profile=subscriptionprofile_obj, user=user)
     if err_message:
         return message.answer(text=err_message, show_alert=True)
-
+    await state.set_state(None)
     ikbuilder = InlineKeyboardBuilder()
     ikbuilder.row(
         InlineKeyboardButton(

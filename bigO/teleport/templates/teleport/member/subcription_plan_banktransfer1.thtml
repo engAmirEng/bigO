@@ -1,5 +1,9 @@
 {% load digits_locale %}
-{% include "teleport/member/subcription_plan_checkout.thtml" with price_strike=True %}
+{% if invoice.total_price == payment.amount %}
+    {% include "teleport/member/subcription_plan_checkout.thtml" with price_strike=False %}
+{% else %}
+    {% include "teleport/member/subcription_plan_checkout.thtml" with price_strike=True %}
+{% endif %}
 {% digits_locale on %}
 <br>
 مبلغ

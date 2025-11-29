@@ -66,7 +66,7 @@ class AgentModelAdmin(admin.ModelAdmin):
 class SubscriptionProfileModelAdmin(admin.ModelAdmin):
     list_display = ("__str__", "initial_agency", "user_display", "telebot_display", "last_usage_at", "last_sublink_at")
     list_editable = []
-    search_fields = ("title", "user__name", "description", "uuid", "xray_uuid")
+    search_fields = ("title", "user__username", "user__name", "description", "uuid", "xray_uuid")
     actions = ("get_teleport_startlink",)
     form = forms.SubscriptionProfileModelForm
     autocomplete_fields = ("user",)
