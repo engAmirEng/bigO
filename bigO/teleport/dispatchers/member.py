@@ -1,3 +1,4 @@
+import asyncio
 from enum import Enum
 from typing import Optional
 
@@ -9,7 +10,7 @@ from aiogram import Bot
 from aiogram.filters.callback_data import CallbackData
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery, CopyTextButton, Message, LinkPreviewOptions
+from aiogram.types import CallbackQuery, CopyTextButton, LinkPreviewOptions, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder, InlineKeyboardButton, ReplyKeyboardBuilder
 from bigO.BabyUI import services as BabyUI_services
 from bigO.finance import models as finance_models
@@ -18,10 +19,11 @@ from bigO.proxy_manager import models as proxy_manager_models
 from bigO.proxy_manager import services as proxy_manager_services
 from bigO.proxy_manager.subscription.planproviders import TypeSimpleDynamic1, TypeSimpleStrict1
 from bigO.telegram_bot.models import TelegramBot, TelegramUser
-from bigO.telegram_bot.utils import add_message, thtml_render_to_string, thtml_normalize_markup
+from bigO.telegram_bot.utils import add_message, thtml_normalize_markup, thtml_render_to_string
 from bigO.users.models import User
-from django.contrib import messages
 from django.conf import settings
+from django.contrib import messages
+from django.db.models import Exists, OuterRef, Q
 from django.http import QueryDict
 from django.utils.translation import gettext
 
@@ -117,12 +119,15 @@ async def member_see_toturial_content_handler(
         )
     )
 
-    text = thtml_normalize_markup(django.template.Template(panel_obj.toturial_content).render(context=django.template.Context({})))
+    text = thtml_normalize_markup(
+        django.template.Template(panel_obj.toturial_content).render(context=django.template.Context({}))
+    )
 
     return message.message.edit_text(
-        text=text, reply_markup=ikbuilder.as_markup(),
+        text=text,
+        reply_markup=ikbuilder.as_markup(),
         disable_web_page_preview=True,
-        link_preview_options=LinkPreviewOptions(is_disabled=True)
+        link_preview_options=LinkPreviewOptions(is_disabled=True),
     )
 
 
@@ -878,6 +883,7 @@ async def member_referlink_handler(
             return
         referlink_obj = (
             await proxy_manager_models.ReferLink.objects.filter(secret=link_secret, agency_user__agency=agency)
+            .select_related("agency_user__user")
             .ann_remainded_cap_count()
             .afirst()
         )
@@ -886,7 +892,7 @@ async def member_referlink_handler(
         if referlink_obj.remainded_cap_count <= 0:
             return message.reply(gettext("ظرفیت لینک معرفی تمام شده است"))
 
-        agencyuser_obj = await sync_to_async(services.agencyuser_from_referlink)(
+        useragency = await sync_to_async(services.agencyuser_from_referlink)(
             from_user_t=message.from_user,
             user=user,
             tuser=tuser,
@@ -895,6 +901,25 @@ async def member_referlink_handler(
             bot_obj=bot_obj,
         )
         await add_message(state=state, level=messages.INFO, message=gettext("با موفقیت عضو شدید"))
+        related_agents_qs = proxy_manager_models.Agent.objects.filter(
+            agency=useragency.agency, is_active=True, user=OuterRef("user")
+        )
+        panel_qs = models.Panel.objects.filter(is_active=True, agency=useragency.agency, bot=OuterRef("bot"))
+        admin_tusers_qs = (
+            TelegramUser.objects.filter(
+                Q(bot__is_revoked=False, bot__is_powered_off=False) & Exists(panel_qs) & Exists(related_agents_qs)
+            )
+            .select_related("bot")
+            .order_by("-last_accessed_at")
+        )
+        admin_tusers_list = [i async for i in admin_tusers_qs]
+        if admin_tusers_list:
+            for admin_tuser in admin_tusers_list:
+                admin_tuser: TelegramUser
+                related_aiobot = admin_tuser.bot.get_aiobot()
+
+                text = f"joined in {agency}: {referlink_obj.agency_user.user} => @{message.from_user.username}"
+                asyncio.create_task(related_aiobot.send_message(chat_id=admin_tuser.tid, text=text))
 
     return await menu_handler(
         message=message, tuser=tuser, state=state, aiobot=aiobot, bot_obj=bot_obj, panel_obj=panel_obj

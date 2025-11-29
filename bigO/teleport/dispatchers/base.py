@@ -225,7 +225,7 @@ async def menu_handler(
                 copy_text=CopyTextButton(text=services.get_referlinklink(bot_obj=bot_obj, referlink=referlink)),
             )
         else:
-            txt = "👥 " + gettext("طرفیت معرفی شما به پایان رسیده")
+            txt = "👥 " + gettext("ظرفیت معرفی شما به پایان رسیده")
             referlink_btn = InlineKeyboardButton(text=txt, copy_text=CopyTextButton(text=txt))
         if panel_obj.toturial_content:
             ikbuilder.row(

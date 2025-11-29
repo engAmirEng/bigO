@@ -126,6 +126,11 @@ class SubscriptionProfileModelAdmin(admin.ModelAdmin):
             )
 
 
+@admin.register(models.ReferLink)
+class ReferLinkModelAdmin(admin.ModelAdmin):
+    search_fields = ("secret", "agency_user__user__username")
+
+
 class ReferLinkInline(admin.StackedInline):
     extra = 0
     model = models.ReferLink
@@ -137,7 +142,7 @@ class AgencyUserModelAdmin(admin.ModelAdmin):
     list_display = ("id", "user", "agency")
     list_filter = ("agency",)
     search_fields = ("user__username",)
-    autocomplete_fields = ("agency", "user")
+    autocomplete_fields = ("agency", "user", "link_referred_by")
     inlines = (ReferLinkInline,)
 
 
