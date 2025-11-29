@@ -2,6 +2,7 @@ import json
 import random
 import string
 from enum import Enum
+from types import SimpleNamespace
 
 from asgiref.sync import async_to_sync, sync_to_async
 
@@ -15,7 +16,7 @@ from bigO.telegram_bot import models as telegram_bot_models
 from bigO.users.models import User
 from django.core.cache import cache
 from django.db import transaction
-from django.db.models import Exists, OuterRef, Q
+from django.db.models import Exists, OuterRef, Q, QuerySet, Subquery
 from django.utils.translation import gettext
 
 from ..telegram_bot.utils import thtml_render_to_string
@@ -157,6 +158,40 @@ async def bank_transfer1_pend(sender, admin: User, payment: finance_models.Payme
         )
 
         await aiobot.send_message(chat_id=tuser.tid, text=text, reply_markup=ikbuilder.as_markup())
+
+
+async def near_end_periods_notify(sender, periods_qs: QuerySet[proxy_manager_models.SubscriptionPeriod], **kwargs):
+    panel_qs = models.Panel.objects.filter(is_active=True, agency__is_active=True).select_related("agency", "bot")
+    async for panel in panel_qs:
+        panel: models.Panel
+        agency_periods_qs = periods_qs.filter(profile__initial_agency=panel.agency).ann_total_limit_bytes()
+        aiobot = panel.bot.get_aiobot()
+        qs1 = telegram_bot_models.TelegramUser.objects.filter(bot=panel.bot, user=OuterRef("profile__user"))
+        sent_periods_ids = set()
+        admin_txt_list = []
+        async for period in agency_periods_qs.annotate(tid=Subquery(qs1.values("tid"))):
+            profile_tuser = SimpleNamespace(tid=period.tid) if period.tid else None
+            if period.tid:
+                await aiobot.send_message(chat_id=period.tid, text="fdfd")
+                sent_periods_ids.add(period.id)
+            admin_txt_list.append(
+                "\n"
+                + await thtml_render_to_string(
+                    "teleport/agent/subscription_profile_overview.thtml",
+                    context={"state": None, "subscriptionperiod": period, "profile_tuser": profile_tuser},
+                )
+            )
+        admin_texts_list = [admin_txt_list[i : i + 5] for i in range(0, len(admin_txt_list), 5)]
+        qs2 = telegram_bot_models.TelegramUser.objects.filter(bot=panel.bot, user=OuterRef("user"))
+        agents = proxy_manager_models.Agent.objects.filter(agency=panel.agency, is_active=True).annotate(
+            tid=Subquery(qs2.values("tid"))
+        )
+        async for agent in agents.filter(tid__isnull=False):
+            for i, admin_texts in enumerate(admin_texts_list):
+                await aiobot.send_message(
+                    chat_id=agent.tid,
+                    text=("\n" + "-" * 10).join(admin_texts) + f"\n\n{i + 1} / {len(admin_texts_list) + 1}"
+                )
 
 
 @transaction.atomic(using="main")

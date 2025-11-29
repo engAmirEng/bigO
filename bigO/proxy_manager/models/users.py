@@ -159,7 +159,8 @@ class SubscriptionPeriod(TimeStampedModel, models.Model):
                 whens.append(When(plan__plan_provider_key=i.TYPE_IDENTIFIER, then=ann_expr))
             return self.annotate(total_limit_bytes=Case(*whens, output_field=models.PositiveBigIntegerField()))
 
-        def ann_limit_passed_type(self):
+        def ann_limit_passed_type(self, base_bytes=0, base_time=None):
+            base_time = base_time or timezone.now()
             return (
                 self.ann_expires_at()
                 .ann_dl_bytes_remained()
@@ -167,11 +168,11 @@ class SubscriptionPeriod(TimeStampedModel, models.Model):
                 .annotate(
                     limit_passed_type=Case(
                         When(
-                            condition=Q(Q(up_bytes_remained__lte=0) | Q(dl_bytes_remained__lte=0)),
+                            condition=Q(Q(up_bytes_remained__lte=base_bytes) | Q(dl_bytes_remained__lte=base_bytes)),
                             then=Value("traffic_limit"),
                         ),
                         When(
-                            condition=Q(expires_at__lt=timezone.now()),
+                            condition=Q(expires_at__lt=base_time),
                             then=Value("expired"),
                         ),
                         default=Value(None),

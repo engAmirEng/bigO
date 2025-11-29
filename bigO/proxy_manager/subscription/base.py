@@ -4,8 +4,12 @@ from typing import Generic, TypeVar
 import pydantic
 from moneyed import Currency, Money
 
+from django.dispatch import Signal
+
 ProviderArgsT = TypeVar("ProviderArgsT", bound=pydantic.BaseModel | None)
 PlanArgsT = TypeVar("PlanArgsT", bound=pydantic.BaseModel | None)
+
+subscription_near_end_signal = Signal()
 
 
 class BaseSubscriptionPlanProvider(abc.ABC, Generic[ProviderArgsT, PlanArgsT]):
