@@ -1,12 +1,11 @@
 import uuid
 from datetime import timedelta
 
-from django.utils import timezone
-from django.utils.translation import gettext
-
 from bigO.proxy_manager import models as proxy_manager_models
 from django.contrib.auth import get_user_model
 from django.db import transaction
+from django.utils import timezone
+from django.utils.translation import gettext
 
 User = get_user_model()
 
@@ -106,7 +105,11 @@ def unsuspend_user(profile: proxy_manager_models.SubscriptionProfile, agentuser:
 def pass_change_profile(profile: proxy_manager_models.SubscriptionProfile, user: User):
     now = timezone.now()
     allowed_span = timedelta(hours=5)
-    latest_event = proxy_manager_models.SubscriptionEvent.objects.filter(profile=profile, title="Pass Change by Profile owner").order_by("-created_at").first()
+    latest_event = (
+        proxy_manager_models.SubscriptionEvent.objects.filter(profile=profile, title="Pass Change by Profile owner")
+        .order_by("-created_at")
+        .first()
+    )
     if latest_event.created_at > (now - allowed_span):
         return gettext("به تازگی این تغییر روی اکانت انجام شده")
 

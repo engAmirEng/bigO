@@ -24,7 +24,7 @@ class Migration(migrations.Migration):
                 (
                     "agency",
                     models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE, related_name="+", to="proxy_manager.agency"
+                        on_delete=django.db.models.deletion.CASCADE, related_name="agency_teleportpanels", to="proxy_manager.agency"
                     ),
                 ),
                 (

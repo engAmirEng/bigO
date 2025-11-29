@@ -46,7 +46,7 @@ router = AppRouter(name="teleport", app_filter_callback=app_filter_callback)
 class SimpleButtonName(str, Enum):
     MENU = "menu"
     NEW_ACCOUNT_ME = "new_account_me"
-    ACCOUNTS_ME = "accounts_me"
+    DISPLAY_PLACEHOLDER = "display_placeholder"
 
 
 class SimpleButtonCallbackData(CallbackData, prefix="simplebutton"):
@@ -72,6 +72,7 @@ class AgentAgencyCallbackData(CallbackData, prefix="agent_agency"):
 class MemberAgencyAction(str, Enum):
     OVERVIEW = "overview"
     LIST_AVAILABLE_PLANS = "list_available_plans"
+    SEE_TOTURIAL_CONTENT = "see_toturial_content"
 
 
 class MemberAgencyCallbackData(CallbackData, prefix="member_agency"):
@@ -156,7 +157,8 @@ async def menu_handler(
             InlineKeyboardButton(
                 text="🔘" + gettext("پنل مدیریت") + " 🔀 " + "🟢" + gettext("پنل مشتری"),
                 callback_data=AgentAgencyCallbackData(
-                    pk=agent.agency_id, action=AgentAgencyAction.TO_AGENT_PANEL).pack(),
+                    pk=agent.agency_id, action=AgentAgencyAction.TO_AGENT_PANEL
+                ).pack(),
             )
         )
     elif agent and not member_panel:
@@ -164,7 +166,8 @@ async def menu_handler(
             InlineKeyboardButton(
                 text="🟢" + gettext("پنل مدیریت") + " 🔀 " + "🔘" + gettext("پنل مشتری"),
                 callback_data=AgentAgencyCallbackData(
-                    pk=agent.agency_id, action=AgentAgencyAction.TO_MEMBER_PANEL).pack(),
+                    pk=agent.agency_id, action=AgentAgencyAction.TO_MEMBER_PANEL
+                ).pack(),
             )
         )
 
@@ -180,9 +183,13 @@ async def menu_handler(
             ),
             InlineKeyboardButton(text=gettext("مدیریت اکانت ها"), switch_inline_query_current_chat="profiles manage "),
         )
-
         ikbuilder.row(
-            InlineKeyboardButton(text=gettext("ارسال به کاربر"), switch_inline_query="profiles status "),
+            InlineKeyboardButton(
+                text="📚 " + gettext("نحوه اتصال"),
+                callback_data=MemberAgencyCallbackData(
+                    agency_id=agency.id, action=MemberAgencyAction.SEE_TOTURIAL_CONTENT
+                ).pack(),
+            ),
         )
 
         text = await thtml_render_to_string("teleport/agent/start.thtml", context={"agency": agency})
@@ -218,8 +225,20 @@ async def menu_handler(
                 copy_text=CopyTextButton(text=services.get_referlinklink(bot_obj=bot_obj, referlink=referlink)),
             )
         else:
-            txt = "👥 " + gettext("طرفیت معرفی شما به پایان رسیده")
+            txt = "👥 " + gettext("ظرفیت معرفی شما به پایان رسیده")
             referlink_btn = InlineKeyboardButton(text=txt, copy_text=CopyTextButton(text=txt))
+        if panel_obj.toturial_content:
+            ikbuilder.row(
+                InlineKeyboardButton(
+                    text="📚 " + gettext("نحوه اتصال"),
+                    callback_data=MemberAgencyCallbackData(
+                        agency_id=agency.id, action=MemberAgencyAction.SEE_TOTURIAL_CONTENT
+                    ).pack(),
+                ),
+                referlink_btn,
+            )
+        else:
+            ikbuilder.row(referlink_btn)
         ikbuilder.row(
             InlineKeyboardButton(
                 text=gettext("دریافت اکانت جدید"),
@@ -227,14 +246,12 @@ async def menu_handler(
                     agency_id=agency.id, action=MemberAgencyAction.LIST_AVAILABLE_PLANS
                 ).pack(),
             ),
-            referlink_btn,
         )
         subscriptionprofile_qs = (
             proxy_manager_models.SubscriptionProfile.objects.filter(user=user, initial_agency=agency)
             .ann_last_usage_at()
             .ann_last_sublink_at()
             .ann_current_period_fields()
-            .filter(current_created_at__isnull=False)
             .order_by("-current_created_at")
         )
 
@@ -243,7 +260,7 @@ async def menu_handler(
             ikbuilder.row(
                 InlineKeyboardButton(
                     text=gettext("اکانت های شما 👇"),
-                    callback_data=SimpleButtonCallbackData(button_name=SimpleButtonName.ACCOUNTS_ME).pack(),
+                    callback_data=SimpleButtonCallbackData(button_name=SimpleButtonName.DISPLAY_PLACEHOLDER).pack(),
                 ),
             )
             ikbuilder_profiles = InlineKeyboardBuilder()

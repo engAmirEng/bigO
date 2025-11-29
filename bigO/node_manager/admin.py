@@ -420,7 +420,9 @@ class EasyTierNodeModelAdmin(admin.ModelAdmin):
 
     @admin.display(ordering="network", description="Network")
     def network_display(self, obj):
-        return obj.network or format_html('<a href="{}">{}</a>', admin_obj_change_url(obj.network), str(obj.network))
+        return obj.network or format_html(
+            '<a href="{}">{}</a>', admin_obj_change_url(obj=obj.network), str(obj.network)
+        )
 
     @admin.display()
     def toml_config_display(self, obj):

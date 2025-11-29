@@ -16,14 +16,7 @@
 &nbsp;
 {{ payment.user }}
 {% if payment_tuser %}
-    {% if payment_tuser.tusername %}
-        &nbsp;@{{ payment_tuser.tusername }}
-        &nbsp;<a href="https://t.me/{{ payment_tuser.tusername }}">send message</a>
-        &nbsp;
-        {% digits_locale off %}
-        <a href="tg://user?id={{ payment_tuser.tid }}">id deep link</a>
-        {% enddigits_locale %}
-    {% endif %}
+    &nbsp;{% include "teleport/partials/mention.thtml" with tuser_obj=payment_tuser %}
 {% endif %}
 <br>
 {% for invoice_item in invoice.items.all %}

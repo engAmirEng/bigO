@@ -1,54 +1,35 @@
-import asyncio
 import re
 from enum import Enum
 from typing import Optional
 
-import sentry_sdk
 from asgiref.sync import sync_to_async
 
-import aiogram.exceptions
 import aiogram.utils.deep_linking
 import bigO.utils.models
 from aiogram import Bot
-from aiogram.filters import CommandStart
 from aiogram.filters.callback_data import CallbackData
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import (
     CallbackQuery,
-    ChatMemberUpdated,
     CopyTextButton,
     InlineQuery,
     InlineQueryResultArticle,
     InputTextMessageContent,
-    KeyboardButtonRequestChat,
     Message,
 )
 from aiogram.utils.keyboard import InlineKeyboardBuilder, InlineKeyboardButton, ReplyKeyboardBuilder
 from bigO.proxy_manager import models as proxy_manager_models
 from bigO.proxy_manager import services as proxy_manager_services
-from bigO.telegram_bot.dispatchers import AppRouter
+from bigO.telegram_bot import models as telegram_bot_models
 from bigO.telegram_bot.models import TelegramBot, TelegramUser
 from bigO.telegram_bot.utils import thtml_render_to_string
-from bigO.users.models import User
-from django.db.models import Exists, OuterRef, Q
 from django.http import QueryDict
-from django.utils import timezone
 from django.utils.translation import gettext
 
-from ....proxy_manager.subscription.planproviders import TypeSimpleDynamic1, TypeSimpleStrict1
 from ....users.models import User
 from ... import models, services
-from ..base import AgentAgencyAction, AgentAgencyCallbackData, SimpleButtonCallbackData, SimpleButtonName, router
-from ..utils import (
-    MASTER_PATH_FILTERS,
-    SUB_OWNER_PATH_FILTERS,
-    MasterBotFilter,
-    QueryPathName,
-    StartCommandQueryFilter,
-    get_dispatch_query,
-    query_magic_dispatcher,
-)
+from ..base import SimpleButtonCallbackData, SimpleButtonName, router
+from ..utils import QueryPathName, StartCommandQueryFilter, query_magic_dispatcher
 
 
 class AgentAgencyPlanAction(str, Enum):
@@ -185,10 +166,9 @@ async def inline_profiles_startlink_handler(
             bot_obj=bot_obj, subscription_profile=subscriptionprofile_obj
         )
         connect_text = gettext("جهت اتصال به اکانت خود از طریق این لینک وارد ربات شوید") + "\n" + startlink
-        msg = ""
         text = await thtml_render_to_string(
-            "teleport/member/subscription_profile_startlink.thtml",
-            context={"msg": msg, "subscriptionprofile": subscriptionprofile_obj},
+            "teleport/member/subscription_profile_overview.thtml",
+            context={"state": None, "subscriptionprofile": subscriptionprofile_obj},
         )
         text += connect_text
 
@@ -259,8 +239,17 @@ async def agent_manage_profile_handler(
             subscriptionprofile_obj = await subscriptionprofile_qs.aget(uuid=profile_uuid)
         else:
             subscriptionprofile_obj = await subscriptionprofile_qs.aget(id=profile_id)
+        subscriptionprofile_obj: proxy_manager_models.SubscriptionProfile
     except proxy_manager_models.SubscriptionProfile.DoesNotExist:
         return message.reply(gettext("پیدا نشد."))
+    all_user_accounts_list = []
+    if subscriptionprofile_obj.user:
+        all_user_accounts_list = [
+            i
+            async for i in proxy_manager_services.get_agent_current_subscriptionprofiled_qs(agent=agent_obj).filter(
+                user=subscriptionprofile_obj.user
+            )
+        ]
     ikbuilder = InlineKeyboardBuilder()
     ikbuilder.row(
         InlineKeyboardButton(
@@ -293,10 +282,38 @@ async def agent_manage_profile_handler(
             copy_text=CopyTextButton(text=normal_sublink + "?base64=true"),
         ),
     )
-    msg = gettext("خدمت شما")
+    ikbuilder.row(
+        InlineKeyboardButton(
+            text=gettext("ارسال به کاربر"), switch_inline_query=f"profiles status {subscriptionprofile_obj.uuid}"
+        ),
+    )
+    if len(all_user_accounts_list) > 1:
+        ikbuilder.row(
+            InlineKeyboardButton(
+                text=gettext("اکانت های دیگر این کاربر") + " 👇",
+                callback_data=SimpleButtonCallbackData(button_name=SimpleButtonName.DISPLAY_PLACEHOLDER).pack(),
+            )
+        )
+        ikbuilder_all_user_accounts = InlineKeyboardBuilder()
+        for i in all_user_accounts_list:
+            ikbuilder_all_user_accounts.button(
+                text=("✅" if (i == subscriptionprofile_obj) else "") + str(i),
+                callback_data=AgentAgencyProfileCallbackData(
+                    profile_id=i.id, action=AgentAgencyProfileAction.DETAIL
+                ).pack(),
+            )
+        ikbuilder_all_user_accounts.adjust(3, repeat=True)
+        ikbuilder.attach(ikbuilder_all_user_accounts)
+    if subscriptionprofile_obj.user:
+        profile_tuser = await telegram_bot_models.TelegramUser.objects.filter(
+            bot=bot_obj, user=subscriptionprofile_obj.user
+        ).afirst()
+    else:
+        profile_tuser = None
+
     text = await thtml_render_to_string(
-        "teleport/member/subscription_profile_startlink.thtml",
-        context={"msg": msg, "subscriptionprofile": subscriptionprofile_obj},
+        "teleport/agent/subscription_profile_overview.thtml",
+        context={"state": state, "subscriptionprofile": subscriptionprofile_obj, "profile_tuser": profile_tuser},
     )
     if isinstance(message, Message):
         return message.reply(text, reply_markup=ikbuilder.as_markup())

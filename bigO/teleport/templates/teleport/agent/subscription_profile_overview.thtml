@@ -1,0 +1,14 @@
+{% load tbot_widgets digits_locale %}
+{% digits_locale on %}
+{% trender_messages "teleport/partials/messages.thtml" %}
+{% if profile_tuser %}
+    &nbsp;{% include "teleport/partials/mention.thtml" with tuser_obj=profile_tuser %}
+{% else %}
+    {% if subscriptionprofile.user %}
+        {{ subscriptionprofile.user }}&nbsp;
+    {% endif %}
+    به ربات متصل نیست
+{% endif %}
+<br><br>
+{% include "teleport/partials/subscriptionperiod_status.thtml" %}
+{% enddigits_locale %}

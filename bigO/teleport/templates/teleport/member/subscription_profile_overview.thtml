@@ -1,6 +1,5 @@
-{% load digits_locale %}
+{% load tbot_widgets digits_locale %}
 {% digits_locale on %}
-{{ msg }}
-<br>
+{% trender_messages "teleport/partials/messages.thtml" %}
 {% include "teleport/partials/subscriptionperiod_status.thtml" %}
 {% enddigits_locale %}

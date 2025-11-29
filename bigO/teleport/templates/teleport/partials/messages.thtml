@@ -12,5 +12,8 @@
     {% endif %}
     {{ message.message }}
     <br>
+    {% if forloop.last %}
+    <br>
+    {% endif %}
 {% endfor %}
 {% enddigits_locale %}

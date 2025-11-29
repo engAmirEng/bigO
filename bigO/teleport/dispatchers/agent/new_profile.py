@@ -1,54 +1,24 @@
-import asyncio
-import re
-from enum import Enum
 from typing import Optional
 
-import sentry_sdk
 from asgiref.sync import sync_to_async
 
-import aiogram.exceptions
 import aiogram.utils.deep_linking
 from aiogram import Bot
-from aiogram.filters import CommandStart
-from aiogram.filters.callback_data import CallbackData
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import (
-    CallbackQuery,
-    ChatMemberUpdated,
-    InlineQuery,
-    InlineQueryResultArticle,
-    InputTextMessageContent,
-    KeyboardButtonRequestChat,
-    Message,
-)
+from aiogram.types import CallbackQuery, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder, InlineKeyboardButton, ReplyKeyboardBuilder
 from bigO.proxy_manager import models as proxy_manager_models
 from bigO.proxy_manager import services as proxy_manager_services
-from bigO.telegram_bot.dispatchers import AppRouter
+from bigO.proxy_manager.subscription.planproviders import TypeSimpleDynamic1, TypeSimpleStrict1
 from bigO.telegram_bot.models import TelegramBot, TelegramUser
-from bigO.telegram_bot.utils import thtml_render_to_string
-from bigO.users.models import User
-from django.db.models import Exists, OuterRef, Q
-from django.http import QueryDict
-from django.utils import timezone
+from bigO.telegram_bot.utils import add_message, thtml_render_to_string
+from django.contrib import messages
 from django.utils.translation import gettext
 
-from ....proxy_manager.subscription.planproviders import TypeSimpleDynamic1, TypeSimpleStrict1
-from ....users.models import User
-from ... import models, services
-from ..utils import (
-    MASTER_PATH_FILTERS,
-    SUB_OWNER_PATH_FILTERS,
-    MasterBotFilter,
-    QueryPathName,
-    StartCommandQueryFilter,
-    get_dispatch_query,
-    query_magic_dispatcher,
-)
+from ... import models
+from ..base import AgentAgencyAction, AgentAgencyCallbackData
 from .base import (
-    AgentAgencyAction,
-    AgentAgencyCallbackData,
     AgentAgencyPlanAction,
     AgentAgencyPlanCallbackData,
     SimpleButtonCallbackData,
@@ -273,15 +243,15 @@ async def agent_new_profile_plan_finalcheck_handler(
         agency=agency, agentuser=agent.user, plan=choosed_plan_obj, title="", plan_args=plan_args, description="fdfd"
     )
     subscriptionprofile_obj = subscriptionperiod_obj.profile
-    msg = gettext("باموفقیت ایجاد شد")
+    await add_message(state=state, level=messages.SUCCESS, message=gettext("باموفقیت ایجاد شد"))
     ikbuilder = InlineKeyboardBuilder()
     ikbuilder.button(
         text=gettext("مشاهده منو"),
         callback_data=SimpleButtonCallbackData(button_name=SimpleButtonName.MENU),
     )
     text = await thtml_render_to_string(
-        "teleport/member/subscription_profile_startlink.thtml",
-        context={"msg": msg, "subscriptionprofile": subscriptionprofile_obj},
+        "teleport/agent/subscription_profile_overview.thtml",
+        context={"state": state, "subscriptionprofile": subscriptionprofile_obj},
     )
 
     return message.answer(text, reply_markup=ikbuilder.as_markup())
