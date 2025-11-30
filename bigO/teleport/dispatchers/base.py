@@ -45,6 +45,7 @@ router = AppRouter(name="teleport", app_filter_callback=app_filter_callback)
 
 class SimpleButtonName(str, Enum):
     MENU = "menu"
+    NEW_MENU = "new_menu"
     NEW_ACCOUNT_ME = "new_account_me"
     DISPLAY_PLACEHOLDER = "display_placeholder"
 
@@ -116,6 +117,7 @@ def remove_state(fn):
 
 @remove_state
 @router.callback_query(SimpleButtonCallbackData.filter(aiogram.F.button_name == SimpleButtonName.MENU))
+@router.callback_query(SimpleButtonCallbackData.filter(aiogram.F.button_name == SimpleButtonName.NEW_MENU))
 @router.callback_query(AgentAgencyCallbackData.filter(aiogram.F.action == AgentAgencyAction.TO_AGENT_PANEL))
 @router.callback_query(AgentAgencyCallbackData.filter(aiogram.F.action == AgentAgencyAction.TO_MEMBER_PANEL))
 @router.message(CommandStart(magic=~aiogram.F.args))
@@ -126,7 +128,7 @@ async def menu_handler(
     aiobot: Bot,
     bot_obj: TelegramBot,
     panel_obj: models.Panel,
-    callback_data: AgentAgencyCallbackData | None = None,
+    callback_data: AgentAgencyCallbackData | SimpleButtonCallbackData | None = None,
 ) -> Optional[aiogram.methods.TelegramMethod]:
     agency = panel_obj.agency
     if tuser is None or tuser.user is None:
@@ -284,4 +286,7 @@ async def menu_handler(
     if isinstance(message, Message):
         return message.answer(text, reply_markup=ikbuilder.as_markup())
     else:
+        if isinstance(callback_data, SimpleButtonCallbackData):
+            if callback_data.button_name == SimpleButtonName.NEW_MENU:
+                return message.message.answer(text, reply_markup=ikbuilder.as_markup())
         return message.message.edit_text(text, reply_markup=ikbuilder.as_markup())

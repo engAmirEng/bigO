@@ -543,8 +543,8 @@ async def tmp_return_bill(*, message, bill_id, useragency, user, state, bot_obj)
     ikbuilder = InlineKeyboardBuilder()
     ikbuilder.row(
         InlineKeyboardButton(
-            text="❌ " + gettext("انصراف"),
-            callback_data=MemberBillCallbackData(bill_id=invoice.id, action=MemberBillAction.CANCEL).pack(),
+            text=gettext("منو"),
+            callback_data=SimpleButtonCallbackData(button_name=SimpleButtonName.NEW_MENU),
         ),
         InlineKeyboardButton(
             text="🔄 " + gettext("بروزرسانی وضعیت"),
@@ -610,13 +610,13 @@ async def new_billoverview_handler(
             return message.answer(gettext("درگاه فعالی وجود ندارد، با ادمین تماس بگیرید"))
         changed = await sync_to_async(proxy_manager_services.member_prepare_checkout)(invoice)
         if changed:
-            await add_message(state=state, level=messages.INFO, message=gettext("تغییر یافت شدس"))
+            await add_message(state=state, level=messages.INFO, message=gettext("تغییر یافت شد"))
         await state.clear()
         ikbuilder = InlineKeyboardBuilder()
         ikbuilder.row(
             InlineKeyboardButton(
-                text="❌ " + gettext("انصراف"),
-                callback_data=MemberBillCallbackData(bill_id=invoice.id, action=MemberBillAction.CANCEL).pack(),
+                text=gettext("منو"),
+                callback_data=SimpleButtonCallbackData(button_name=SimpleButtonName.NEW_MENU),
             ),
             InlineKeyboardButton(
                 text="🔄 " + gettext("بروزرسانی وضعیت"),
@@ -644,8 +644,8 @@ async def new_billoverview_handler(
     ikbuilder = InlineKeyboardBuilder()
     ikbuilder.row(
         InlineKeyboardButton(
-            text="❌ " + gettext("انصراف"),
-            callback_data=MemberBillCallbackData(bill_id=invoice.id, action=MemberBillAction.CANCEL).pack(),
+            text=gettext("منو"),
+            callback_data=SimpleButtonCallbackData(button_name=SimpleButtonName.NEW_MENU),
         ),
         InlineKeyboardButton(
             text="🔄 " + gettext("بروزرسانی وضعیت"),
