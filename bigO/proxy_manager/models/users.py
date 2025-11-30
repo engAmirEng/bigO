@@ -338,6 +338,9 @@ class SubscriptionProfile(TimeStampedModel, models.Model):
     def last_usage_at(self, value):
         self._last_usage_at = value
 
+    def is_online(self):
+        return self.last_usage_at and ((timezone.now() - self.last_usage_at) < datetime.timedelta(minutes=2))
+
     def get_sublink(self):
         if self.initial_agency.sublink_host:
             domain = self.initial_agency.sublink_host.name

@@ -5,7 +5,7 @@
     {% digits_locale off %}
     <code>{{ subscriptionprofile.title|safe }}</code>
     {% enddigits_locale %}
-    &nbsp;({% if subscriptionprofile.is_alive %}آنلاین🟢{% elif subscriptionprofile.last_usage_at %}آخرین اتصال: {{ subscriptionprofile.last_usage_at|naturaltime }}{% else %}تاکنون متصل نشده اید{% endif %})
+    &nbsp;({% if subscriptionprofile.is_online %}آنلاین🟢{% elif subscriptionprofile.last_usage_at %}آخرین اتصال: {{ subscriptionprofile.last_usage_at|naturaltime }}{% else %}تاکنون متصل نشده اید{% endif %})
     <br>
     📅{{ subscriptionprofile.current_expires_at|time_format:"%Y/%m/%d" }} ({{ subscriptionprofile.current_expires_at|naturaltime }})
     <br>
