@@ -544,7 +544,7 @@ async def tmp_return_bill(*, message, bill_id, useragency, user, state, bot_obj)
     ikbuilder.row(
         InlineKeyboardButton(
             text=gettext("منو"),
-            callback_data=SimpleButtonCallbackData(button_name=SimpleButtonName.NEW_MENU),
+            callback_data=SimpleButtonCallbackData(button_name=SimpleButtonName.NEW_MENU).pack(),
         ),
         InlineKeyboardButton(
             text="🔄 " + gettext("بروزرسانی وضعیت"),
@@ -616,7 +616,7 @@ async def new_billoverview_handler(
         ikbuilder.row(
             InlineKeyboardButton(
                 text=gettext("منو"),
-                callback_data=SimpleButtonCallbackData(button_name=SimpleButtonName.NEW_MENU),
+                callback_data=SimpleButtonCallbackData(button_name=SimpleButtonName.NEW_MENU).pack(),
             ),
             InlineKeyboardButton(
                 text="🔄 " + gettext("بروزرسانی وضعیت"),
@@ -645,7 +645,7 @@ async def new_billoverview_handler(
     ikbuilder.row(
         InlineKeyboardButton(
             text=gettext("منو"),
-            callback_data=SimpleButtonCallbackData(button_name=SimpleButtonName.NEW_MENU),
+            callback_data=SimpleButtonCallbackData(button_name=SimpleButtonName.NEW_MENU).pack(),
         ),
         InlineKeyboardButton(
             text="🔄 " + gettext("بروزرسانی وضعیت"),
