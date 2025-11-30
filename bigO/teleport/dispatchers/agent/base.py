@@ -170,7 +170,7 @@ async def inline_profiles_startlink_handler(
             "teleport/member/subscription_profile_overview.thtml",
             context={"state": None, "subscriptionprofile": subscriptionprofile_obj},
         )
-        text += connect_text
+        text += ("\n" + connect_text)
 
         ikbuilder = InlineKeyboardBuilder()
         normal_sublink = await sync_to_async(subscriptionprofile_obj.get_sublink)()
