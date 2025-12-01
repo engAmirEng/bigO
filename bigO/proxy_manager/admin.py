@@ -135,6 +135,7 @@ class ReferLinkInline(admin.StackedInline):
     extra = 0
     model = models.ReferLink
     ordering = ("created_at",)
+    show_change_link = True
 
 
 @admin.register(models.AgencyUser)
@@ -741,6 +742,7 @@ class SubscriptionPlanInvoiceItemModelAdmin(polymorphic.admin.PolymorphicChildMo
         "plan",
         "total_price",
     )
+    autocomplete_fields = ("created_by", "replacement", "apply_to", "issued_for", "issued_for", "delivered_period")
 
 
 @admin.register(models.AgencyPaymentType)
