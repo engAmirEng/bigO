@@ -691,11 +691,20 @@ async def member_initpaybill_handler(
         .filter(invoice_id=bill_id, issued_to=useragency)
         .afirst()
     )
-    invoice = subscriptionplaninvoiceitem_obj.invoice
     if subscriptionplaninvoiceitem_obj is None:
         return
+    invoice = subscriptionplaninvoiceitem_obj.invoice
     if invoice.status != finance_models.Invoice.StatusChoices.ISSUED:
-        if invoice.status != finance_models.Invoice.StatusChoices.PAID:
+        if invoice.status == finance_models.Invoice.StatusChoices.PAID:
+            return await new_billoverview_handler(
+                message=message,
+                callback_data=MemberBillCallbackData(bill_id=invoice.id, action=MemberBillAction.OVERVIEW),
+                tuser=tuser,
+                state=state,
+                aiobot=aiobot,
+                bot_obj=bot_obj,
+                panel_obj=panel_obj)
+        else:
             return message.answer(
                 gettext(("امکان پذیر نیست، این صورت حساب در وضعیت {0} قرار دارد")).format(invoice.get_status_display())
             )
