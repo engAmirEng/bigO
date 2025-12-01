@@ -261,7 +261,7 @@ async def menu_handler(
         if subscriptionprofiles:
             ikbuilder.row(
                 InlineKeyboardButton(
-                    text=gettext("اکانت های شما 👇"),
+                    text=gettext("اکانت های شما (شارژ و..)👇"),
                     callback_data=SimpleButtonCallbackData(button_name=SimpleButtonName.DISPLAY_PLACEHOLDER).pack(),
                 ),
             )

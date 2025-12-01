@@ -141,7 +141,6 @@ async def new_profile_me_handler(
     bot_obj: TelegramBot,
     panel_obj: models.Panel,
 ) -> Optional[aiogram.methods.TelegramMethod]:
-    await state.clear()
     agency = panel_obj.agency
     useragency = (
         await proxy_manager_models.AgencyUser.objects.filter(
@@ -703,7 +702,8 @@ async def member_initpaybill_handler(
                 state=state,
                 aiobot=aiobot,
                 bot_obj=bot_obj,
-                panel_obj=panel_obj)
+                panel_obj=panel_obj,
+            )
         else:
             return message.answer(
                 gettext(("امکان پذیر نیست، این صورت حساب در وضعیت {0} قرار دارد")).format(invoice.get_status_display())

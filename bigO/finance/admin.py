@@ -14,7 +14,14 @@ class InvoiceItemInline(polymorphic.admin.StackedPolymorphicInline):
 
         class SubscriptionPlanInvoiceItemInline(polymorphic.admin.StackedPolymorphicInline.Child):
             model = SubscriptionPlanInvoiceItem
-            autocomplete_fields = ("created_by", "replacement", "apply_to", "issued_for", "issued_for", "delivered_period")
+            autocomplete_fields = (
+                "created_by",
+                "replacement",
+                "apply_to",
+                "issued_for",
+                "issued_for",
+                "delivered_period",
+            )
             show_change_link = True
 
         return (SubscriptionPlanInvoiceItemInline,)
