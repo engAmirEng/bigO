@@ -35,6 +35,7 @@ network_name = "{{ easytier_node_obj.network.network_name }}"
 network_secret = "{{ easytier_node_obj.network.network_secret }}"
 
 [flags]
+private_mode = true
 dev_name = "network_{{ easytier_node_obj.network_id }}"
 no_tun = {% if ipv4 %}false{% else %}true{% endif %}
 latency_first = {% if easytier_node_obj.latency_first %}true{% else %}false{% endif %}
