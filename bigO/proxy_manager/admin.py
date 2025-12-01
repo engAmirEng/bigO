@@ -742,7 +742,7 @@ class SubscriptionPlanInvoiceItemModelAdmin(polymorphic.admin.PolymorphicChildMo
         "plan",
         "total_price",
     )
-    autocomplete_fields = ("created_by", "replacement", "apply_to", "issued_for", "issued_for", "delivered_period")
+    autocomplete_fields = ("created_by", "replacement", "apply_to", "issued_for", "issued_to", "delivered_period")
 
 
 @admin.register(models.AgencyPaymentType)
