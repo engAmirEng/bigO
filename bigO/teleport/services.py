@@ -182,51 +182,52 @@ async def near_end_periods_notify(sender, periods_qs: QuerySet[proxy_manager_mod
         agency_periods_qs = (
             periods_qs.filter(profile__initial_agency=panel.agency).select_related("profile__user").ann_total_limit_bytes()
         )
-        aiobot = panel.bot.get_aiobot()
         sent_periods_ids = set()
         admin_txt_list = []
-        async for period in agency_periods_qs:
-            period: proxy_manager_models.SubscriptionPeriod
-            profile_tuser = None
-            if period.profile and period.profile.user:
-                profile_tuser = await telegram_bot_models.TelegramUser.objects.filter(user=period.profile.user, bot=panel.bot).afirst()
-            if profile_tuser and period.profile.send_notifications and panel.member_subscription_notif:
-                a = f"send_member_period_notif_{period.id}"
-                send_member_period_notif = cache.get(a)
-                if send_member_period_notif is None:
-                    normal_sublink = await sync_to_async(period.profile.get_sublink)()
-                    ikbuilder = InlineKeyboardBuilder()
-                    keyboard_layouts.ik_member_overview_layout(
-                        ikbuilder=ikbuilder,
-                        subscriptionprofile_id=period.profile.id,
-                        agency_id=panel.agency_id,
-                        normal_sublink=normal_sublink,
+        async with AiohttpSession() as session:
+            aiobot = panel.bot.get_aiobot(session=session)
+            async for period in agency_periods_qs:
+                period: proxy_manager_models.SubscriptionPeriod
+                profile_tuser = None
+                if period.profile and period.profile.user:
+                    profile_tuser = await telegram_bot_models.TelegramUser.objects.filter(user=period.profile.user, bot=panel.bot).afirst()
+                if profile_tuser and period.profile.send_notifications and panel.member_subscription_notif:
+                    a = f"send_member_period_notif_{period.id}"
+                    send_member_period_notif = cache.get(a)
+                    if send_member_period_notif is None:
+                        normal_sublink = await sync_to_async(period.profile.get_sublink)()
+                        ikbuilder = InlineKeyboardBuilder()
+                        keyboard_layouts.ik_member_overview_layout(
+                            ikbuilder=ikbuilder,
+                            subscriptionprofile_id=period.profile.id,
+                            agency_id=panel.agency_id,
+                            normal_sublink=normal_sublink,
+                        )
+                        text = await thtml_render_to_string(
+                            "teleport/member/subscription_profile_overview.thtml",
+                            context={"state": None, "subscriptionperiod": period},
+                        )
+                        await aiobot.send_message(chat_id=profile_tuser.tid, text=text, reply_markup=ikbuilder.as_markup())
+                        cache.set(a, True, timeout=30 * 60)
+                        sent_periods_ids.add(period.id)
+                admin_txt_list.append(
+                    "\n"
+                    + await thtml_render_to_string(
+                        "teleport/agent/subscription_profile_overview.thtml",
+                        context={"state": None, "subscriptionperiod": period, "profile_tuser": profile_tuser},
                     )
-                    text = await thtml_render_to_string(
-                        "teleport/member/subscription_profile_overview.thtml",
-                        context={"state": None, "subscriptionperiod": period},
-                    )
-                    await aiobot.send_message(chat_id=profile_tuser.tid, text=text, reply_markup=ikbuilder.as_markup())
-                    cache.set(a, True, timeout=30 * 60)
-                    sent_periods_ids.add(period.id)
-            admin_txt_list.append(
-                "\n"
-                + await thtml_render_to_string(
-                    "teleport/agent/subscription_profile_overview.thtml",
-                    context={"state": None, "subscriptionperiod": period, "profile_tuser": profile_tuser},
                 )
+            admin_texts_list = [admin_txt_list[i : i + 5] for i in range(0, len(admin_txt_list), 5)]
+            qs2 = telegram_bot_models.TelegramUser.objects.filter(bot=panel.bot, user=OuterRef("user"))
+            agents = proxy_manager_models.Agent.objects.filter(agency=panel.agency, is_active=True).annotate(
+                tid=Subquery(qs2.values("tid"))
             )
-        admin_texts_list = [admin_txt_list[i : i + 5] for i in range(0, len(admin_txt_list), 5)]
-        qs2 = telegram_bot_models.TelegramUser.objects.filter(bot=panel.bot, user=OuterRef("user"))
-        agents = proxy_manager_models.Agent.objects.filter(agency=panel.agency, is_active=True).annotate(
-            tid=Subquery(qs2.values("tid"))
-        )
-        async for agent in agents.filter(tid__isnull=False):
-            for i, admin_texts in enumerate(admin_texts_list):
-                await aiobot.send_message(
-                    chat_id=agent.tid,
-                    text=("\n" + "-" * 10).join(admin_texts) + f"\n\n{i + 1} / {len(admin_texts_list)}",
-                )
+            async for agent in agents.filter(tid__isnull=False):
+                for i, admin_texts in enumerate(admin_texts_list):
+                    await aiobot.send_message(
+                        chat_id=agent.tid,
+                        text=("\n" + "-" * 10).join(admin_texts) + f"\n\n{i + 1} / {len(admin_texts_list)}",
+                    )
     timezone.activate(current_timezone)
     translation.activate(current_language)
     calander_type.activate(current_calendar_type)
