@@ -17,6 +17,19 @@
     {% elif subscriptionprofile.current_limit_passed_type == "expired" %}
         <br><br><strong>❗️ سرویس منقضی شده است</strong>
     {% endif %}
+{% elif subscriptionperiod %}
+    {% if subscriptionperiod.limit_passed_type or not subscriptionperiod.profile.is_active %}❌{% endif %}
+    {% digits_locale off %}
+    <code>{{ subscriptionperiod.profile.title|safe }}</code>
+    {% enddigits_locale %}
+    &nbsp;({% if subscriptionperiod.is_alive %}آنلاین🟢{% elif subscriptionperiod.last_usage_at %}آخرین اتصال: {{ subscriptionperiod.last_usage_at|naturaltime }}{% else %}تاکنون متصل نشده اید{% endif %})
+    <br>
+    📅{{ subscriptionperiod.expires_at|time_format:"%Y/%m/%d" }} ({{ subscriptionperiod.expires_at|naturaltime }})
+    <br>
+    {{ subscriptionperiod.current_download_bytes|add:subscriptionperiod.current_upload_bytes|filesize }} / {{ subscriptionperiod.total_limit_bytes|filesize }}
+    <br>
+    {% progress_bar current=subscriptionperiod.current_download_bytes|add:subscriptionperiod.current_upload_bytes total=subscriptionperiod.total_limit_bytes %}
+    {% include "teleport/partials/period_end_limit.thtml" with subscriptionperiod=subscriptionperiod %}
 {% else %}
     {% digits_locale off %}
     <code>{{ subscriptionprofile.title|safe }}</code>

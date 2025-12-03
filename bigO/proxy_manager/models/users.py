@@ -159,30 +159,35 @@ class SubscriptionPeriod(TimeStampedModel, models.Model):
                 whens.append(When(plan__plan_provider_key=i.TYPE_IDENTIFIER, then=ann_expr))
             return self.annotate(total_limit_bytes=Case(*whens, output_field=models.PositiveBigIntegerField()))
 
-        def ann_limit_passed_type(self):
+        def ann_limit_passed_type(self, base_bytes=0, base_time=None):
+            ann_name = "limit_passed_type" if (base_bytes == 0 and base_time is None) else "near_limit_passed_type"
+            base_time = base_time or timezone.now()
             return (
                 self.ann_expires_at()
                 .ann_dl_bytes_remained()
                 .ann_up_bytes_remained()
                 .annotate(
-                    limit_passed_type=Case(
-                        When(
-                            condition=Q(Q(up_bytes_remained__lte=0) | Q(dl_bytes_remained__lte=0)),
-                            then=Value("traffic_limit"),
-                        ),
-                        When(
-                            condition=Q(expires_at__lt=timezone.now()),
-                            then=Value("expired"),
-                        ),
-                        default=Value(None),
-                    )
+                    **{
+                        ann_name: Case(
+                            When(
+                                condition=Q(
+                                    Q(up_bytes_remained__lte=base_bytes) | Q(dl_bytes_remained__lte=base_bytes)
+                                ),
+                                then=Value("traffic_limit"),
+                            ),
+                            When(
+                                condition=Q(expires_at__lt=base_time),
+                                then=Value("expired"),
+                            ),
+                            default=Value(None),
+                        )
+                    }
                 )
             )
 
     plan = models.ForeignKey("SubscriptionPlan", on_delete=models.PROTECT, related_name="+")
     plan_args = models.JSONField(null=True, blank=True)
     profile = models.ForeignKey("SubscriptionProfile", on_delete=models.PROTECT, related_name="periods")
-    invoice = models.ForeignKey("finance.Invoice", on_delete=models.PROTECT, related_name="+", null=True, blank=True)
 
     selected_as_current = models.BooleanField()
 
@@ -307,6 +312,7 @@ class SubscriptionProfile(TimeStampedModel, models.Model):
     title = models.CharField(max_length=127)
     uuid = models.UUIDField(unique=True)
     user = models.ForeignKey("users.User", on_delete=models.PROTECT, null=True, blank=True)
+    send_notifications = models.BooleanField(default=True)
     xray_uuid = models.UUIDField(blank=True, unique=True)
     description = models.TextField(max_length=4095, null=True, blank=True)
     is_active = models.BooleanField()

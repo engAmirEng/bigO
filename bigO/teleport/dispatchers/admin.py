@@ -1,41 +1,25 @@
-from enum import Enum
 from typing import Optional
 
 from asgiref.sync import sync_to_async
 
 import aiogram.utils.deep_linking
 from aiogram import Bot
-from aiogram.filters.callback_data import CallbackData
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery, CopyTextButton, Message
-from aiogram.utils.keyboard import InlineKeyboardBuilder, InlineKeyboardButton, ReplyKeyboardBuilder
-from bigO.BabyUI import services as BabyUI_services
+from aiogram.types import CallbackQuery
+from aiogram.utils.keyboard import InlineKeyboardBuilder, InlineKeyboardButton
 from bigO.finance import models as finance_models
-from bigO.finance.payment_providers.providers import BankTransfer1
-from bigO.proxy_manager import models as proxy_manager_models
-from bigO.proxy_manager import services as proxy_manager_services
-from bigO.proxy_manager.subscription.planproviders import TypeSimpleDynamic1, TypeSimpleStrict1
 from bigO.telegram_bot.models import TelegramBot, TelegramUser
 from bigO.telegram_bot.utils import add_message, thtml_render_to_string
 from bigO.users.models import User
 from django.contrib import messages
-from django.http import QueryDict
 from django.utils.translation import gettext
 
 from .. import models, services
-from .base import (
-    MemberAgencyAction,
-    MemberAgencyCallbackData,
-    MemberAgencyProfileAction,
-    MemberAgencyProfileCallbackData,
+from ..types import (
     MemberBillAction,
     MemberBillCallbackData,
-    SimpleBoolCallbackData,
-    SimpleButtonCallbackData,
-    SimpleButtonName,
-    router,
 )
+from .base import router
 
 
 @router.callback_query(services.AdminBankTransfer1CallbackData.filter())

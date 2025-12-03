@@ -12,10 +12,10 @@ from bigO.node_manager import models as node_manager_models
 from config.celery_app import app
 from django.conf import settings
 from django.db import transaction
-from django.db.models import F, Q
+from django.db.models import Count, F, Q
 from django.utils import timezone
 
-from . import models, services
+from . import models, services, subscription
 
 
 @app.task
@@ -234,3 +234,24 @@ def handle_xray_conf(node_id: int, xray_lines: str, base_labels: dict[str, Any])
             )
         ) as _write_client:
             _write_client.write(settings.INFLUX_BUCKET, settings.INFLUX_ORG, points)
+
+
+@app.task
+def subscription_nearly_ended_notify(remained_seconds: int, remained_bytes: int, last_usage_margin_seconds: int):
+    now = timezone.now()
+    base_time = now + timedelta(seconds=remained_seconds)
+    near_end_periods_qs = (
+        models.SubscriptionPeriod.objects.filter(
+            selected_as_current=True, last_usage_at__gt=now - timedelta(seconds=last_usage_margin_seconds)
+        )
+        .ann_limit_passed_type(base_bytes=remained_bytes, base_time=base_time)
+        .ann_limit_passed_type()
+        .filter(near_limit_passed_type__isnull=False)
+    )
+    if not near_end_periods_qs.exists():
+        return "nothing"
+    subscription.subscription_near_end_signal.send(
+        sender=subscription_nearly_ended_notify, periods_qs=near_end_periods_qs
+    )
+    res = near_end_periods_qs.order_by().values("profile__initial_agency").annotate(count=Count("id"))
+    return res[0]
