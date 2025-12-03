@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 from asgiref.sync import async_to_sync, sync_to_async
 
+from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.filters.callback_data import CallbackData
 from aiogram.types import InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
