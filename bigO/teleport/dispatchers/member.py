@@ -27,8 +27,8 @@ from django.db.models import Exists, OuterRef, Q
 from django.http import QueryDict
 from django.utils.translation import gettext
 
-from .. import models, services
-from .base import (
+from .. import keyboard_layouts, models, services
+from ..types import (
     MemberAgencyAction,
     MemberAgencyCallbackData,
     MemberAgencyProfileAction,
@@ -38,8 +38,8 @@ from .base import (
     SimpleBoolCallbackData,
     SimpleButtonCallbackData,
     SimpleButtonName,
-    router,
 )
+from .base import router
 from .utils import QueryPathName, StartCommandQueryFilter, query_magic_dispatcher
 
 
@@ -984,60 +984,13 @@ async def my_account_detail_handler(
         ).aget(id=profile_id)
     except proxy_manager_models.SubscriptionProfile.DoesNotExist:
         return message.answer(gettext("اکانت یافت نشد."))
-
-    ikbuilder = InlineKeyboardBuilder()
-    ikbuilder.row(
-        InlineKeyboardButton(
-            text="🔙 " + gettext("بازکشت به منو"),
-            callback_data=SimpleButtonCallbackData(button_name=SimpleButtonName.MENU).pack(),
-        ),
-        InlineKeyboardButton(
-            text="🔄 Refresh",
-            callback_data=MemberAgencyProfileCallbackData(
-                profile_id=subscriptionprofile_obj.id, action=MemberAgencyProfileAction.DETAIL
-            ).pack(),
-        ),
-    )
-    ikbuilder.row(
-        InlineKeyboardButton(
-            text="💳 " + gettext("شارژ این اکانت"),
-            callback_data=MemberAgencyProfileCallbackData(
-                profile_id=subscriptionprofile_obj.id, action=MemberAgencyProfileAction.LIST_AVAILABLE_PLANS
-            ).pack(),
-        ),
-    )
-    ikbuilder.row(
-        InlineKeyboardButton(
-            text="📚 " + gettext("نحوه اتصال"),
-            callback_data=MemberAgencyCallbackData(
-                agency_id=agency.id, action=MemberAgencyAction.SEE_TOTURIAL_CONTENT
-            ).pack(),
-        ),
-    )
     normal_sublink = await sync_to_async(subscriptionprofile_obj.get_sublink)()
-    ikbuilder.row(
-        InlineKeyboardButton(
-            text="⚿ " + gettext("کپی لینک اشتراک اندروید"),
-            copy_text=CopyTextButton(text=normal_sublink),
-        ),
-        InlineKeyboardButton(
-            text="⚿ " + gettext("کپی لینک اشتراک ios"),
-            copy_text=CopyTextButton(text=normal_sublink + "?base64=true"),
-        ),
-    )
-    ikbuilder.row(
-        InlineKeyboardButton(
-            text="🔐 " + gettext("عوض کردن رمز اتصال"),
-            callback_data=MemberAgencyProfileCallbackData(
-                profile_id=subscriptionprofile_obj.id, action=MemberAgencyProfileAction.PASS_CHANGE
-            ).pack(),
-        ),
-        InlineKeyboardButton(
-            text="🎁 " + gettext("هدیه به دوست"),
-            callback_data=MemberAgencyProfileCallbackData(
-                profile_id=subscriptionprofile_obj.id, action=MemberAgencyProfileAction.TRANSFER_TO_ANOTHER
-            ).pack(),
-        ),
+    ikbuilder = InlineKeyboardBuilder()
+    keyboard_layouts.ik_member_overview_layout(
+        ikbuilder=ikbuilder,
+        subscriptionprofile_id=subscriptionprofile_obj.id,
+        agency_id=agency.id,
+        normal_sublink=normal_sublink,
     )
 
     text = await thtml_render_to_string(

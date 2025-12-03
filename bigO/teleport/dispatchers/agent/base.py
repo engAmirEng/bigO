@@ -28,7 +28,8 @@ from django.utils.translation import gettext
 
 from ....users.models import User
 from ... import models, services
-from ..base import SimpleButtonCallbackData, SimpleButtonName, router
+from ...types import SimpleButtonCallbackData, SimpleButtonName
+from ..base import router
 from ..utils import QueryPathName, StartCommandQueryFilter, query_magic_dispatcher
 
 
@@ -165,7 +166,7 @@ async def inline_profiles_startlink_handler(
         startlink = services.get_subscription_profile_startlink(
             bot_obj=bot_obj, subscription_profile=subscriptionprofile_obj
         )
-        connect_text = gettext("جهت اتصال به اکانت خود از طریق این لینک وارد ربات شوید") + "\n" + startlink
+        connect_text = gettext("جهت مدیریت اکانت خود (تمدید، شارژ و...) از طریق دکمه 'ورود به ربات' وارد شوید.")
         text = await thtml_render_to_string(
             "teleport/member/subscription_profile_overview.thtml",
             context={"state": None, "subscriptionprofile": subscriptionprofile_obj},
@@ -174,6 +175,12 @@ async def inline_profiles_startlink_handler(
 
         ikbuilder = InlineKeyboardBuilder()
         normal_sublink = await sync_to_async(subscriptionprofile_obj.get_sublink)()
+        ikbuilder.row(
+            InlineKeyboardButton(
+                text="🔗 " + gettext("ورود به ربات"),
+                url=startlink,
+            )
+        )
         ikbuilder.row(
             InlineKeyboardButton(
                 text="⚿ " + gettext("کپی لینک اشتراک اندروید"),

@@ -25,3 +25,9 @@ class TeleportConfig(AppConfig):
         BankTransfer1.pend_request.connect(
             services.bank_transfer1_pend, dispatch_uid=f"{BankTransfer1.TYPE_IDENTIFIER}_{self.name}"
         )
+
+        from bigO.proxy_manager import subscription
+
+        subscription.subscription_near_end_signal.connect(
+            services.near_end_periods_notify, dispatch_uid=f"subscription_near_end_signal_{self.name}"
+        )

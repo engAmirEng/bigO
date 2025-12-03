@@ -17,14 +17,8 @@ from django.contrib import messages
 from django.utils.translation import gettext
 
 from ... import models
-from ..base import AgentAgencyAction, AgentAgencyCallbackData
-from .base import (
-    AgentAgencyPlanAction,
-    AgentAgencyPlanCallbackData,
-    SimpleButtonCallbackData,
-    SimpleButtonName,
-    router,
-)
+from ...types import AgentAgencyAction, AgentAgencyCallbackData, SimpleButtonCallbackData, SimpleButtonName
+from .base import AgentAgencyPlanAction, AgentAgencyPlanCallbackData, router
 
 
 @router.callback_query(AgentAgencyCallbackData.filter(aiogram.F.action == AgentAgencyAction.NEW_PROFILE))
