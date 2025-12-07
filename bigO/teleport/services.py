@@ -181,7 +181,9 @@ async def near_end_periods_notify(sender, periods_qs: QuerySet[proxy_manager_mod
 
         panel: models.Panel
         agency_periods_qs = (
-            periods_qs.filter(profile__initial_agency=panel.agency).select_related("profile__user").ann_total_limit_bytes()
+            periods_qs.filter(profile__initial_agency=panel.agency)
+            .select_related("profile__user")
+            .ann_total_limit_bytes()
         )
         sent_periods_ids = set()
         admin_txt_list = []
@@ -191,7 +193,9 @@ async def near_end_periods_notify(sender, periods_qs: QuerySet[proxy_manager_mod
                 period: proxy_manager_models.SubscriptionPeriod
                 profile_tuser = None
                 if period.profile and period.profile.user:
-                    profile_tuser = await telegram_bot_models.TelegramUser.objects.filter(user=period.profile.user, bot=panel.bot).afirst()
+                    profile_tuser = await telegram_bot_models.TelegramUser.objects.filter(
+                        user=period.profile.user, bot=panel.bot
+                    ).afirst()
                 if profile_tuser and period.profile.send_notifications and panel.member_subscription_notif:
                     a = f"send_member_period_notif_{period.id}"
                     send_member_period_notif = cache.get(a)
@@ -208,7 +212,9 @@ async def near_end_periods_notify(sender, periods_qs: QuerySet[proxy_manager_mod
                             "teleport/member/subscription_profile_overview.thtml",
                             context={"state": None, "subscriptionperiod": period},
                         )
-                        await aiobot.send_message(chat_id=profile_tuser.tid, text=text, reply_markup=ikbuilder.as_markup())
+                        await aiobot.send_message(
+                            chat_id=profile_tuser.tid, text=text, reply_markup=ikbuilder.as_markup()
+                        )
                         cache.set(a, True, timeout=30 * 60)
                         sent_periods_ids.add(period.id)
                 admin_txt_list.append(

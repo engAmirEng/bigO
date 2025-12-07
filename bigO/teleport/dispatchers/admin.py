@@ -15,10 +15,7 @@ from django.contrib import messages
 from django.utils.translation import gettext
 
 from .. import models, services
-from ..types import (
-    MemberBillAction,
-    MemberBillCallbackData,
-)
+from ..types import MemberBillAction, MemberBillCallbackData
 from .base import router
 
 
