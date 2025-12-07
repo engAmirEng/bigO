@@ -24,3 +24,7 @@ CERTBOT_CONFIG_DIR = pathlib.Path(settings.MEDIA_ROOT) / "protected" / "certbot"
 # ansible
 # ------------------------------------------------------------------------------
 ANSIBLE_WORKING_DIR = pathlib.Path(settings.MEDIA_ROOT) / "protected" / "ansible"
+
+# ------------------------------------------------------------------------------
+# dbconn_retrydbconn_retry
+MAX_DBCONN_RETRY_TIMES = env.int("MAX_DBCONN_RETRY_TIMES", default=0)

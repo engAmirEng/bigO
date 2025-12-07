@@ -2,14 +2,20 @@ from django.apps import AppConfig
 from django.utils.translation import gettext_lazy as _
 
 
-class TeleportConfig(AppConfig):
+class UtilsConfig(AppConfig):
     name = "bigO.utils"
     verbose_name = _("Utils")
 
     def ready(self):
+        from django.conf import settings
         from django.template import base
 
         base.render_value_in_context = new_render_value_in_context
+
+        if settings.MAX_DBCONN_RETRY_TIMES:
+            from bigO.utils import db_conn_retry
+
+            db_conn_retry.monkeypatch_django()
 
 
 def new_render_value_in_context(value, context):

@@ -17,6 +17,8 @@ PLUGGABLES=DEBUG_TOOLBAR,NO_PASS_VALIDATION,SERVE_STATICFILES
 #CONN_MAX_AGE=
 # {bool, default to false}
 #GRAPHIQL=
+# {int, default to 0}
+#MAX_DBCONN_RETRY_TIMES=
 # {int, default to 1}
 #MAX_LOG_FILE_COUNT=
 # {path, default to telegram-webhook}
