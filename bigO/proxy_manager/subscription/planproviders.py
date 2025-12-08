@@ -174,6 +174,12 @@ class TypeSimpleAsYouGO1(BaseSubscriptionPlanProvider):
     class PlanArgsModel(pydantic.BaseModel):
         paid_bytes: int
 
+        def title(self, currency):
+            return None
+
+        def verbose_title(self):
+            return None
+
     def calc_init_price(self):
         price_amount = Decimal(self.provider_args.pre_gb_pay) * self.provider_args.per_gb_price
         price = Money(amount=price_amount, currency=self.currency)
@@ -190,18 +196,18 @@ class TypeSimpleAsYouGO1(BaseSubscriptionPlanProvider):
         qs = (
             models.MemberCredit.objects.filter(
                 Q(agency_user__user=OuterRef("profile__user"), agency_user__agency=OuterRef("profile__initial_agency"))
-                & Q(Q(credit__currency=OuterRef("currency")) | Q(debt__currency=OuterRef("currency")))
+                & Q(Q(credit_currency=OuterRef("plan__base_currency")) | Q(debt_currency=OuterRef("plan__base_currency")))
             )
             .order_by()
             .values("agency_user")
-            .annotate(current_credit=Sum("credit") - Sum("debt"))
+            .annotate(balance=Sum("credit") - Sum("debt"))
         )
         return (
             Cast("plan_args__paid_bytes", PositiveBigIntegerField())
             + (
                 Floor(
-                    Subquery(qs.values("current_credit"))
-                    / Cast("plan__per_gb_price", DecimalField(max_digits=10, decimal_places=2))
+                    Subquery(qs.values("balance"))
+                    / Cast("plan__plan_provider_args__per_gb_price", DecimalField(max_digits=10, decimal_places=2))
                 )
                 * Value(1000_000_000)
             )
@@ -224,16 +230,16 @@ class TypeSimpleAsYouGO1(BaseSubscriptionPlanProvider):
         qs = (
             models.MemberCredit.objects.filter(
                 Q(agency_user__user=OuterRef("profile__user"), agency_user__agency=OuterRef("profile__initial_agency"))
-                & Q(Q(credit__currency=OuterRef("currency")) | Q(debt__currency=OuterRef("currency")))
+                & Q(Q(credit_currency=OuterRef("plan__base_currency")) | Q(debt_currency=OuterRef("plan__base_currency")))
             )
             .order_by()
             .values("agency_user")
-            .annotate(current_credit=Sum("credit") - Sum("debt"))
+            .annotate(balance=Sum("credit") - Sum("debt"))
         )
         return Cast("plan_args__paid_bytes", PositiveBigIntegerField()) + (
             Floor(
-                Subquery(qs.values("current_credit"))
-                / Cast("plan__per_gb_price", DecimalField(max_digits=10, decimal_places=2))
+                Subquery(qs.values("balance"))
+                / Cast("plan__plan_provider_args__per_gb_price", DecimalField(max_digits=10, decimal_places=2))
             )
             * Value(1000_000_000)
         )
@@ -249,7 +255,7 @@ class TypeSimpleAsYouGO1(BaseSubscriptionPlanProvider):
                 total_used_bytes=F("current_download_bytes") + F("current_upload_bytes"),
                 not_paid_bytes=F("total_used_bytes") - Cast("plan_args__paid_bytes", PositiveBigIntegerField()),
                 not_paid_credit=F("not_paid_bytes")
-                * Cast("plan__per_gb_price", DecimalField(max_digits=10, decimal_places=2)),
+                * Cast("plan__plan_provider_args__per_gb_price", DecimalField(max_digits=10, decimal_places=2)),
             )
             .filter(
                 not_paid_credit__gt=Cast(
@@ -265,13 +271,13 @@ class TypeSimpleAsYouGO1(BaseSubscriptionPlanProvider):
                 sentry_sdk.capture_message(f"check_use_credit: no agency user found for {subscriptionperiod.profile}")
                 continue
 
-            current_credit = models.MemberCredit.objects.filter(
+            balance = models.MemberCredit.objects.filter(
                 Q(
                     agency_user__user=subscriptionperiod.profile.user,
                     agency_user__agency=subscriptionperiod.profile.initial_agency,
                 )
-                & Q(Q(credit_currency=OuterRef("currency")) | Q(debt_currency=OuterRef("currency")))
-            ).aggregate(current_credit=Sum("credit") - Sum("debt"))["current_credit"]
+                & Q(Q(credit_currency=OuterRef("plan__base_currency")) | Q(debt_currency=OuterRef("plan__base_currency")))
+            ).aggregate(balance=Sum("credit") - Sum("debt"))["balance"]
 
             providerarg = cls.ProviderArgsModel(**subscriptionperiod.plan.plan_provider_args)
             charging_credit_value = providerarg.min_credit_charge
@@ -295,7 +301,7 @@ class TypeSimpleAsYouGO1(BaseSubscriptionPlanProvider):
             plan_arg = cls.PlanArgsModel(**subscriptionperiod.plan_args)
             plan_arg.paid_bytes += charging_bytes
             subscriptionperiod.plan_args = plan_arg.model_dump()
-            if current_credit - charging_credit <= 0:
+            if balance - charging_credit <= 0:
                 subscriptionperiod.limited_at = timezone.now()
             else:
                 subscriptionperiod.limited_at = None
@@ -309,6 +315,6 @@ class TypeSimpleAsYouGO1(BaseSubscriptionPlanProvider):
                     "subscriptionperiod": subscriptionperiod,
                     "used_credit": charging_credit,
                     "charging_bytes": charging_bytes,
-                    "wallet_credit": current_credit,
+                    "wallet_credit": balance,
                 }
             )
