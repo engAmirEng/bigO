@@ -17,7 +17,7 @@ from bigO.finance import models as finance_models
 from bigO.finance.payment_providers.providers import BankTransfer1
 from bigO.proxy_manager import models as proxy_manager_models
 from bigO.proxy_manager import services as proxy_manager_services
-from bigO.proxy_manager.subscription.planproviders import TypeSimpleDynamic1, TypeSimpleStrict1
+from bigO.proxy_manager.subscription import planproviders
 from bigO.telegram_bot.models import TelegramBot, TelegramUser
 from bigO.telegram_bot.utils import add_message, thtml_normalize_markup, thtml_render_to_string
 from bigO.users.models import User
@@ -317,7 +317,7 @@ async def member_new_profile_plan_choosed_handler(
 
         current_period = await subscriptionprofile_obj.get_current_period(related=("plan__connection_rule",))
 
-    choosed_plan_obj = (
+    choosed_plan_obj: proxy_manager_models.SubscriptionPlan | None = (
         await proxy_manager_services.get_user_available_plans(
             user=useragency.user, agency=useragency.agency, current_period=current_period
         )
@@ -329,18 +329,38 @@ async def member_new_profile_plan_choosed_handler(
     await state.update_data(plan_id=choosed_plan_id)
     if subscriptionprofile_obj:
         await state.update_data(profile_id=subscriptionprofile_obj.id)
-    if choosed_plan_obj.plan_provider_cls == TypeSimpleDynamic1:
+    if choosed_plan_obj.plan_provider_cls == planproviders.TypeSimpleDynamic1:
         await state.set_state(MemberNewSimpleDynamic1PlanForm.trafficGB)
         rkbuilder = ReplyKeyboardBuilder()
         rkbuilder.button(text=gettext("انصراف"))
         return message.message.answer(
             gettext("حجم(گیگابایت) سرویس خود را وارد کنید:"), reply_markup=rkbuilder.as_markup()
         )
-    elif choosed_plan_obj.plan_provider_cls == TypeSimpleStrict1:
+    elif choosed_plan_obj.plan_provider_cls == planproviders.TypeSimpleStrict1:
         await state.set_state(MemberNewSimpleStrict1PlanForm.final_check)
         invoice_obj = await sync_to_async(proxy_manager_services.member_create_bill)(
             plan=choosed_plan_obj,
             plan_args={},
+            agency_user=useragency,
+            profile=subscriptionprofile_obj,
+            actor=tuser.user,
+        )
+        await state.update_data(bill_id=invoice_obj.id)
+        rkbuilder = ReplyKeyboardBuilder()
+        rkbuilder.button(text=gettext("تایید"))
+        rkbuilder.button(text=gettext("انصراف"))
+        rkbuilder.adjust(2, True)
+        text = await thtml_render_to_string(
+            "teleport/member/subcription_plan_bill.thtml",
+            context={"invoice": invoice_obj},
+        )
+        return message.message.answer(text, reply_markup=rkbuilder.as_markup())
+    elif choosed_plan_obj.plan_provider_cls == planproviders.TypeSimpleAsYouGO1:
+        providerarg = planproviders.TypeSimpleAsYouGO1.ProviderArgsModel(**choosed_plan_obj.plan_provider_args)
+        await state.set_state(MemberNewSimpleStrict1PlanForm.final_check)
+        invoice_obj = await sync_to_async(proxy_manager_services.member_create_bill)(
+            plan=choosed_plan_obj,
+            plan_args={"paid_bytes": providerarg.pre_gb_pay * 1000_000_000},
             agency_user=useragency,
             profile=subscriptionprofile_obj,
             actor=tuser.user,

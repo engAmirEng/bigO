@@ -1,6 +1,9 @@
 import uuid
 
+from django.db.models import F
+from django.db.models.functions import Coalesce
 from djmoney.models.fields import MoneyField
+from djmoney.models.managers import money_manager, understands_money
 
 from bigO.finance import models as finance_models
 from bigO.users.models import User
@@ -118,11 +121,20 @@ class InvoiceCreditUsage(TimeStampedModel, models.Model):
 
 
 class MemberCredit(TimeStampedModel, models.Model):
+    class MemberCreditQuerySet(models.QuerySet):
+        @understands_money
+        def balance(self):
+            return self.annotate(
+                currency=Coalesce(F("credit_currency"), F("debt_currency"))
+            ).order_by().values("agency_user", "currency").annotate(balance=Sum("credit") - Sum("debt"))
+
     agency_user = models.ForeignKey("AgencyUser", on_delete=models.CASCADE, related_name="+")
     credit = MoneyField(max_digits=14, decimal_places=2, default_currency="USD")
     debt = MoneyField(max_digits=14, decimal_places=2, default_currency="USD")
     created_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name="+")
     description = models.TextField(blank=True, null=True)
+
+    objects = money_manager(MemberCreditQuerySet.as_manager())
 
 
 class AgencyPaymentType(TimeStampedModel, models.Model):

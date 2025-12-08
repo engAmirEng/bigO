@@ -2,10 +2,11 @@ import uuid
 from datetime import timedelta
 
 from asgiref.sync import async_to_sync
+from django.db.models.functions import Coalesce
 
 from bigO.finance import models as finance_models
 from django.db import transaction
-from django.db.models import Exists, OuterRef, Q, QuerySet, Subquery
+from django.db.models import Exists, OuterRef, Q, QuerySet, Subquery, F
 from django.utils import timezone
 
 from ...users.models import User

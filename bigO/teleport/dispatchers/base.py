@@ -147,6 +147,9 @@ async def menu_handler(
                 await useragency.asave()
             else:
                 return message.reply(gettext("تغییری ایجاد شده، ار ابتدا اقدام کنید."))
+
+        a = proxy_manager_models.MemberCredit.objects.balance().filter(agency_user=useragency)
+
         referlink = (
             await proxy_manager_models.ReferLink.objects.filter(agency_user=useragency, is_active=True)
             .ann_remainded_cap_count()
