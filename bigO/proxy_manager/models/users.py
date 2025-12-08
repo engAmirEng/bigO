@@ -190,12 +190,15 @@ class SubscriptionPeriod(TimeStampedModel, models.Model):
     profile = models.ForeignKey("SubscriptionProfile", on_delete=models.PROTECT, related_name="periods")
 
     selected_as_current = models.BooleanField()
+    limited_at = models.DateTimeField(null=True, blank=True)
 
     last_sublink_at = models.DateTimeField(null=True, blank=True)
     first_usage_at = models.DateTimeField(null=True, blank=True)
     last_usage_at = models.DateTimeField(null=True, blank=True)
+
     current_download_bytes = models.PositiveBigIntegerField(default=0)
     current_upload_bytes = models.PositiveBigIntegerField(default=0)
+
     flow_download_bytes = models.PositiveBigIntegerField(default=0)
     flow_upload_bytes = models.PositiveBigIntegerField(default=0)
     flow_point_at = models.DateTimeField(null=True, blank=True)

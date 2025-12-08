@@ -7,6 +7,7 @@ from typing import Any
 
 import influxdb_client
 import sentry_sdk
+from celery import Celery
 
 from bigO.node_manager import models as node_manager_models
 from config.celery_app import app
@@ -255,3 +256,13 @@ def subscription_nearly_ended_notify(remained_seconds: int, remained_bytes: int,
     )
     res = near_end_periods_qs.order_by().values("profile__initial_agency").annotate(count=Count("id"))
     return res[0]
+
+
+@app.on_after_configure.connect
+def setup_periodic_tasks(sender: Celery, **kwargs):
+    sender.add_periodic_task(60.0, typesimpleasyougo1_check_use_credit.s(), name="add every 10")
+
+
+@app.task
+def typesimpleasyougo1_check_use_credit():
+    subscription.planproviders.TypeSimpleAsYouGO1.check_use_credit()

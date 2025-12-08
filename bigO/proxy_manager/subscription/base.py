@@ -32,10 +32,6 @@ class BaseSubscriptionPlanProvider(abc.ABC, Generic[ProviderArgsT, PlanArgsT]):
     def calc_init_price(self) -> Money:
         ...
 
-    @abc.abstractmethod
-    def get_total_limit_bytes(self):
-        ...
-
     @classmethod
     @abc.abstractmethod
     def get_expires_at_ann_expr(cls):
