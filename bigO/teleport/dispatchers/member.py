@@ -1,8 +1,11 @@
 import asyncio
+import decimal
+from decimal import Decimal
 from enum import Enum
 from typing import Optional
 
 from asgiref.sync import sync_to_async
+from moneyed import Money
 
 import aiogram.utils.deep_linking
 import django.template
@@ -14,10 +17,10 @@ from aiogram.types import CallbackQuery, CopyTextButton, LinkPreviewOptions, Mes
 from aiogram.utils.keyboard import InlineKeyboardBuilder, InlineKeyboardButton, ReplyKeyboardBuilder
 from bigO.BabyUI import services as BabyUI_services
 from bigO.finance import models as finance_models
-from bigO.finance.payment_providers.providers import BankTransfer1
+from bigO.finance.payment_providers.providers import BankTransfer1, ProxyManagerWalletCredit
 from bigO.proxy_manager import models as proxy_manager_models
 from bigO.proxy_manager import services as proxy_manager_services
-from bigO.proxy_manager.subscription.planproviders import TypeSimpleDynamic1, TypeSimpleStrict1
+from bigO.proxy_manager.subscription import planproviders
 from bigO.telegram_bot.models import TelegramBot, TelegramUser
 from bigO.telegram_bot.utils import add_message, thtml_normalize_markup, thtml_render_to_string
 from bigO.users.models import User
@@ -41,6 +44,28 @@ from ..types import (
 )
 from .base import router
 from .utils import QueryPathName, StartCommandQueryFilter, query_magic_dispatcher
+
+
+class MemberNewPlanForm(StatesGroup):
+    profile_id: int | str | None = None
+
+
+class MemberNewSimpleDynamic1PlanForm(MemberNewPlanForm):
+    plan_id = State()
+    trafficGB = State()
+    days = State()
+    bill_id = State()
+    final_check = State()
+
+
+class MemberNewSimpleStrict1PlanForm(MemberNewPlanForm):
+    plan_id = State()
+    bill_id = State()
+    final_check = State()
+
+
+class MemberWalletCreditForm(MemberNewPlanForm):
+    amount = State()
 
 
 class MemberAgencyPlanAction(str, Enum):
@@ -131,6 +156,97 @@ async def member_see_toturial_content_handler(
     )
 
 
+@router.callback_query(MemberAgencyCallbackData.filter(aiogram.F.action == MemberAgencyAction.WALLET_CREDIT))
+@router.message(MemberWalletCreditForm.amount)
+async def member_wallet_handler(
+    message: CallbackQuery | Message,
+    tuser: TelegramUser | None,
+    state: FSMContext,
+    aiobot: Bot,
+    bot_obj: TelegramBot,
+    panel_obj: models.Panel,
+    callback_data: MemberAgencyCallbackData | None = None,
+) -> Optional[aiogram.methods.TelegramMethod]:
+    agency = panel_obj.agency
+    useragency = (
+        await proxy_manager_models.AgencyUser.objects.filter(user=tuser.user, agency=agency, agency_id=agency.id)
+        .select_related("user", "agency")
+        .afirst()
+    )
+    if useragency is None:
+        return message.message.edit_text(gettext("تغییری ایجاد شده، ار ابتدا اقدام کنید."))
+
+    wallet_balances = await sync_to_async(
+        proxy_manager_models.MemberCredit.objects.filter(agency_user=useragency).balance
+    )()
+
+    paymentproviders_qs = await sync_to_async(proxy_manager_services.get_user_available_paymentproviders)(
+        user=useragency.user, agency=agency
+    )
+    paymentproviders_qs = paymentproviders_qs.filter(currencies__contains=[agency.default_currency])
+    paymentproviders_list: list[finance_models.PaymentProvider] = [i async for i in paymentproviders_qs]
+    if not paymentproviders_list:
+        return message.answer(gettext("درگاه فعالی وجود ندارد، با ادمین تماس بگیرید"))
+    ikbuilder = InlineKeyboardBuilder()
+    if settings.DEBUG:
+        ikbuilder.row(
+            InlineKeyboardButton(
+                text="🔄 Refresh",
+                callback_data=MemberAgencyCallbackData(
+                    agency_id=agency.id, action=MemberAgencyAction.WALLET_CREDIT
+                ).pack(),
+            ),
+        )
+    ikbuilder.row(
+        InlineKeyboardButton(
+            text="🔙 " + gettext("بازگشت به منو"),
+            callback_data=SimpleButtonCallbackData(button_name=SimpleButtonName.MENU).pack(),
+        )
+    )
+
+    await state.set_state(MemberWalletCreditForm.amount)
+    if await state.get_state() == MemberWalletCreditForm.amount and isinstance(message, Message):
+        try:
+            charging_val = Decimal(message.text)
+        except decimal.InvalidOperation:
+            msg = gettext("مقدار وارد شده تا معتبر است.")
+            await add_message(state, level=messages.ERROR, message=msg)
+            text = await thtml_render_to_string(
+                "teleport/member/wallet_credit.thtml",
+                context={"state": state, "currency": agency.default_currency, "wallet_balances": wallet_balances},
+            )
+            return message.reply(text, reply_markup=ikbuilder.as_markup())
+        amount = Money(amount=charging_val, currency=agency.default_currency)
+        invoice_obj = await sync_to_async(proxy_manager_services.member_create_wallet_credit_bill)(
+            amount=amount,
+            agency_user=useragency,
+            actor=tuser.user,
+        )
+        await state.set_state(state=None)
+        ikbuilder = InlineKeyboardBuilder()
+        ikbuilder.row(
+            InlineKeyboardButton(
+                text="🔙 " + gettext("بازگشت به منو"),
+                callback_data=SimpleButtonCallbackData(button_name=SimpleButtonName.MENU).pack(),
+            ),
+            InlineKeyboardButton(
+                text=gettext("تایید"),
+                callback_data=MemberBillCallbackData(bill_id=invoice_obj.id, action=MemberBillAction.OVERVIEW).pack(),
+            ),
+        )
+        text = await thtml_render_to_string(
+            "teleport/member/subcription_plan_bill.thtml",
+            context={"invoice": invoice_obj},
+        )
+        return message.reply(text, reply_markup=ikbuilder.as_markup())
+
+    text = await thtml_render_to_string(
+        "teleport/member/wallet_credit.thtml",
+        context={"state": state, "currency": agency.default_currency, "wallet_balances": wallet_balances},
+    )
+    return message.message.edit_text(text, reply_markup=ikbuilder.as_markup())
+
+
 @router.callback_query(MemberAgencyCallbackData.filter(aiogram.F.action == MemberAgencyAction.LIST_AVAILABLE_PLANS))
 async def new_profile_me_handler(
     message: CallbackQuery,
@@ -216,10 +332,6 @@ async def new_profile_me_handler(
         user=useragency.user, agency=useragency.agency, current_period=current_period
     )
     subscriptionplan_list = [i async for i in subscriptionplan_qs]
-    # not_same_plan_subscriptionplan_list = [i for i in subscriptionplan_list if current_period.plan_id != i.id]
-    # same_plan_subscriptionplan_list = [i for i in subscriptionplan_list if current_period.plan_id == i.id]
-    # not_same_crule_subscriptionplan_list = [i for i in subscriptionplan_list if current_period.plan.connection_rule_id != i.connection_rule_id]
-    # same_crule_subscriptionplan_list = [i for i in subscriptionplan_list if current_period.plan.connection_rule_id == i.connection_rule_id]
     ikbuilder = InlineKeyboardBuilder()
     ikbuilder.row(
         InlineKeyboardButton(
@@ -237,9 +349,9 @@ async def new_profile_me_handler(
     )
     ikbuilder_plan = InlineKeyboardBuilder()
     for i, subscriptionplan in enumerate(subscriptionplan_list):
-        if subscriptionplan.id == current_period.plan_id:
+        if current_period and subscriptionplan.id == current_period.plan_id:
             text = f"{i + 1})☑️ {subscriptionplan.name}"
-        elif subscriptionplan.connection_rule_id == current_period.plan.connection_rule_id:
+        elif current_period and subscriptionplan.connection_rule_id == current_period.plan.connection_rule_id:
             text = f"{i + 1})✔️ {subscriptionplan.name}"
         else:
             text = f"{i + 1}) {subscriptionplan.name}"
@@ -263,24 +375,6 @@ async def new_profile_me_handler(
         },
     )
     return message.message.edit_text(text=text, reply_markup=ikbuilder.as_markup())
-
-
-class MemberNewPlanForm(StatesGroup):
-    profile_id: int | str | None = None
-
-
-class MemberNewSimpleDynamic1PlanForm(MemberNewPlanForm):
-    plan_id = State()
-    trafficGB = State()
-    days = State()
-    bill_id = State()
-    final_check = State()
-
-
-class MemberNewSimpleStrict1PlanForm(MemberNewPlanForm):
-    plan_id = State()
-    bill_id = State()
-    final_check = State()
 
 
 @router.callback_query(MemberAgencyPlanCallbackData.filter(aiogram.F.action == MemberAgencyPlanAction.NEW_PROFILE))
@@ -317,7 +411,7 @@ async def member_new_profile_plan_choosed_handler(
 
         current_period = await subscriptionprofile_obj.get_current_period(related=("plan__connection_rule",))
 
-    choosed_plan_obj = (
+    choosed_plan_obj: proxy_manager_models.SubscriptionPlan | None = (
         await proxy_manager_services.get_user_available_plans(
             user=useragency.user, agency=useragency.agency, current_period=current_period
         )
@@ -329,14 +423,14 @@ async def member_new_profile_plan_choosed_handler(
     await state.update_data(plan_id=choosed_plan_id)
     if subscriptionprofile_obj:
         await state.update_data(profile_id=subscriptionprofile_obj.id)
-    if choosed_plan_obj.plan_provider_cls == TypeSimpleDynamic1:
+    if choosed_plan_obj.plan_provider_cls == planproviders.TypeSimpleDynamic1:
         await state.set_state(MemberNewSimpleDynamic1PlanForm.trafficGB)
         rkbuilder = ReplyKeyboardBuilder()
         rkbuilder.button(text=gettext("انصراف"))
         return message.message.answer(
-            gettext("حجم(گیگابایت) سرویس خود را وارد کنید:"), reply_markup=rkbuilder.as_markup()
+            gettext("حجم(گیگابایت) سرویس خود را وارد کنید:"), reply_markup=rkbuilder.as_markup(resize_keyboard=True)
         )
-    elif choosed_plan_obj.plan_provider_cls == TypeSimpleStrict1:
+    elif choosed_plan_obj.plan_provider_cls == planproviders.TypeSimpleStrict1:
         await state.set_state(MemberNewSimpleStrict1PlanForm.final_check)
         invoice_obj = await sync_to_async(proxy_manager_services.member_create_bill)(
             plan=choosed_plan_obj,
@@ -354,7 +448,27 @@ async def member_new_profile_plan_choosed_handler(
             "teleport/member/subcription_plan_bill.thtml",
             context={"invoice": invoice_obj},
         )
-        return message.message.answer(text, reply_markup=rkbuilder.as_markup())
+        return message.message.answer(text, reply_markup=rkbuilder.as_markup(resize_keyboard=True))
+    elif choosed_plan_obj.plan_provider_cls == planproviders.TypeSimpleAsYouGO1:
+        providerarg = planproviders.TypeSimpleAsYouGO1.ProviderArgsModel(**choosed_plan_obj.plan_provider_args)
+        await state.set_state(MemberNewSimpleStrict1PlanForm.final_check)
+        invoice_obj = await sync_to_async(proxy_manager_services.member_create_bill)(
+            plan=choosed_plan_obj,
+            plan_args={"paid_bytes": providerarg.pre_gb_pay * 1000_000_000},
+            agency_user=useragency,
+            profile=subscriptionprofile_obj,
+            actor=tuser.user,
+        )
+        await state.update_data(bill_id=invoice_obj.id)
+        rkbuilder = ReplyKeyboardBuilder()
+        rkbuilder.button(text=gettext("تایید"))
+        rkbuilder.button(text=gettext("انصراف"))
+        rkbuilder.adjust(2, True)
+        text = await thtml_render_to_string(
+            "teleport/member/subcription_plan_bill.thtml",
+            context={"invoice": invoice_obj},
+        )
+        return message.message.answer(text, reply_markup=rkbuilder.as_markup(resize_keyboard=True))
     else:
         raise NotImplementedError
 
@@ -418,13 +532,15 @@ async def agent_new_profile_plan_newsimpledynamic1plan_handler(
 
             return message.answer(
                 gettext("مقدار وارد شده معتبر نیست، لطفا حجم(گیگابایت) مدنظر سرویس خود را بصورت عدد وارد کنید:"),
-                reply_markup=rkbuilder.as_markup(),
+                reply_markup=rkbuilder.as_markup(resize_keyboard=True),
             )
         await state.update_data(trafficGB=entered_trafic_gb)
         await state.set_state(MemberNewSimpleDynamic1PlanForm.days)
         rkbuilder = ReplyKeyboardBuilder()
         rkbuilder.button(text=gettext("انصراف"))
-        return message.answer(gettext("تعداد روز سرویس خود را وارد کنید:"), reply_markup=rkbuilder.as_markup())
+        return message.answer(
+            gettext("تعداد روز سرویس خود را وارد کنید:"), reply_markup=rkbuilder.as_markup(resize_keyboard=True)
+        )
     elif state_name == MemberNewSimpleDynamic1PlanForm.days.state:
         try:
             entered_days = int(message.text)
@@ -434,7 +550,7 @@ async def agent_new_profile_plan_newsimpledynamic1plan_handler(
 
             return message.answer(
                 gettext("مقدار وارد شده معتبر نیست، لطفا تعداد روز سرویس مدنظر خود را بصورت عدد وارد کنید:"),
-                reply_markup=rkbuilder.as_markup(),
+                reply_markup=rkbuilder.as_markup(resize_keyboard=True),
             )
         volume_gb = state_data["trafficGB"]
         plan_args = {
@@ -459,7 +575,7 @@ async def agent_new_profile_plan_newsimpledynamic1plan_handler(
             "teleport/member/subcription_plan_bill.thtml",
             context={"invoice": invoice_obj},
         )
-        return message.answer(text, reply_markup=rkbuilder.as_markup())
+        return message.answer(text, reply_markup=rkbuilder.as_markup(resize_keyboard=True))
     elif state_name == MemberNewSimpleDynamic1PlanForm.final_check.state:
         bill_id = state_data["bill_id"]
         return await tmp_return_bill(
@@ -532,8 +648,10 @@ async def tmp_return_bill(*, message, bill_id, useragency, user, state, bot_obj)
             "teleport/member/subcription_plan_bill.thtml",
             context={"invoice": subscriptionplaninvoiceitem_obj.invoice},
         )
-        return message.answer(text=text, reply_markup=rkbuilder.as_markup())
-    paymentproviders_qs = proxy_manager_services.get_user_available_paymentproviders(user=user, agency=agency)
+        return message.answer(text=text, reply_markup=rkbuilder.as_markup(resize_keyboard=True))
+    paymentproviders_qs = await sync_to_async(proxy_manager_services.get_user_available_paymentproviders)(
+        user=user, agency=agency
+    )
     paymentproviders_list: list[finance_models.PaymentProvider] = [i async for i in paymentproviders_qs]
     if not paymentproviders_list:
         return message.answer(gettext("درگاه فعالی وجود ندارد، با ادمین تماس بگیرید"))
@@ -552,7 +670,9 @@ async def tmp_return_bill(*, message, bill_id, useragency, user, state, bot_obj)
     )
     for paymentprovider in paymentproviders_list:
         if paymentprovider.provider_cls == BankTransfer1:
-            title = gettext("پرداخت کارت به کارت ({0})").format(paymentprovider.id)
+            title = "💳 " + gettext("پرداخت کارت به کارت ({0})").format(paymentprovider.id)
+        elif paymentprovider.provider_cls == ProxyManagerWalletCredit:
+            title = "👝 " + gettext("استفاده از اعتبار کیف پول").format(paymentprovider.id)
         else:
             title = gettext("پرداخت با ") + paymentprovider.name
         ikbuilder.row(
@@ -592,22 +712,32 @@ async def new_billoverview_handler(
     if useragency is None:
         return message.message.edit_text(gettext("تغییری ایجاد شده، ار ابتدا اقدام کنید."))
 
-    subscriptionplaninvoiceitem_obj = (
-        await proxy_manager_models.SubscriptionPlanInvoiceItem.objects.select_related("invoice")
-        .filter(invoice_id=callback_data.bill_id, issued_to=useragency)
-        .afirst()
+    qs1 = proxy_manager_models.SubscriptionPlanInvoiceItem.objects.select_related("invoice").filter(
+        invoice_id=callback_data.bill_id, issued_to=useragency
     )
-    invoice = subscriptionplaninvoiceitem_obj.invoice
-    if subscriptionplaninvoiceitem_obj is None:
+    qs2 = proxy_manager_models.MemberWalletInvoiceItem.objects.select_related("invoice").filter(
+        invoice_id=callback_data.bill_id, issued_to=useragency
+    )
+    item_obj = await qs1.afirst() or await qs2.afirst()
+    if item_obj is None:
         return
+    invoice = item_obj.invoice
+    changed = None
+    if invoice.status in (
+        finance_models.Invoice.StatusChoices.DRAFT,
+        finance_models.Invoice.StatusChoices.ISSUED,
+    ):
+        changed = await sync_to_async(proxy_manager_services.member_prepare_checkout)(invoice)
     if invoice.status == finance_models.Invoice.StatusChoices.ISSUED:
-        paymentproviders_qs = proxy_manager_services.get_user_available_paymentproviders(
+        paymentproviders_qs = await sync_to_async(proxy_manager_services.get_user_available_paymentproviders)(
             user=tuser.user, agency=agency
         )
+        if await qs2.aexists():
+            paymentproviders_qs = paymentproviders_qs.exclude(provider_key=ProxyManagerWalletCredit.TYPE_IDENTIFIER)
         paymentproviders_list: list[finance_models.PaymentProvider] = [i async for i in paymentproviders_qs]
         if not paymentproviders_list:
             return message.answer(gettext("درگاه فعالی وجود ندارد، با ادمین تماس بگیرید"))
-        changed = await sync_to_async(proxy_manager_services.member_prepare_checkout)(invoice)
+
         if changed:
             await add_message(state=state, level=messages.INFO, message=gettext("تغییر یافت شد"))
         await state.clear()
@@ -624,7 +754,9 @@ async def new_billoverview_handler(
         )
         for paymentprovider in paymentproviders_list:
             if paymentprovider.provider_cls == BankTransfer1:
-                title = gettext("پرداخت کارت به کارت ({0})").format(paymentprovider.id)
+                title = "💳 " + gettext("پرداخت کارت به کارت ({0})").format(paymentprovider.id)
+            elif paymentprovider.provider_cls == ProxyManagerWalletCredit:
+                title = "👝 " + gettext("استفاده از اعتبار کیف پول").format(paymentprovider.id)
             else:
                 title = gettext("پرداخت با ") + paymentprovider.name
             ikbuilder.row(
@@ -685,14 +817,16 @@ async def member_initpaybill_handler(
     bill_id = callback_data.bill_id
     payment_provider_id = callback_data.payment_provider_id
     payment_id = callback_data.payment_id
-    subscriptionplaninvoiceitem_obj = (
-        await proxy_manager_models.SubscriptionPlanInvoiceItem.objects.select_related("invoice")
-        .filter(invoice_id=bill_id, issued_to=useragency)
-        .afirst()
+    qs1 = proxy_manager_models.SubscriptionPlanInvoiceItem.objects.select_related("invoice").filter(
+        invoice_id=bill_id, issued_to=useragency
     )
-    if subscriptionplaninvoiceitem_obj is None:
+    qs2 = proxy_manager_models.MemberWalletInvoiceItem.objects.select_related("invoice").filter(
+        invoice_id=bill_id, issued_to=useragency
+    )
+    item_obj = await qs1.afirst() or await qs2.afirst()
+    if item_obj is None:
         return
-    invoice = subscriptionplaninvoiceitem_obj.invoice
+    invoice = item_obj.invoice
     if invoice.status != finance_models.Invoice.StatusChoices.ISSUED:
         if invoice.status == finance_models.Invoice.StatusChoices.PAID:
             return await new_billoverview_handler(
@@ -708,7 +842,9 @@ async def member_initpaybill_handler(
             return message.answer(
                 gettext(("امکان پذیر نیست، این صورت حساب در وضعیت {0} قرار دارد")).format(invoice.get_status_display())
             )
-    paymentproviders_qs = proxy_manager_services.get_user_available_paymentproviders(user=tuser.user, agency=agency)
+    paymentproviders_qs = await sync_to_async(proxy_manager_services.get_user_available_paymentproviders)(
+        user=tuser.user, agency=agency
+    )
     paymentprovider_obj: finance_models.PaymentProvider | None = await paymentproviders_qs.filter(
         id=payment_provider_id
     ).afirst()
@@ -756,6 +892,29 @@ async def member_initpaybill_handler(
             "teleport/member/subcription_plan_banktransfer1.thtml",
             context={"bot_obj": bot_obj, "invoice": invoice, "payment": payment, "provider_args": provider_args},
         )
+    elif provider_cls == ProxyManagerWalletCredit:
+        try:
+            await sync_to_async(proxy_manager_services.pay_payment_with_wallet)(
+                payment=payment, useragency=useragency, wallet_paymentprovider=paymentprovider_obj, actor=tuser.user
+            )
+        except ProxyManagerWalletCredit.NotSufficientCredit:
+            wallet_balances = await sync_to_async(
+                proxy_manager_models.MemberCredit.objects.filter(agency_user=useragency).balance
+            )(currency=invoice.total_price.currency)
+            return message.answer(
+                gettext("اعتبار {0} مورد نیاز است، اعتبار فعلی شما {1} است.").format(payment.amount, wallet_balances)
+            )
+        await add_message(state=state, level=messages.SUCCESS, message=gettext("با موفقیت انجام شد."))
+        return await new_billoverview_handler(
+            message,
+            callback_data=MemberBillCallbackData(bill_id=invoice.id, action=MemberBillAction.OVERVIEW),
+            tuser=tuser,
+            state=state,
+            aiobot=aiobot,
+            bot_obj=bot_obj,
+            panel_obj=panel_obj,
+        )
+
     else:
         raise NotImplementedError
     ikbuilder.row(
@@ -950,7 +1109,7 @@ async def my_account_detail_handler(
     if tuser is None or tuser.user is None:
         text = gettext("برای استفاده از خدمات ما از معرف خود لینک معرفی دریافت کنید.")
         return message.answer(text, show_alert=True)
-    return message.answer(gettext("این دکمه نمایشی است"))
+    return message.answer(gettext("این دکمه نمایشی است، دکمه های زیر آن را انتخاب کنید."))
 
 
 @router.callback_query(MemberAgencyProfileCallbackData.filter(aiogram.F.action == MemberAgencyProfileAction.DETAIL))

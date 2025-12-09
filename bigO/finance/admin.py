@@ -50,9 +50,9 @@ class InvoiceItemModelAdmin(polymorphic.admin.PolymorphicParentModelAdmin):
     list_filter = (polymorphic.admin.PolymorphicChildModelFilter,)
 
     def get_child_models(self):
-        from bigO.proxy_manager.models import SubscriptionPlanInvoiceItem
+        from bigO.proxy_manager.models import MemberWalletInvoiceItem, SubscriptionPlanInvoiceItem
 
-        return (SubscriptionPlanInvoiceItem,)
+        return (SubscriptionPlanInvoiceItem, MemberWalletInvoiceItem)
 
 
 @admin.register(models.PaymentProvider)
@@ -60,8 +60,10 @@ class PaymentProviderModelAdmin(admin.ModelAdmin):
     list_display = ("id", "name")
     search_fields = ("name",)
     form = forms.PaymentProviderModelForm
+    autocomplete_fields = ("admins",)
 
 
 @admin.register(models.Payment)
 class PaymentModelAdmin(admin.ModelAdmin):
     list_display = ("id", "uuid", "provider", "invoice", "amount")
+    search_fields = ("uuid",)

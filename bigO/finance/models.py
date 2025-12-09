@@ -4,18 +4,16 @@ from typing import Any
 
 from asgiref.sync import sync_to_async
 from djmoney.models.fields import MoneyField
+from djmoney.settings import CURRENCY_CHOICES
 from moneyed import Money
 from polymorphic.models import PolymorphicModel
 
 from bigO.finance.payment_providers import AVAILABLE_PAYMENT_PROVIDERS
 from bigO.finance.payment_providers.base import BasePaymentProvider
-from bigO.proxy_manager.subscription import AVAILABLE_SUBSCRIPTION_PLAN_PROVIDERS
-from bigO.proxy_manager.subscription.base import BaseSubscriptionPlanProvider
 from bigO.users.models import User
 from bigO.utils.models import TimeStampedModel
+from django.contrib.postgres.fields import ArrayField
 from django.db import models, transaction
-from django.db.models import Case, Count, F, OuterRef, Q, Subquery, UniqueConstraint, When
-from django.db.models.functions import Coalesce
 from django.utils import timezone
 from django.utils.translation import gettext_lazy
 
@@ -114,6 +112,9 @@ class Payment(TimeStampedModel, models.Model):
         choices=PaymentStatusChoices.choices, default=PaymentStatusChoices.PENDING
     )
 
+    def __str__(self):
+        return f"{self.id}-{self.amount} with {self.provider.name}({self.get_status_display()})"
+
     @classmethod
     def init_payment(cls, invoice: Invoice, provider: "PaymentProvider", user: User):
         price = provider.get_price(identifier=str(invoice.id), price=invoice.total_price)
@@ -157,6 +158,7 @@ class PaymentProvider(TimeStampedModel, models.Model):
     provider_args = models.JSONField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
     admins = models.ManyToManyField(User, related_name="+", blank=True)
+    currencies = ArrayField(base_field=models.CharField(max_length=4, choices=CURRENCY_CHOICES), default=list)
 
     def __str__(self):
         return f"{self.pk}-{self.name}"
@@ -167,6 +169,8 @@ class PaymentProvider(TimeStampedModel, models.Model):
 
     def get_provider_args(self) -> BasePaymentProvider | None:
         if self.provider_cls is None:
+            return None
+        if self.provider_cls.ProviderArgsModel is None:
             return None
         return self.provider_cls.ProviderArgsModel(**self.provider_args)
 

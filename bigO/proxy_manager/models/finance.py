@@ -1,11 +1,15 @@
 import uuid
 
 from djmoney.models.fields import MoneyField
+from djmoney.models.managers import money_manager, understands_money
+from moneyed import Money
 
 from bigO.finance import models as finance_models
 from bigO.users.models import User
 from bigO.utils.models import TimeStampedModel
 from django.db import models, transaction
+from django.db.models import Case, CheckConstraint, ExpressionWrapper, F, Q, Sum, When
+from django.db.models.functions import Coalesce
 
 
 class SubscriptionPlanInvoiceItem(finance_models.InvoiceItem):
@@ -90,6 +94,9 @@ class MemberWalletInvoiceItem(finance_models.InvoiceItem):
     def __str__(self):
         return f"{self.id}-{self.agency_user}({self.total_price})"
 
+    def calc_price(self):
+        return self.total_price
+
     @transaction.atomic(using="main")
     def deliver(self, actor):
         membercredit = MemberCredit()
@@ -112,17 +119,59 @@ class SubscriptionPeriodCreditUsage(TimeStampedModel, models.Model):
     credit = models.OneToOneField("MemberCredit", on_delete=models.CASCADE, related_name="+")
 
 
-class InvoiceCreditUsage(TimeStampedModel, models.Model):
-    invoice = models.ForeignKey("finance.Invoice", on_delete=models.CASCADE, related_name="+")
+class PaymentCreditUsage(TimeStampedModel, models.Model):
+    payment = models.ForeignKey("finance.Payment", on_delete=models.CASCADE, related_name="+")
     credit = models.OneToOneField("MemberCredit", on_delete=models.CASCADE, related_name="+")
+
+    def __str__(self):
+        return f"{self.id}-payment{self.payment_id}({self.credit.debt})"
 
 
 class MemberCredit(TimeStampedModel, models.Model):
+    class MemberCreditQuerySet(models.QuerySet):
+        def ann_currency(self):
+            return self.annotate(
+                currency=Case(
+                    When(credit__isnull=False, then=F("credit_currency")),
+                    When(debt__isnull=False, then=F("debt_currency")),
+                )
+            )
+
+        @understands_money
+        def balance(self, currency: str = None):
+            qs = self.ann_currency()
+            if currency:
+                qs = qs.filter(currency=currency)
+            qs = (
+                qs.order_by()
+                .values("agency_user", "currency")
+                .annotate(
+                    balance=ExpressionWrapper(
+                        Coalesce(Sum("credit"), 0) - Coalesce(Sum("debt"), 0),
+                        output_field=models.DecimalField(max_digits=10, decimal_places=2),
+                    )
+                )
+            )
+            res = [Money(amount=i["balance"], currency=i["currency"]) for i in qs]
+            if currency:
+                return res[0] if res else Money(amount=0, currency=currency)
+            return qs
+
     agency_user = models.ForeignKey("AgencyUser", on_delete=models.CASCADE, related_name="+")
-    credit = MoneyField(max_digits=14, decimal_places=2, default_currency="USD")
-    debt = MoneyField(max_digits=14, decimal_places=2, default_currency="USD")
+    credit = MoneyField(max_digits=14, decimal_places=2, default_currency="USD", null=True, blank=True)
+    debt = MoneyField(max_digits=14, decimal_places=2, default_currency="USD", null=True, blank=True)
     created_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name="+")
     description = models.TextField(blank=True, null=True)
+
+    objects = money_manager(MemberCreditQuerySet.as_manager())
+
+    class Meta:
+        constraints = [
+            CheckConstraint(
+                check=Q(Q(credit__isnull=False) | Q(debt__isnull=False)),
+                name="membercredit_credit_or_debt",
+            )
+        ]
 
 
 class AgencyPaymentType(TimeStampedModel, models.Model):

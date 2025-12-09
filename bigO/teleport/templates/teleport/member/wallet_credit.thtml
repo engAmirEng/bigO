@@ -1,0 +1,8 @@
+{% load tbot_widgets %}
+{% trender_messages "teleport/partials/messages.thtml" %}
+{% include "teleport/partials/wallet_balance.thtml" %}
+<br>
+<br>
+جهت افزایش اعتبار کیف پول، مبلغ مد نظر خود را در واحد
+&nbsp;{{ currency }}&nbsp;
+بصورت عددی ارسال کنید.

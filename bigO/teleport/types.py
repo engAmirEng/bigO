@@ -32,6 +32,7 @@ class AgentAgencyCallbackData(CallbackData, prefix="agent_agency"):
 
 class MemberAgencyAction(str, Enum):
     OVERVIEW = "overview"
+    WALLET_CREDIT = "wallet_credit"
     LIST_AVAILABLE_PLANS = "list_available_plans"
     SEE_TOTURIAL_CONTENT = "see_toturial_content"
 

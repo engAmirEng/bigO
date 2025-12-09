@@ -1,6 +1,7 @@
 from typing import Optional
 
 import makefun
+from asgiref.sync import sync_to_async
 
 import aiogram.utils.deep_linking
 from aiogram import Bot
@@ -147,6 +148,11 @@ async def menu_handler(
                 await useragency.asave()
             else:
                 return message.reply(gettext("تغییری ایجاد شده، ار ابتدا اقدام کنید."))
+
+        wallet_balances = await sync_to_async(
+            proxy_manager_models.MemberCredit.objects.filter(agency_user=useragency).balance
+        )()
+
         referlink = (
             await proxy_manager_models.ReferLink.objects.filter(agency_user=useragency, is_active=True)
             .ann_remainded_cap_count()
@@ -181,9 +187,15 @@ async def menu_handler(
             ikbuilder.row(referlink_btn)
         ikbuilder.row(
             InlineKeyboardButton(
-                text=gettext("دریافت اکانت جدید"),
+                text="🚀 " + gettext("دریافت اکانت جدید"),
                 callback_data=MemberAgencyCallbackData(
                     agency_id=agency.id, action=MemberAgencyAction.LIST_AVAILABLE_PLANS
+                ).pack(),
+            ),
+            InlineKeyboardButton(
+                text="💲 " + gettext("کیف پول"),
+                callback_data=MemberAgencyCallbackData(
+                    agency_id=agency.id, action=MemberAgencyAction.WALLET_CREDIT
                 ).pack(),
             ),
         )
@@ -199,7 +211,7 @@ async def menu_handler(
         if subscriptionprofiles:
             ikbuilder.row(
                 InlineKeyboardButton(
-                    text=gettext("اکانت های شما (شارژ و..)👇"),
+                    text=gettext("اکانت های شما (تمدید و..)👇"),
                     callback_data=SimpleButtonCallbackData(button_name=SimpleButtonName.DISPLAY_PLACEHOLDER).pack(),
                 ),
             )
@@ -219,7 +231,12 @@ async def menu_handler(
             ikbuilder.attach(ikbuilder_profiles)
         text = await thtml_render_to_string(
             "teleport/member/start.thtml",
-            context={"state": state, "agency": agency, "subscriptionprofiles": subscriptionprofiles},
+            context={
+                "state": state,
+                "agency": agency,
+                "subscriptionprofiles": subscriptionprofiles,
+                "wallet_balances": wallet_balances,
+            },
         )
     if isinstance(message, Message):
         return message.answer(text, reply_markup=ikbuilder.as_markup())

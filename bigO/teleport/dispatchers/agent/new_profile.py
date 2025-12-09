@@ -102,7 +102,9 @@ async def agent_new_profile_plan_choosed_handler(
         rkbuilder = ReplyKeyboardBuilder()
         rkbuilder.button(text=gettext("انصراف"))
 
-        return message.message.answer(gettext("حجم سرویس خود را وارد کنید:"), reply_markup=rkbuilder.as_markup())
+        return message.message.answer(
+            gettext("حجم سرویس خود را وارد کنید:"), reply_markup=rkbuilder.as_markup(resize_keyboard=True)
+        )
     elif choosed_plan_obj.plan_provider_cls == TypeSimpleStrict1:
         await state.set_state(AgentNewSimpleStrict1PlanForm.final_check)
         rkbuilder = ReplyKeyboardBuilder()
@@ -110,7 +112,9 @@ async def agent_new_profile_plan_choosed_handler(
         rkbuilder.button(text=gettext("انصراف"))
         rkbuilder.adjust(2, True)
 
-        return message.message.answer(gettext("درحال خرید {}، تایید میکنید؟"), reply_markup=rkbuilder.as_markup())
+        return message.message.answer(
+            gettext("درحال خرید {}، تایید میکنید؟"), reply_markup=rkbuilder.as_markup(resize_keyboard=True)
+        )
     else:
         raise NotImplementedError
 
@@ -134,7 +138,7 @@ async def agent_new_profile_plan_newsimpledynamic1plan_traffic_handler(
 
         return message.answer(
             gettext("'{0}' معتبر نیست، حجم سرویس خود را وارد کنید:").format(message.text),
-            reply_markup=rkbuilder.as_markup(),
+            reply_markup=rkbuilder.as_markup(resize_keyboard=True),
         )
     data = await state.get_data()
     choosed_plan_id = data["plan_id"]
@@ -153,7 +157,9 @@ async def agent_new_profile_plan_newsimpledynamic1plan_traffic_handler(
     rkbuilder = ReplyKeyboardBuilder()
     rkbuilder.button(text=gettext("انصراف"))
 
-    return message.answer(gettext("تعداد روز سرویس خود را وارد کنید:"), reply_markup=rkbuilder.as_markup())
+    return message.answer(
+        gettext("تعداد روز سرویس خود را وارد کنید:"), reply_markup=rkbuilder.as_markup(resize_keyboard=True)
+    )
 
 
 @router.message(AgentNewSimpleDynamic1PlanForm.days)
@@ -175,7 +181,7 @@ async def agent_new_profile_plan_newsimpledynamic1plan_days_handler(
 
         return message.answer(
             gettext("'{0}' معتبر نیست، تعداد روز سرویس خود را وارد کنید:").format(message.text),
-            reply_markup=rkbuilder.as_markup(),
+            reply_markup=rkbuilder.as_markup(resize_keyboard=True),
         )
     data = await state.get_data()
     choosed_plan_id = data["plan_id"]
@@ -195,7 +201,9 @@ async def agent_new_profile_plan_newsimpledynamic1plan_days_handler(
     rkbuilder.button(text=gettext("تایید"))
     rkbuilder.button(text=gettext("انصراف"))
 
-    return message.answer(gettext("درحال خرید {}، تایید میکنید؟"), reply_markup=rkbuilder.as_markup())
+    return message.answer(
+        gettext("درحال خرید {}، تایید میکنید؟"), reply_markup=rkbuilder.as_markup(resize_keyboard=True)
+    )
 
 
 @router.message(AgentNewSimpleDynamic1PlanForm.final_check)

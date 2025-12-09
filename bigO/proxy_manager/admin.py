@@ -739,10 +739,53 @@ class SubscriptionPlanInvoiceItemModelAdmin(polymorphic.admin.PolymorphicChildMo
     list_display = (
         "id",
         "invoice",
+        "invoice__status",
         "plan",
+        "issued_for",
+        "issued_to",
         "total_price",
+        "delivered_period",
     )
     autocomplete_fields = ("created_by", "replacement", "apply_to", "issued_for", "issued_to", "delivered_period")
+
+
+@admin.register(models.MemberWalletInvoiceItem)
+class MemberWalletInvoiceItemModelAdmin(polymorphic.admin.PolymorphicChildModelAdmin):
+    base_model = finance_models.InvoiceItem
+    list_display = (
+        "id",
+        "invoice",
+        "invoice__status",
+        "agency_user",
+        "issued_to",
+        "total_price",
+        "delivered_credit",
+    )
+    autocomplete_fields = ("created_by", "replacement", "agency_user", "issued_to", "delivered_credit")
+
+
+@admin.register(models.PaymentCreditUsage)
+class PaymentCreditUsageModelAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "payment",
+        "credit",
+    )
+    search_fields = ("credit__agency_user__user__name", "credit__agency_user__user__username")
+    autocomplete_fields = ("payment", "credit")
+
+
+@admin.register(models.MemberCredit)
+class MemberCreditModelAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "agency_user",
+        "credit",
+        "debt",
+        "created_by",
+    )
+    search_fields = ("agency_user__user__name", "agency_user__user__username")
+    autocomplete_fields = ("agency_user", "created_by")
 
 
 @admin.register(models.AgencyPaymentType)

@@ -1,0 +1,22 @@
+{% load digits_locale djmoney %}
+{% digits_locale on %}
+<br>
+<br>
+💰 اعتبار کیف پول شما:
+{% if not wallet_balances %}
+    &nbsp;0
+    <br>
+    (جهت افزایش اعتبار از دکمه "افزایش اعتبار" اقدام کنید.)
+    <br>
+{% endif %}
+{% for i in wallet_balances %}
+    {% if forloop.first %}
+        <br>
+    {% endif %}
+    {% if i.balance > 0 %}🟢{% else %}⭕️{% endif %}
+    {% money_localize i.balance i.currency on %}
+    {% if not forloop.last %}
+        <br>
+    {% endif %}
+{% endfor %}
+{% enddigits_locale %}

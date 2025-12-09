@@ -28,7 +28,7 @@ class BankTransfer1(base.BasePaymentProvider):
     pend_request = Signal()
 
     @classmethod
-    def get_price(cls, identifier: str, price: Money, provider_args: ProviderArgsModel | None):
+    def get_price(cls, identifier: str, price: Money, provider_args: base.ProviderArgsT | None):
         hs = hashlib.sha256(identifier.encode()).hexdigest()
         hs_int = int(hs, 16)
         hs_money_amount = hs_int % provider_args.counter_base
@@ -44,3 +44,21 @@ class BankTransfer1(base.BasePaymentProvider):
             counter += 1
         if counter == 0:
             raise Exception("no admins set for this provider")
+
+
+class ProxyManagerWalletCredit(base.BasePaymentProvider):
+    TYPE_IDENTIFIER = "proxymanagerwalletcredit"
+
+    ProviderArgsModel = None
+    PaymentArgsModel = None
+
+    @classmethod
+    def get_price(cls, identifier: str, price: Money, provider_args: base.ProviderArgsT | None):
+        return price
+
+    @classmethod
+    async def pend(cls, admins: QuerySet[User], payment: "models.Payment"):
+        pass
+
+    class NotSufficientCredit(Exception):
+        pass

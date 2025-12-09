@@ -21,27 +21,7 @@
 <br>
 {% for invoice_item in invoice.items.all %}
     <br>
-    <strong>
-        {{ forloop.counter }})&nbsp;
-        {% if invoice_item.apply_to %}
-            شارژ بر روی:
-            &nbsp;
-            {% digits_locale off %}
-            <a href="{% admin_profile_detail_link bot_obj.tusername invoice_item.apply_to %}">{{ invoice_item.apply_to.title }}</a>
-
-            {% enddigits_locale %}
-        {% else %}
-            &nbsp;
-            پروفایل چدید
-        {% endif %}
-        &nbsp;({{ invoice_item.plan.plan_verbose_display }})
-    </strong>
-    {% with plan_spec_verbose_display=invoice_item.plan_spec_verbose_display %}
-        {% if plan_spec_verbose_display %}
-            <br>
-            {{ plan_spec_verbose_display }}
-        {% endif %}
-    {% endwith %}
+    {% include "teleport/partials/invoice_item.thtml" with invoice_item=invoice_item %}
     <br>
 {% endfor %}
 <br>

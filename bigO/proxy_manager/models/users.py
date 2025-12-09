@@ -27,6 +27,11 @@ class Agency(TimeStampedModel, models.Model):
     default_calendar_type = models.CharField(
         max_length=15, choices=calander_type.CalendarType.choices, null=True, blank=True
     )
+    default_currency = CurrencyField(
+        choices=CURRENCY_CHOICES,
+        null=True,
+        blank=False,
+    )
 
     def __str__(self):
         return f"{self.pk}-{self.name}"
@@ -148,7 +153,7 @@ class SubscriptionPeriod(TimeStampedModel, models.Model):
         def ann_dl_bytes_remained(self):
             whens = []
             for i in AVAILABLE_SUBSCRIPTION_PLAN_PROVIDERS:
-                ann_expr = i.get_up_bytes_remained_expr()
+                ann_expr = i.get_dl_bytes_remained_expr()
                 whens.append(When(plan__plan_provider_key=i.TYPE_IDENTIFIER, then=ann_expr))
             return self.annotate(dl_bytes_remained=Case(*whens, output_field=models.PositiveBigIntegerField()))
 
@@ -190,12 +195,15 @@ class SubscriptionPeriod(TimeStampedModel, models.Model):
     profile = models.ForeignKey("SubscriptionProfile", on_delete=models.PROTECT, related_name="periods")
 
     selected_as_current = models.BooleanField()
+    limited_at = models.DateTimeField(null=True, blank=True)
 
     last_sublink_at = models.DateTimeField(null=True, blank=True)
     first_usage_at = models.DateTimeField(null=True, blank=True)
     last_usage_at = models.DateTimeField(null=True, blank=True)
+
     current_download_bytes = models.PositiveBigIntegerField(default=0)
     current_upload_bytes = models.PositiveBigIntegerField(default=0)
+
     flow_download_bytes = models.PositiveBigIntegerField(default=0)
     flow_upload_bytes = models.PositiveBigIntegerField(default=0)
     flow_point_at = models.DateTimeField(null=True, blank=True)
