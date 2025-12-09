@@ -220,7 +220,7 @@ def get_wallet_payment_provider(agency) -> finance_models.PaymentProvider | None
     obj = finance_models.PaymentProvider.objects.filter(provider_key=ProxyManagerWalletCredit.TYPE_IDENTIFIER).first()
     if obj is None:
         obj = finance_models.PaymentProvider()
-        obj.name = ("proxy_manager_wallet",)
+        obj.name = "proxy_manager_wallet"
         obj.provider_key = ProxyManagerWalletCredit.TYPE_IDENTIFIER
         obj.is_active = True
         obj.save()

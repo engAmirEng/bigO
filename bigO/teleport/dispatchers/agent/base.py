@@ -183,11 +183,11 @@ async def inline_profiles_startlink_handler(
         )
         ikbuilder.row(
             InlineKeyboardButton(
-                text="⚿ " + gettext("کپی لینک اشتراک اندروید"),
+                text="⚿ " + gettext("لینک اشتراک اندروید"),
                 copy_text=CopyTextButton(text=normal_sublink),
             ),
             InlineKeyboardButton(
-                text="⚿ " + gettext("کپی لینک اشتراک ios"),
+                text="⚿ " + gettext("لینک اشتراک ios"),
                 copy_text=CopyTextButton(text=normal_sublink + "?base64=true"),
             ),
         )
@@ -281,11 +281,11 @@ async def agent_manage_profile_handler(
     normal_sublink = await sync_to_async(subscriptionprofile_obj.get_sublink)()
     ikbuilder.row(
         InlineKeyboardButton(
-            text="⚿ " + gettext("کپی لینک اشتراک اندروید"),
+            text="⚿ " + gettext("لینک اشتراک اندروید"),
             copy_text=CopyTextButton(text=normal_sublink),
         ),
         InlineKeyboardButton(
-            text="⚿ " + gettext("کپی لینک اشتراک ios"),
+            text="⚿ " + gettext("لینک اشتراک ios"),
             copy_text=CopyTextButton(text=normal_sublink + "?base64=true"),
         ),
     )

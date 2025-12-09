@@ -158,7 +158,9 @@ class PaymentProvider(TimeStampedModel, models.Model):
     provider_args = models.JSONField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
     admins = models.ManyToManyField(User, related_name="+", blank=True)
-    currencies = ArrayField(base_field=models.CharField(max_length=4, choices=CURRENCY_CHOICES), default=list)
+    currencies = ArrayField(
+        base_field=models.CharField(max_length=4, choices=CURRENCY_CHOICES), default=list, blank=True
+    )
 
     def __str__(self):
         return f"{self.pk}-{self.name}"

@@ -1303,11 +1303,11 @@ async def my_account_passchange_done_handler(
     )
     normal_sublink = await sync_to_async(subscriptionprofile_obj.get_sublink)()
     InlineKeyboardButton(
-        text="⚿ " + gettext("کپی لینک اشتراک جدید(اندروید)"),
+        text="⚿ " + gettext("لینک اشتراک جدید(اندروید)"),
         copy_text=CopyTextButton(text=normal_sublink),
     ),
     InlineKeyboardButton(
-        text="⚿ " + gettext("کپی لینک اشتراک جدید(ios)"),
+        text="⚿ " + gettext("لینک اشتراک جدید(ios)"),
         copy_text=CopyTextButton(text=normal_sublink + "?base64=true"),
     ),
 

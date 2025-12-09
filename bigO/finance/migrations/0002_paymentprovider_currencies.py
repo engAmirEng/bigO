@@ -18,6 +18,7 @@ class Migration(migrations.Migration):
                 base_field=models.CharField(
                     choices=[("EUR", "Euro"), ("IRR", "Iranian Rial"), ("USD", "US Dollar")], max_length=4
                 ),
+                blank=True,
                 default=list,
                 size=None,
             ),

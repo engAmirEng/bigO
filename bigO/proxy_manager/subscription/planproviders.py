@@ -169,7 +169,7 @@ class TypeSimpleAsYouGO1(BaseSubscriptionPlanProvider):
 
         def verbose_title(self, currency):
             m = Money(amount=self.per_gb_price, currency=currency)
-            return "{0} به ازای هر گیگابایت".format(m)
+            return "هر گیگابایت {0} بدون محدودیت زمانی(حداقل مصرف {2} گیگابایت)".format(m, self.pre_gb_pay)
 
     class PlanArgsModel(pydantic.BaseModel):
         paid_bytes: int

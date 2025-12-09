@@ -35,11 +35,11 @@ def ik_member_overview_layout(ikbuilder, subscriptionprofile_id: int, agency_id:
     )
     ikbuilder.row(
         InlineKeyboardButton(
-            text="⚿ " + gettext("کپی لینک اشتراک اندروید"),
+            text="⚿ " + gettext("لینک اشتراک اندروید"),
             copy_text=CopyTextButton(text=normal_sublink),
         ),
         InlineKeyboardButton(
-            text="⚿ " + gettext("کپی لینک اشتراک ios"),
+            text="⚿ " + gettext("لینک اشتراک ios"),
             copy_text=CopyTextButton(text=normal_sublink + "?base64=true"),
         ),
     )
