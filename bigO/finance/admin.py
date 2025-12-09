@@ -50,7 +50,7 @@ class InvoiceItemModelAdmin(polymorphic.admin.PolymorphicParentModelAdmin):
     list_filter = (polymorphic.admin.PolymorphicChildModelFilter,)
 
     def get_child_models(self):
-        from bigO.proxy_manager.models import SubscriptionPlanInvoiceItem, MemberWalletInvoiceItem
+        from bigO.proxy_manager.models import MemberWalletInvoiceItem, SubscriptionPlanInvoiceItem
 
         return (SubscriptionPlanInvoiceItem, MemberWalletInvoiceItem)
 

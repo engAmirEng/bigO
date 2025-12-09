@@ -748,6 +748,7 @@ class SubscriptionPlanInvoiceItemModelAdmin(polymorphic.admin.PolymorphicChildMo
     )
     autocomplete_fields = ("created_by", "replacement", "apply_to", "issued_for", "issued_to", "delivered_period")
 
+
 @admin.register(models.MemberWalletInvoiceItem)
 class MemberWalletInvoiceItemModelAdmin(polymorphic.admin.PolymorphicChildModelAdmin):
     base_model = finance_models.InvoiceItem

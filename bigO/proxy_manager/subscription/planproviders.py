@@ -23,7 +23,7 @@ from django.db.models import (
     Value,
     When,
 )
-from django.db.models.functions import Cast, Floor, Now, Coalesce
+from django.db.models.functions import Cast, Coalesce, Floor, Now
 from django.utils import timezone
 
 from .base import BaseSubscriptionPlanProvider
