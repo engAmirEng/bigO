@@ -231,18 +231,16 @@ class TypeSimpleAsYouGO1(BaseSubscriptionPlanProvider):
         qs = (
             models.MemberCredit.objects.filter(
                 Q(agency_user__user=OuterRef("profile__user"), agency_user__agency=OuterRef("profile__initial_agency"))
-                & Q(
-                    Q(credit_currency=OuterRef("plan__base_currency"))
-                    | Q(debt_currency=OuterRef("plan__base_currency"))
-                )
             )
+            .ann_currency()
+            .filter(currency=OuterRef("plan__base_currency"))
             .order_by()
             .values("agency_user")
             .annotate(balance=Sum("credit") - Sum("debt"))
         )
         return Cast("plan_args__paid_bytes", PositiveBigIntegerField()) + (
             Floor(
-                Subquery(qs.values("balance"))
+                Coalesce(Subquery(qs.values("balance")), Value(0))
                 / Cast("plan__plan_provider_args__per_gb_price", DecimalField(max_digits=10, decimal_places=2))
             )
             * Value(1000_000_000)
