@@ -428,7 +428,7 @@ async def member_new_profile_plan_choosed_handler(
         rkbuilder = ReplyKeyboardBuilder()
         rkbuilder.button(text=gettext("انصراف"))
         return message.message.answer(
-            gettext("حجم(گیگابایت) سرویس خود را وارد کنید:"), reply_markup=rkbuilder.as_markup()
+            gettext("حجم(گیگابایت) سرویس خود را وارد کنید:"), reply_markup=rkbuilder.as_markup(resize_keyboard=True)
         )
     elif choosed_plan_obj.plan_provider_cls == planproviders.TypeSimpleStrict1:
         await state.set_state(MemberNewSimpleStrict1PlanForm.final_check)
@@ -448,7 +448,7 @@ async def member_new_profile_plan_choosed_handler(
             "teleport/member/subcription_plan_bill.thtml",
             context={"invoice": invoice_obj},
         )
-        return message.message.answer(text, reply_markup=rkbuilder.as_markup())
+        return message.message.answer(text, reply_markup=rkbuilder.as_markup(resize_keyboard=True))
     elif choosed_plan_obj.plan_provider_cls == planproviders.TypeSimpleAsYouGO1:
         providerarg = planproviders.TypeSimpleAsYouGO1.ProviderArgsModel(**choosed_plan_obj.plan_provider_args)
         await state.set_state(MemberNewSimpleStrict1PlanForm.final_check)
@@ -468,7 +468,7 @@ async def member_new_profile_plan_choosed_handler(
             "teleport/member/subcription_plan_bill.thtml",
             context={"invoice": invoice_obj},
         )
-        return message.message.answer(text, reply_markup=rkbuilder.as_markup())
+        return message.message.answer(text, reply_markup=rkbuilder.as_markup(resize_keyboard=True))
     else:
         raise NotImplementedError
 
@@ -532,13 +532,15 @@ async def agent_new_profile_plan_newsimpledynamic1plan_handler(
 
             return message.answer(
                 gettext("مقدار وارد شده معتبر نیست، لطفا حجم(گیگابایت) مدنظر سرویس خود را بصورت عدد وارد کنید:"),
-                reply_markup=rkbuilder.as_markup(),
+                reply_markup=rkbuilder.as_markup(resize_keyboard=True),
             )
         await state.update_data(trafficGB=entered_trafic_gb)
         await state.set_state(MemberNewSimpleDynamic1PlanForm.days)
         rkbuilder = ReplyKeyboardBuilder()
         rkbuilder.button(text=gettext("انصراف"))
-        return message.answer(gettext("تعداد روز سرویس خود را وارد کنید:"), reply_markup=rkbuilder.as_markup())
+        return message.answer(
+            gettext("تعداد روز سرویس خود را وارد کنید:"), reply_markup=rkbuilder.as_markup(resize_keyboard=True)
+        )
     elif state_name == MemberNewSimpleDynamic1PlanForm.days.state:
         try:
             entered_days = int(message.text)
@@ -548,7 +550,7 @@ async def agent_new_profile_plan_newsimpledynamic1plan_handler(
 
             return message.answer(
                 gettext("مقدار وارد شده معتبر نیست، لطفا تعداد روز سرویس مدنظر خود را بصورت عدد وارد کنید:"),
-                reply_markup=rkbuilder.as_markup(),
+                reply_markup=rkbuilder.as_markup(resize_keyboard=True),
             )
         volume_gb = state_data["trafficGB"]
         plan_args = {
@@ -573,7 +575,7 @@ async def agent_new_profile_plan_newsimpledynamic1plan_handler(
             "teleport/member/subcription_plan_bill.thtml",
             context={"invoice": invoice_obj},
         )
-        return message.answer(text, reply_markup=rkbuilder.as_markup())
+        return message.answer(text, reply_markup=rkbuilder.as_markup(resize_keyboard=True))
     elif state_name == MemberNewSimpleDynamic1PlanForm.final_check.state:
         bill_id = state_data["bill_id"]
         return await tmp_return_bill(
@@ -646,7 +648,7 @@ async def tmp_return_bill(*, message, bill_id, useragency, user, state, bot_obj)
             "teleport/member/subcription_plan_bill.thtml",
             context={"invoice": subscriptionplaninvoiceitem_obj.invoice},
         )
-        return message.answer(text=text, reply_markup=rkbuilder.as_markup())
+        return message.answer(text=text, reply_markup=rkbuilder.as_markup(resize_keyboard=True))
     paymentproviders_qs = await sync_to_async(proxy_manager_services.get_user_available_paymentproviders)(
         user=user, agency=agency
     )
