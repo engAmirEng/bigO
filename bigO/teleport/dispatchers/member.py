@@ -329,10 +329,6 @@ async def new_profile_me_handler(
         user=useragency.user, agency=useragency.agency, current_period=current_period
     )
     subscriptionplan_list = [i async for i in subscriptionplan_qs]
-    # not_same_plan_subscriptionplan_list = [i for i in subscriptionplan_list if current_period.plan_id != i.id]
-    # same_plan_subscriptionplan_list = [i for i in subscriptionplan_list if current_period.plan_id == i.id]
-    # not_same_crule_subscriptionplan_list = [i for i in subscriptionplan_list if current_period.plan.connection_rule_id != i.connection_rule_id]
-    # same_crule_subscriptionplan_list = [i for i in subscriptionplan_list if current_period.plan.connection_rule_id == i.connection_rule_id]
     ikbuilder = InlineKeyboardBuilder()
     ikbuilder.row(
         InlineKeyboardButton(
@@ -350,9 +346,9 @@ async def new_profile_me_handler(
     )
     ikbuilder_plan = InlineKeyboardBuilder()
     for i, subscriptionplan in enumerate(subscriptionplan_list):
-        if subscriptionplan.id == current_period.plan_id:
+        if current_period and subscriptionplan.id == current_period.plan_id:
             text = f"{i + 1})☑️ {subscriptionplan.name}"
-        elif subscriptionplan.connection_rule_id == current_period.plan.connection_rule_id:
+        elif current_period and subscriptionplan.connection_rule_id == current_period.plan.connection_rule_id:
             text = f"{i + 1})✔️ {subscriptionplan.name}"
         else:
             text = f"{i + 1}) {subscriptionplan.name}"
@@ -1075,7 +1071,7 @@ async def my_account_detail_handler(
     if tuser is None or tuser.user is None:
         text = gettext("برای استفاده از خدمات ما از معرف خود لینک معرفی دریافت کنید.")
         return message.answer(text, show_alert=True)
-    return message.answer(gettext("این دکمه نمایشی است"))
+    return message.answer(gettext("این دکمه نمایشی است، دکمه های زیر آن را انتخاب کنید."))
 
 
 @router.callback_query(MemberAgencyProfileCallbackData.filter(aiogram.F.action == MemberAgencyProfileAction.DETAIL))
