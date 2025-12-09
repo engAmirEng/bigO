@@ -27,6 +27,11 @@ class Agency(TimeStampedModel, models.Model):
     default_calendar_type = models.CharField(
         max_length=15, choices=calander_type.CalendarType.choices, null=True, blank=True
     )
+    default_currency = CurrencyField(
+        choices=CURRENCY_CHOICES,
+        null=True,
+        blank=False,
+    )
 
     def __str__(self):
         return f"{self.pk}-{self.name}"

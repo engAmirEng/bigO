@@ -1,8 +1,11 @@
 import asyncio
+import decimal
+from decimal import Decimal
 from enum import Enum
 from typing import Optional
 
 from asgiref.sync import sync_to_async
+from moneyed import Money
 
 import aiogram.utils.deep_linking
 import django.template
@@ -41,6 +44,28 @@ from ..types import (
 )
 from .base import router
 from .utils import QueryPathName, StartCommandQueryFilter, query_magic_dispatcher
+
+
+class MemberNewPlanForm(StatesGroup):
+    profile_id: int | str | None = None
+
+
+class MemberNewSimpleDynamic1PlanForm(MemberNewPlanForm):
+    plan_id = State()
+    trafficGB = State()
+    days = State()
+    bill_id = State()
+    final_check = State()
+
+
+class MemberNewSimpleStrict1PlanForm(MemberNewPlanForm):
+    plan_id = State()
+    bill_id = State()
+    final_check = State()
+
+
+class MemberWalletCreditForm(MemberNewPlanForm):
+    amount = State()
 
 
 class MemberAgencyPlanAction(str, Enum):
@@ -129,6 +154,94 @@ async def member_see_toturial_content_handler(
         disable_web_page_preview=True,
         link_preview_options=LinkPreviewOptions(is_disabled=True),
     )
+
+
+@router.callback_query(MemberAgencyCallbackData.filter(aiogram.F.action == MemberAgencyAction.WALLET_CREDIT))
+@router.message(MemberWalletCreditForm.amount)
+async def member_wallet_handler(
+    message: CallbackQuery | Message,
+    tuser: TelegramUser | None,
+    state: FSMContext,
+    aiobot: Bot,
+    bot_obj: TelegramBot,
+    panel_obj: models.Panel,
+    callback_data: MemberAgencyCallbackData | None = None,
+) -> Optional[aiogram.methods.TelegramMethod]:
+    agency = panel_obj.agency
+    useragency = (
+        await proxy_manager_models.AgencyUser.objects.filter(user=tuser.user, agency=agency, agency_id=agency.id)
+        .select_related("user", "agency")
+        .afirst()
+    )
+    if useragency is None:
+        return message.message.edit_text(gettext("تغییری ایجاد شده، ار ابتدا اقدام کنید."))
+
+    wallet_balances = proxy_manager_models.MemberCredit.objects.filter(agency_user=useragency).balance()
+
+    paymentproviders_qs = proxy_manager_services.get_user_available_paymentproviders(
+        user=useragency.user, agency=agency
+    ).filter(currencies__contains=[agency.default_currency])
+    paymentproviders_list: list[finance_models.PaymentProvider] = [i async for i in paymentproviders_qs]
+    if not paymentproviders_list:
+        return message.answer(gettext("درگاه فعالی وجود ندارد، با ادمین تماس بگیرید"))
+    ikbuilder = InlineKeyboardBuilder()
+    if settings.DEBUG:
+        ikbuilder.row(
+            InlineKeyboardButton(
+                text="🔄 Refresh",
+                callback_data=MemberAgencyCallbackData(
+                    agency_id=agency.id, action=MemberAgencyAction.WALLET_CREDIT
+                ).pack(),
+            ),
+        )
+    ikbuilder.row(
+        InlineKeyboardButton(
+            text="🔙 " + gettext("بازگشت به منو"),
+            callback_data=SimpleButtonCallbackData(button_name=SimpleButtonName.MENU).pack(),
+        )
+    )
+
+    await state.set_state(MemberWalletCreditForm.amount)
+    if await state.get_state() == MemberWalletCreditForm.amount and isinstance(message, Message):
+        try:
+            charging_val = Decimal(message.text)
+        except decimal.InvalidOperation:
+            msg = gettext("مقدار وارد شده تا معتبر است.")
+            await add_message(state, level=messages.ERROR, message=msg)
+            text = await thtml_render_to_string(
+                "teleport/member/wallet_credit.thtml",
+                context={"state": state, "currency": agency.default_currency, "wallet_balances": wallet_balances},
+            )
+            return message.reply(text, reply_markup=ikbuilder.as_markup())
+        amount = Money(amount=charging_val, currency=agency.default_currency)
+        invoice_obj = await sync_to_async(proxy_manager_services.member_create_wallet_credit_bill)(
+            amount=amount,
+            agency_user=useragency,
+            actor=tuser.user,
+        )
+        await state.set_state(state=None)
+        ikbuilder = InlineKeyboardBuilder()
+        ikbuilder.row(
+            InlineKeyboardButton(
+                text="🔙 " + gettext("بازگشت به منو"),
+                callback_data=SimpleButtonCallbackData(button_name=SimpleButtonName.MENU).pack(),
+            ),
+            InlineKeyboardButton(
+                text=gettext("تایید"),
+                callback_data=MemberBillCallbackData(bill_id=invoice_obj.id, action=MemberBillAction.OVERVIEW).pack(),
+            ),
+        )
+        text = await thtml_render_to_string(
+            "teleport/member/subcription_plan_bill.thtml",
+            context={"invoice": invoice_obj},
+        )
+        return message.reply(text, reply_markup=ikbuilder.as_markup())
+
+    text = await thtml_render_to_string(
+        "teleport/member/wallet_credit.thtml",
+        context={"state": state, "currency": agency.default_currency, "wallet_balances": wallet_balances},
+    )
+    return message.message.edit_text(text, reply_markup=ikbuilder.as_markup())
 
 
 @router.callback_query(MemberAgencyCallbackData.filter(aiogram.F.action == MemberAgencyAction.LIST_AVAILABLE_PLANS))
@@ -263,24 +376,6 @@ async def new_profile_me_handler(
         },
     )
     return message.message.edit_text(text=text, reply_markup=ikbuilder.as_markup())
-
-
-class MemberNewPlanForm(StatesGroup):
-    profile_id: int | str | None = None
-
-
-class MemberNewSimpleDynamic1PlanForm(MemberNewPlanForm):
-    plan_id = State()
-    trafficGB = State()
-    days = State()
-    bill_id = State()
-    final_check = State()
-
-
-class MemberNewSimpleStrict1PlanForm(MemberNewPlanForm):
-    plan_id = State()
-    bill_id = State()
-    final_check = State()
 
 
 @router.callback_query(MemberAgencyPlanCallbackData.filter(aiogram.F.action == MemberAgencyPlanAction.NEW_PROFILE))
@@ -612,14 +707,22 @@ async def new_billoverview_handler(
     if useragency is None:
         return message.message.edit_text(gettext("تغییری ایجاد شده، ار ابتدا اقدام کنید."))
 
-    subscriptionplaninvoiceitem_obj = (
-        await proxy_manager_models.SubscriptionPlanInvoiceItem.objects.select_related("invoice")
-        .filter(invoice_id=callback_data.bill_id, issued_to=useragency)
-        .afirst()
+    qs1 = proxy_manager_models.SubscriptionPlanInvoiceItem.objects.select_related("invoice").filter(
+        invoice_id=callback_data.bill_id, issued_to=useragency
     )
-    invoice = subscriptionplaninvoiceitem_obj.invoice
-    if subscriptionplaninvoiceitem_obj is None:
+    qs2 = proxy_manager_models.MemberWalletInvoiceItem.objects.select_related("invoice").filter(
+        invoice_id=callback_data.bill_id, issued_to=useragency
+    )
+    item_obj = await qs1.afirst() or await qs2.afirst()
+    if item_obj is None:
         return
+    invoice = item_obj.invoice
+    changed = None
+    if invoice.status in (
+        finance_models.Invoice.StatusChoices.DRAFT,
+        finance_models.Invoice.StatusChoices.ISSUED,
+    ):
+        changed = await sync_to_async(proxy_manager_services.member_prepare_checkout)(invoice)
     if invoice.status == finance_models.Invoice.StatusChoices.ISSUED:
         paymentproviders_qs = proxy_manager_services.get_user_available_paymentproviders(
             user=tuser.user, agency=agency
@@ -627,7 +730,7 @@ async def new_billoverview_handler(
         paymentproviders_list: list[finance_models.PaymentProvider] = [i async for i in paymentproviders_qs]
         if not paymentproviders_list:
             return message.answer(gettext("درگاه فعالی وجود ندارد، با ادمین تماس بگیرید"))
-        changed = await sync_to_async(proxy_manager_services.member_prepare_checkout)(invoice)
+
         if changed:
             await add_message(state=state, level=messages.INFO, message=gettext("تغییر یافت شد"))
         await state.clear()
@@ -705,14 +808,16 @@ async def member_initpaybill_handler(
     bill_id = callback_data.bill_id
     payment_provider_id = callback_data.payment_provider_id
     payment_id = callback_data.payment_id
-    subscriptionplaninvoiceitem_obj = (
-        await proxy_manager_models.SubscriptionPlanInvoiceItem.objects.select_related("invoice")
-        .filter(invoice_id=bill_id, issued_to=useragency)
-        .afirst()
+    qs1 = proxy_manager_models.SubscriptionPlanInvoiceItem.objects.select_related("invoice").filter(
+        invoice_id=bill_id, issued_to=useragency
     )
-    if subscriptionplaninvoiceitem_obj is None:
+    qs2 = proxy_manager_models.MemberWalletInvoiceItem.objects.select_related("invoice").filter(
+        invoice_id=bill_id, issued_to=useragency
+    )
+    item_obj = await qs1.afirst() or await qs2.afirst()
+    if item_obj is None:
         return
-    invoice = subscriptionplaninvoiceitem_obj.invoice
+    invoice = item_obj.invoice
     if invoice.status != finance_models.Invoice.StatusChoices.ISSUED:
         if invoice.status == finance_models.Invoice.StatusChoices.PAID:
             return await new_billoverview_handler(

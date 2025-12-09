@@ -2,11 +2,11 @@ import uuid
 from datetime import timedelta
 
 from asgiref.sync import async_to_sync
-from django.db.models.functions import Coalesce
+from moneyed import Money
 
 from bigO.finance import models as finance_models
 from django.db import transaction
-from django.db.models import Exists, OuterRef, Q, QuerySet, Subquery, F
+from django.db.models import Exists, F, OuterRef, Q, QuerySet
 from django.utils import timezone
 
 from ...users.models import User
@@ -59,6 +59,30 @@ def get_agent_available_plans(
         subscriptionplan_qs = subscriptionplan_qs.filter(Q(remained_count__gt=0) | Q(id=current_period.plan_id))
 
     return subscriptionplan_qs
+
+
+def member_create_wallet_credit_bill(
+    amount: Money,
+    agency_user: models.AgencyUser,
+    actor: User,
+):
+    invoice_obj = finance_models.Invoice()
+    invoice_obj.uuid = uuid.uuid4()
+
+    invoice_obj.status = finance_models.Invoice.StatusChoices.DRAFT
+
+    memberwalletinvoiceitem_obj = models.MemberWalletInvoiceItem()
+    memberwalletinvoiceitem_obj.created_by = actor
+    memberwalletinvoiceitem_obj.invoice = invoice_obj
+    memberwalletinvoiceitem_obj.agency_user = agency_user
+    memberwalletinvoiceitem_obj.issued_to = agency_user
+    memberwalletinvoiceitem_obj.total_price = amount
+    invoice_obj.total_price = invoice_obj.calc_price(items=[memberwalletinvoiceitem_obj])
+
+    invoice_obj.save()
+    memberwalletinvoiceitem_obj.save()
+
+    return invoice_obj
 
 
 def member_create_bill(

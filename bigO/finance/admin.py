@@ -60,6 +60,7 @@ class PaymentProviderModelAdmin(admin.ModelAdmin):
     list_display = ("id", "name")
     search_fields = ("name",)
     form = forms.PaymentProviderModelForm
+    autocomplete_fields = ("admins",)
 
 
 @admin.register(models.Payment)

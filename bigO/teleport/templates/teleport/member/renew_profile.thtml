@@ -1,8 +1,8 @@
 {% load digits_locale teleport %}
 {% digits_locale on %}
-درحال شارژ اکانت
+درحال تمدید اکانت
     &nbsp;"<a href="{% member_profile_detail_link bot_obj.tusername subscriptionprofile %}">{{ subscriptionprofile.title }}</a>"&nbsp;
-    هستید، درصورتی که از حجم سرویس فعلی تان باقی مانده باشد با شارژ اکانت آن حجم میسوزد.
+    هستید، درصورتی که از حجم سرویس فعلی تان باقی مانده باشد با تمدید اکانت آن حجم میسوزد.
     <br>
     درصورتی که میخواهید اکانت جدید تهیه کنید به منو بازگردید.
 <br><br>

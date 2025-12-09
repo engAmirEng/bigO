@@ -1,0 +1,35 @@
+{% load calander_type digits_locale teleport %}
+<strong>
+    {{ forloop.counter }})&nbsp;
+</strong>
+{% if invoice_item.plan %}
+    <strong>
+        {% if invoice_item.apply_to %}
+            تمدید بر روی:
+            &nbsp;
+            {% if admin %}
+                {% admin_profile_detail_link bot_obj.tusername invoice_item.apply_to as link %}
+            {% else %}
+                {% member_profile_detail_link bot_obj.tusername invoice_item.apply_to as link %}
+            {% endif %}
+            {% digits_locale off %}
+            <a href="{{ link }}">{{ invoice_item.apply_to.title }}</a>
+            {% enddigits_locale %}
+        {% else %}
+            &nbsp;
+            پروفایل چدید
+        {% endif %}
+        &nbsp;({{ invoice_item.plan.plan_verbose_display }})
+    </strong>
+    {% with plan_spec_verbose_display=invoice_item.plan_spec_verbose_display %}
+        {% if plan_spec_verbose_display %}
+            <br>
+            {{ plan_spec_verbose_display }}
+        {% endif %}
+    {% endwith %}
+{% elif invoice_item.total_price %}
+    شارژ کیف پول به میزان
+    &nbsp;{{ invoice_item.total_price }}
+{% else %}
+    error
+{% endif %}

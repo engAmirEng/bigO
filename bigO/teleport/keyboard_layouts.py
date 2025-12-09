@@ -19,7 +19,7 @@ def ik_member_overview_layout(ikbuilder, subscriptionprofile_id: int, agency_id:
     )
     ikbuilder.row(
         InlineKeyboardButton(
-            text="💳 " + gettext("شارژ این اکانت"),
+            text="💳 " + gettext("تمدید این اکانت"),
             callback_data=MemberAgencyProfileCallbackData(
                 profile_id=subscriptionprofile_id, action=MemberAgencyProfileAction.LIST_AVAILABLE_PLANS
             ).pack(),

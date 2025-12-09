@@ -2,6 +2,7 @@
 {% digits_locale on %}
 {% trender_messages "teleport/partials/messages.thtml" %}
 به ربات {{ agency.name }} خوش آمدید
+{% include "teleport/partials/wallet_balance.thtml" %}
 {% for subscriptionprofile in subscriptionprofiles %}
     {% if forloop.first %}
         <br>
