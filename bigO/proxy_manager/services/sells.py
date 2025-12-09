@@ -5,11 +5,12 @@ from asgiref.sync import async_to_sync
 from moneyed import Money
 
 from bigO.finance import models as finance_models
+from bigO.finance.payment_providers.providers import ProxyManagerWalletCredit
+from bigO.users.models import User
 from django.db import transaction
 from django.db.models import Exists, F, OuterRef, Q, QuerySet
 from django.utils import timezone
 
-from ...users.models import User
 from .. import models
 
 
@@ -31,12 +32,16 @@ def get_user_available_plans(*, user, agency, current_period: models.Subscriptio
 
 
 def get_user_available_paymentproviders(*, user, agency):
+    wallet_payment_provider = get_wallet_payment_provider(agency=agency)
+
     qs1 = models.AgencyUserGroup.objects.filter(agency=agency, users=user)
     qs_2 = models.AgencyPaymentType.objects.filter(
         agencyusergroup_id__in=qs1.values("id"),
         payments__id=OuterRef("id"),
     )
-    paymentprovider_qs = finance_models.PaymentProvider.objects.filter(Q(is_active=True), Exists(qs_2))
+    paymentprovider_qs = finance_models.PaymentProvider.objects.filter(
+        Q(is_active=True), Q(Exists(qs_2)) | Q(provider_key=ProxyManagerWalletCredit.TYPE_IDENTIFIER)
+    )
     return paymentprovider_qs
 
 
@@ -209,3 +214,44 @@ async def get_invoice_agency(invoice):
     )
     if subscriptionperiodinvoiceitem_obj:
         return subscriptionperiodinvoiceitem_obj.issued_to.agency
+
+
+def get_wallet_payment_provider(agency) -> finance_models.PaymentProvider | None:
+    obj = finance_models.PaymentProvider.objects.filter(provider_key=ProxyManagerWalletCredit.TYPE_IDENTIFIER).first()
+    if obj is None:
+        obj = finance_models.PaymentProvider()
+        obj.name = ("proxy_manager_wallet",)
+        obj.provider_key = ProxyManagerWalletCredit.TYPE_IDENTIFIER
+        obj.is_active = True
+        obj.save()
+    elif not obj.is_active:
+        return None
+    return obj
+
+
+@transaction.atomic(using="main")
+def pay_payment_with_wallet(
+    payment: finance_models.Payment,
+    useragency: models.AgencyUser,
+    wallet_paymentprovider: finance_models.PaymentProvider,
+    actor: User,
+):
+    wallet_balances = models.MemberCredit.objects.filter(agency_user=useragency).balance(
+        currency=payment.amount.currency
+    )
+    if wallet_balances >= payment.amount:
+        credit = models.MemberCredit()
+        credit.agency_user = useragency
+        credit.debt = payment.amount
+        credit.created_by = actor
+        credit.description = "use credit for payment"
+
+        paymentcreditusage = models.PaymentCreditUsage()
+        paymentcreditusage.payment = payment
+        paymentcreditusage.credit = credit
+
+        credit.save()
+        paymentcreditusage.save()
+        payment.complete(actor=actor)
+    else:
+        raise ProxyManagerWalletCredit.NotSufficientCredit()

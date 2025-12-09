@@ -196,11 +196,9 @@ class TypeSimpleAsYouGO1(BaseSubscriptionPlanProvider):
         qs = (
             models.MemberCredit.objects.filter(
                 Q(agency_user__user=OuterRef("profile__user"), agency_user__agency=OuterRef("profile__initial_agency"))
-                & Q(
-                    Q(credit_currency=OuterRef("plan__base_currency"))
-                    | Q(debt_currency=OuterRef("plan__base_currency"))
-                )
             )
+            .ann_currency()
+            .filter(currency=OuterRef("plan__base_currency"))
             .order_by()
             .values("agency_user")
             .annotate(balance=Sum("credit") - Sum("debt"))

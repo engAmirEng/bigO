@@ -2,6 +2,7 @@ import uuid
 
 from djmoney.models.fields import MoneyField
 from djmoney.models.managers import money_manager, understands_money
+from moneyed import Money
 
 from bigO.finance import models as finance_models
 from bigO.users.models import User
@@ -118,23 +119,31 @@ class SubscriptionPeriodCreditUsage(TimeStampedModel, models.Model):
     credit = models.OneToOneField("MemberCredit", on_delete=models.CASCADE, related_name="+")
 
 
-class InvoiceCreditUsage(TimeStampedModel, models.Model):
-    invoice = models.ForeignKey("finance.Invoice", on_delete=models.CASCADE, related_name="+")
+class PaymentCreditUsage(TimeStampedModel, models.Model):
+    payment = models.ForeignKey("finance.Payment", on_delete=models.CASCADE, related_name="+")
     credit = models.OneToOneField("MemberCredit", on_delete=models.CASCADE, related_name="+")
+
+    def __str__(self):
+        return f"{self.id}-payment{self.payment_id}({self.credit.debt})"
 
 
 class MemberCredit(TimeStampedModel, models.Model):
     class MemberCreditQuerySet(models.QuerySet):
-        @understands_money
-        def balance(self):
-            return (
-                self.annotate(
-                    currency=Case(
-                        When(credit__isnull=False, then=F("credit_currency")),
-                        When(debt__isnull=False, then=F("debt_currency")),
-                    )
+        def ann_currency(self):
+            return self.annotate(
+                currency=Case(
+                    When(credit__isnull=False, then=F("credit_currency")),
+                    When(debt__isnull=False, then=F("debt_currency")),
                 )
-                .order_by()
+            )
+
+        @understands_money
+        def balance(self, currency: str = None):
+            qs = self.ann_currency()
+            if currency:
+                qs = qs.filter(currency=currency)
+            qs = (
+                qs.order_by()
                 .values("agency_user", "currency")
                 .annotate(
                     balance=ExpressionWrapper(
@@ -143,6 +152,10 @@ class MemberCredit(TimeStampedModel, models.Model):
                     )
                 )
             )
+            res = [Money(amount=i["balance"], currency=i["currency"]) for i in qs]
+            if currency:
+                return res[0] if res else Money(amount=0, currency=currency)
+            return qs
 
     agency_user = models.ForeignKey("AgencyUser", on_delete=models.CASCADE, related_name="+")
     credit = MoneyField(max_digits=14, decimal_places=2, default_currency="USD", null=True, blank=True)

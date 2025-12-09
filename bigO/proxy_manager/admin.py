@@ -745,6 +745,17 @@ class SubscriptionPlanInvoiceItemModelAdmin(polymorphic.admin.PolymorphicChildMo
     autocomplete_fields = ("created_by", "replacement", "apply_to", "issued_for", "issued_to", "delivered_period")
 
 
+@admin.register(models.PaymentCreditUsage)
+class PaymentCreditUsageModelAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "payment",
+        "credit",
+    )
+    search_fields = ("credit__agency_user__user__name", "credit__agency_user__user__username")
+    autocomplete_fields = ("payment", "credit")
+
+
 @admin.register(models.MemberCredit)
 class MemberCreditModelAdmin(admin.ModelAdmin):
     list_display = (

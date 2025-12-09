@@ -17,7 +17,7 @@ from aiogram.types import CallbackQuery, CopyTextButton, LinkPreviewOptions, Mes
 from aiogram.utils.keyboard import InlineKeyboardBuilder, InlineKeyboardButton, ReplyKeyboardBuilder
 from bigO.BabyUI import services as BabyUI_services
 from bigO.finance import models as finance_models
-from bigO.finance.payment_providers.providers import BankTransfer1
+from bigO.finance.payment_providers.providers import BankTransfer1, ProxyManagerWalletCredit
 from bigO.proxy_manager import models as proxy_manager_models
 from bigO.proxy_manager import services as proxy_manager_services
 from bigO.proxy_manager.subscription import planproviders
@@ -176,11 +176,14 @@ async def member_wallet_handler(
     if useragency is None:
         return message.message.edit_text(gettext("تغییری ایجاد شده، ار ابتدا اقدام کنید."))
 
-    wallet_balances = proxy_manager_models.MemberCredit.objects.filter(agency_user=useragency).balance()
+    wallet_balances = await sync_to_async(
+        proxy_manager_models.MemberCredit.objects.filter(agency_user=useragency).balance
+    )()
 
-    paymentproviders_qs = proxy_manager_services.get_user_available_paymentproviders(
+    paymentproviders_qs = await sync_to_async(proxy_manager_services.get_user_available_paymentproviders)(
         user=useragency.user, agency=agency
-    ).filter(currencies__contains=[agency.default_currency])
+    )
+    paymentproviders_qs = paymentproviders_qs.filter(currencies__contains=[agency.default_currency])
     paymentproviders_list: list[finance_models.PaymentProvider] = [i async for i in paymentproviders_qs]
     if not paymentproviders_list:
         return message.answer(gettext("درگاه فعالی وجود ندارد، با ادمین تماس بگیرید"))
@@ -644,7 +647,9 @@ async def tmp_return_bill(*, message, bill_id, useragency, user, state, bot_obj)
             context={"invoice": subscriptionplaninvoiceitem_obj.invoice},
         )
         return message.answer(text=text, reply_markup=rkbuilder.as_markup())
-    paymentproviders_qs = proxy_manager_services.get_user_available_paymentproviders(user=user, agency=agency)
+    paymentproviders_qs = await sync_to_async(proxy_manager_services.get_user_available_paymentproviders)(
+        user=user, agency=agency
+    )
     paymentproviders_list: list[finance_models.PaymentProvider] = [i async for i in paymentproviders_qs]
     if not paymentproviders_list:
         return message.answer(gettext("درگاه فعالی وجود ندارد، با ادمین تماس بگیرید"))
@@ -663,7 +668,9 @@ async def tmp_return_bill(*, message, bill_id, useragency, user, state, bot_obj)
     )
     for paymentprovider in paymentproviders_list:
         if paymentprovider.provider_cls == BankTransfer1:
-            title = gettext("پرداخت کارت به کارت ({0})").format(paymentprovider.id)
+            title = "💳 " + gettext("پرداخت کارت به کارت ({0})").format(paymentprovider.id)
+        elif paymentprovider.provider_cls == ProxyManagerWalletCredit:
+            title = "👝 " + gettext("استفاده از اعتبار کیف پول").format(paymentprovider.id)
         else:
             title = gettext("پرداخت با ") + paymentprovider.name
         ikbuilder.row(
@@ -720,9 +727,11 @@ async def new_billoverview_handler(
     ):
         changed = await sync_to_async(proxy_manager_services.member_prepare_checkout)(invoice)
     if invoice.status == finance_models.Invoice.StatusChoices.ISSUED:
-        paymentproviders_qs = proxy_manager_services.get_user_available_paymentproviders(
+        paymentproviders_qs = await sync_to_async(proxy_manager_services.get_user_available_paymentproviders)(
             user=tuser.user, agency=agency
         )
+        if await qs2.aexists():
+            paymentproviders_qs = paymentproviders_qs.exclude(provider_key=ProxyManagerWalletCredit.TYPE_IDENTIFIER)
         paymentproviders_list: list[finance_models.PaymentProvider] = [i async for i in paymentproviders_qs]
         if not paymentproviders_list:
             return message.answer(gettext("درگاه فعالی وجود ندارد، با ادمین تماس بگیرید"))
@@ -743,7 +752,9 @@ async def new_billoverview_handler(
         )
         for paymentprovider in paymentproviders_list:
             if paymentprovider.provider_cls == BankTransfer1:
-                title = gettext("پرداخت کارت به کارت ({0})").format(paymentprovider.id)
+                title = "💳 " + gettext("پرداخت کارت به کارت ({0})").format(paymentprovider.id)
+            elif paymentprovider.provider_cls == ProxyManagerWalletCredit:
+                title = "👝 " + gettext("استفاده از اعتبار کیف پول").format(paymentprovider.id)
             else:
                 title = gettext("پرداخت با ") + paymentprovider.name
             ikbuilder.row(
@@ -829,7 +840,9 @@ async def member_initpaybill_handler(
             return message.answer(
                 gettext(("امکان پذیر نیست، این صورت حساب در وضعیت {0} قرار دارد")).format(invoice.get_status_display())
             )
-    paymentproviders_qs = proxy_manager_services.get_user_available_paymentproviders(user=tuser.user, agency=agency)
+    paymentproviders_qs = await sync_to_async(proxy_manager_services.get_user_available_paymentproviders)(
+        user=tuser.user, agency=agency
+    )
     paymentprovider_obj: finance_models.PaymentProvider | None = await paymentproviders_qs.filter(
         id=payment_provider_id
     ).afirst()
@@ -877,6 +890,29 @@ async def member_initpaybill_handler(
             "teleport/member/subcription_plan_banktransfer1.thtml",
             context={"bot_obj": bot_obj, "invoice": invoice, "payment": payment, "provider_args": provider_args},
         )
+    elif provider_cls == ProxyManagerWalletCredit:
+        try:
+            await sync_to_async(proxy_manager_services.pay_payment_with_wallet)(
+                payment=payment, useragency=useragency, wallet_paymentprovider=paymentprovider_obj, actor=tuser.user
+            )
+        except ProxyManagerWalletCredit.NotSufficientCredit:
+            wallet_balances = await sync_to_async(
+                proxy_manager_models.MemberCredit.objects.filter(agency_user=useragency).balance
+            )(currency=invoice.total_price.currency)
+            return message.answer(
+                gettext("اعتبار {0} مورد نیاز است، اعتبار فعلی شما {1} است.").format(payment.amount, wallet_balances)
+            )
+        await add_message(state=state, level=messages.SUCCESS, message=gettext("با موفقیت انجام شد."))
+        return await new_billoverview_handler(
+            message,
+            callback_data=MemberBillCallbackData(bill_id=invoice.id, action=MemberBillAction.OVERVIEW),
+            tuser=tuser,
+            state=state,
+            aiobot=aiobot,
+            bot_obj=bot_obj,
+            panel_obj=panel_obj,
+        )
+
     else:
         raise NotImplementedError
     ikbuilder.row(

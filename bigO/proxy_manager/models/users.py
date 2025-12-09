@@ -153,7 +153,7 @@ class SubscriptionPeriod(TimeStampedModel, models.Model):
         def ann_dl_bytes_remained(self):
             whens = []
             for i in AVAILABLE_SUBSCRIPTION_PLAN_PROVIDERS:
-                ann_expr = i.get_up_bytes_remained_expr()
+                ann_expr = i.get_dl_bytes_remained_expr()
                 whens.append(When(plan__plan_provider_key=i.TYPE_IDENTIFIER, then=ann_expr))
             return self.annotate(dl_bytes_remained=Case(*whens, output_field=models.PositiveBigIntegerField()))
 

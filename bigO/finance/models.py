@@ -112,6 +112,9 @@ class Payment(TimeStampedModel, models.Model):
         choices=PaymentStatusChoices.choices, default=PaymentStatusChoices.PENDING
     )
 
+    def __str__(self):
+        return f"{self.id}-{self.amount} with {self.provider.name}({self.get_status_display()})"
+
     @classmethod
     def init_payment(cls, invoice: Invoice, provider: "PaymentProvider", user: User):
         price = provider.get_price(identifier=str(invoice.id), price=invoice.total_price)
@@ -166,6 +169,8 @@ class PaymentProvider(TimeStampedModel, models.Model):
 
     def get_provider_args(self) -> BasePaymentProvider | None:
         if self.provider_cls is None:
+            return None
+        if self.provider_cls.ProviderArgsModel is None:
             return None
         return self.provider_cls.ProviderArgsModel(**self.provider_args)
 

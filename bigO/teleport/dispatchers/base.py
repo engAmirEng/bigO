@@ -1,6 +1,7 @@
 from typing import Optional
 
 import makefun
+from asgiref.sync import sync_to_async
 
 import aiogram.utils.deep_linking
 from aiogram import Bot
@@ -148,7 +149,9 @@ async def menu_handler(
             else:
                 return message.reply(gettext("تغییری ایجاد شده، ار ابتدا اقدام کنید."))
 
-        wallet_balances = proxy_manager_models.MemberCredit.objects.filter(agency_user=useragency).balance()
+        wallet_balances = await sync_to_async(
+            proxy_manager_models.MemberCredit.objects.filter(agency_user=useragency).balance
+        )()
 
         referlink = (
             await proxy_manager_models.ReferLink.objects.filter(agency_user=useragency, is_active=True)
@@ -184,7 +187,7 @@ async def menu_handler(
             ikbuilder.row(referlink_btn)
         ikbuilder.row(
             InlineKeyboardButton(
-                text=gettext("دریافت اکانت جدید"),
+                text="🚀 " + gettext("دریافت اکانت جدید"),
                 callback_data=MemberAgencyCallbackData(
                     agency_id=agency.id, action=MemberAgencyAction.LIST_AVAILABLE_PLANS
                 ).pack(),

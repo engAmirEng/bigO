@@ -66,3 +66,4 @@ class PaymentProviderModelAdmin(admin.ModelAdmin):
 @admin.register(models.Payment)
 class PaymentModelAdmin(admin.ModelAdmin):
     list_display = ("id", "uuid", "provider", "invoice", "amount")
+    search_fields = ("uuid",)
