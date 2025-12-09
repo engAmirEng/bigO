@@ -739,10 +739,28 @@ class SubscriptionPlanInvoiceItemModelAdmin(polymorphic.admin.PolymorphicChildMo
     list_display = (
         "id",
         "invoice",
+        "invoice__status",
         "plan",
+        "issued_for",
+        "issued_to",
         "total_price",
+        "delivered_period",
     )
     autocomplete_fields = ("created_by", "replacement", "apply_to", "issued_for", "issued_to", "delivered_period")
+
+@admin.register(models.MemberWalletInvoiceItem)
+class MemberWalletInvoiceItemModelAdmin(polymorphic.admin.PolymorphicChildModelAdmin):
+    base_model = finance_models.InvoiceItem
+    list_display = (
+        "id",
+        "invoice",
+        "invoice__status",
+        "agency_user",
+        "issued_to",
+        "total_price",
+        "delivered_credit",
+    )
+    autocomplete_fields = ("created_by", "replacement", "agency_user", "issued_to", "delivered_credit")
 
 
 @admin.register(models.PaymentCreditUsage)

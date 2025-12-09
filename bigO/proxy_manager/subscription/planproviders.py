@@ -23,7 +23,7 @@ from django.db.models import (
     Value,
     When,
 )
-from django.db.models.functions import Cast, Floor, Now
+from django.db.models.functions import Cast, Floor, Now, Coalesce
 from django.utils import timezone
 
 from .base import BaseSubscriptionPlanProvider
@@ -207,7 +207,7 @@ class TypeSimpleAsYouGO1(BaseSubscriptionPlanProvider):
             Cast("plan_args__paid_bytes", PositiveBigIntegerField())
             + (
                 Floor(
-                    Subquery(qs.values("balance"))
+                    Coalesce(Subquery(qs.values("balance")), Value(0))
                     / Cast("plan__plan_provider_args__per_gb_price", DecimalField(max_digits=10, decimal_places=2))
                 )
                 * Value(1000_000_000)
