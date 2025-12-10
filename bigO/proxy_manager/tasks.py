@@ -258,11 +258,6 @@ def subscription_nearly_ended_notify(remained_seconds: int, remained_bytes: int,
     return res[0]
 
 
-@app.on_after_configure.connect
-def setup_periodic_tasks(sender: Celery, **kwargs):
-    sender.add_periodic_task(60.0, typesimpleasyougo1_check_use_credit.s(), name="add every 10")
-
-
 @app.task
 def typesimpleasyougo1_check_use_credit():
     subscription.planproviders.TypeSimpleAsYouGO1.check_use_credit()
