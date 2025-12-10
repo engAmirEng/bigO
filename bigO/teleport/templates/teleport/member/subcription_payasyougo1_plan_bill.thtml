@@ -1,0 +1,18 @@
+{% load digits_locale djmoney %}
+{% digits_locale on %}
+تایید میکنید؟
+<br>
+<br>
+{% include "teleport/partials/invoice_item.thtml" with invoice_item=invoice_item %}
+<br>
+<br>
+این پلن محدودیت زمانی ندارد، به ازای استفاده هر گیگ
+&nbsp;({% money_localize providerarg.per_gb_price invoice_item.plan.base_currency on %})&nbsp;
+از اعتبار کیف پول شما کاسته میشود، با اتمام شارژ کیف پول اتصال شما قطع میشود.
+{% if providerarg.pre_gb_pay %}
+<br>
+هزینه
+&nbsp;{{ providerarg.pre_gb_pay }}&nbsp;
+گیگ اولیه را بصورت پیش پرداخت میپردازید.
+{% endif %}
+{% enddigits_locale %}
