@@ -181,7 +181,7 @@ class SubscriptionPeriod(TimeStampedModel, models.Model):
                                 then=Value("traffic_limit"),
                             ),
                             When(
-                                condition=Q(expires_at__lt=base_time),
+                                condition=Q(expires_at__isnull=False) & Q(expires_at__lt=base_time),
                                 then=Value("expired"),
                             ),
                             default=Value(None),

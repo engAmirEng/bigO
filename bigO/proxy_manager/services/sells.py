@@ -96,7 +96,7 @@ def member_create_bill(
     agency_user: models.AgencyUser,
     profile: models.SubscriptionProfile | None,
     actor: User,
-):
+) -> models.SubscriptionPlanInvoiceItem:
     invoice_obj = finance_models.Invoice()
     invoice_obj.uuid = uuid.uuid4()
 
@@ -117,7 +117,7 @@ def member_create_bill(
     invoice_obj.save()
     subscriptionplaninvoiceitem_obj.save()
 
-    return invoice_obj
+    return subscriptionplaninvoiceitem_obj
 
 
 def member_prepare_checkout(invoice_obj: finance_models.Invoice):

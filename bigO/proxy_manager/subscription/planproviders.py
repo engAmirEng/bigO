@@ -257,7 +257,8 @@ class TypeSimpleAsYouGO1(BaseSubscriptionPlanProvider):
                 total_used_bytes=F("current_download_bytes") + F("current_upload_bytes"),
                 not_paid_bytes=F("total_used_bytes") - Cast("plan_args__paid_bytes", PositiveBigIntegerField()),
                 not_paid_credit=F("not_paid_bytes")
-                * Cast("plan__plan_provider_args__per_gb_price", DecimalField(max_digits=10, decimal_places=2)),
+                * Cast("plan__plan_provider_args__per_gb_price", DecimalField(max_digits=10, decimal_places=2))
+                / 1000_000_000,
             )
             .filter(
                 not_paid_credit__gt=Cast(
@@ -278,17 +279,17 @@ class TypeSimpleAsYouGO1(BaseSubscriptionPlanProvider):
                     agency_user__user=subscriptionperiod.profile.user,
                     agency_user__agency=subscriptionperiod.profile.initial_agency,
                 )
-                & Q(
-                    Q(credit_currency=OuterRef("plan__base_currency"))
-                    | Q(debt_currency=OuterRef("plan__base_currency"))
-                )
-            ).aggregate(balance=Sum("credit") - Sum("debt"))["balance"]
+            ).balance(currency=subscriptionperiod.plan.base_currency)
 
             providerarg = cls.ProviderArgsModel(**subscriptionperiod.plan.plan_provider_args)
-            charging_credit_value = providerarg.min_credit_charge
-            not_paid_gb = subscriptionperiod.not_paid_bytes // 1000_000_000
-            if not_paid_gb:
-                charging_credit_value = not_paid_gb * providerarg.per_gb_price
+            not_paid_credit = Decimal(subscriptionperiod.not_paid_bytes) * providerarg.per_gb_price / 1000_000_000
+            if not_paid_credit != subscriptionperiod.not_paid_credit:
+                sentry_sdk.capture_message(
+                    f"{not_paid_credit=} != {subscriptionperiod.not_paid_credit=} for {subscriptionperiod.id=}"
+                )
+                continue
+            n = not_paid_credit // providerarg.min_credit_charge
+            charging_credit_value = n * providerarg.min_credit_charge
             charging_credit = Money(amount=charging_credit_value, currency=subscriptionperiod.plan.base_currency)
             charging_bytes = int(charging_credit_value / providerarg.per_gb_price * 1000_000_000)
 
@@ -301,12 +302,12 @@ class TypeSimpleAsYouGO1(BaseSubscriptionPlanProvider):
 
             subscriptionperiodcreditusage = models.SubscriptionPeriodCreditUsage()
             subscriptionperiodcreditusage.credit = membercredit
-            subscriptionperiodcreditusage.period = subscriptionperiodcreditusage
+            subscriptionperiodcreditusage.period = subscriptionperiod
 
             plan_arg = cls.PlanArgsModel(**subscriptionperiod.plan_args)
             plan_arg.paid_bytes += charging_bytes
             subscriptionperiod.plan_args = plan_arg.model_dump()
-            if balance - charging_credit <= 0:
+            if balance - charging_credit <= Money(amount=0, currency=subscriptionperiod.plan.base_currency):
                 subscriptionperiod.limited_at = timezone.now()
             else:
                 subscriptionperiod.limited_at = None

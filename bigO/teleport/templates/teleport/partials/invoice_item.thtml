@@ -1,6 +1,10 @@
 {% load calander_type digits_locale teleport %}
 <strong>
-    {{ forloop.counter }})&nbsp;
+    {% if forloop %}
+        {{ forloop.counter }})&nbsp;
+    {% else %}
+        -&nbsp;
+    {% endif %}
 </strong>
 {% if invoice_item.plan %}
     <strong>
