@@ -260,4 +260,5 @@ def subscription_nearly_ended_notify(remained_seconds: int, remained_bytes: int,
 
 @app.task
 def typesimpleasyougo1_check_use_credit():
-    subscription.planproviders.TypeSimpleAsYouGO1.check_use_credit()
+    res = subscription.planproviders.TypeSimpleAsYouGO1.check_use_credit()
+    return {"processed_count": len(res), "negative_count": len([i for i in res if i["wallet_credit"].amount < 0])}

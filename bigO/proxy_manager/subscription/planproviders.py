@@ -324,3 +324,4 @@ class TypeSimpleAsYouGO1(BaseSubscriptionPlanProvider):
                     "wallet_credit": balance,
                 }
             )
+        return result
