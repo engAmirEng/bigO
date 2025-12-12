@@ -104,7 +104,6 @@ def certbot_init_new(domains: list[models.Domain]) -> tuple[bool, str]:
 
     res, err = subprocess.Popen(
         command_args,
-        env={},
         stderr=subprocess.PIPE,
         stdout=subprocess.PIPE,
     ).communicate(timeout=800)
@@ -237,7 +236,6 @@ def certbot_init_renew(certbotinfo_obj: models.CertbotInfo) -> tuple[bool, str]:
 
     res, err = subprocess.Popen(
         command_args,
-        env={},
         stderr=subprocess.PIPE,
         stdout=subprocess.PIPE,
     ).communicate(timeout=800)
