@@ -21,7 +21,7 @@
 <br>
 {% for invoice_item in invoice.items.all %}
     <br>
-    {% include "teleport/partials/invoice_item.thtml" with invoice_item=invoice_item %}
+    {% include "teleport/partials/invoice_item.thtml" with invoice_item=invoice_item admin=True %}
     <br>
 {% endfor %}
 <br>
