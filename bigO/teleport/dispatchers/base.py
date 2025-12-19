@@ -1,5 +1,3 @@
-from typing import Optional
-
 import makefun
 from asgiref.sync import sync_to_async
 
@@ -68,7 +66,7 @@ async def menu_handler(
     bot_obj: TelegramBot,
     panel_obj: models.Panel,
     callback_data: AgentAgencyCallbackData | SimpleButtonCallbackData | None = None,
-) -> Optional[aiogram.methods.TelegramMethod]:
+) -> aiogram.methods.TelegramMethod | None:
     agency = panel_obj.agency
     if tuser is None or tuser.user is None:
         text = gettext("برای استفاده از خدمات ما از معرف خود لینک معرفی دریافت کنید.")
