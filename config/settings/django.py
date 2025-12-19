@@ -116,6 +116,7 @@ LOCAL_APPS = [
     "bigO.telegram_bot",
     "bigO.teleport",
     "bigO.tmp_rz",
+    "bigO.user_bot",
     "bigO.users",
     "bigO.utils",
     "bigO.BabyUI",

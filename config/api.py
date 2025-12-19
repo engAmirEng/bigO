@@ -4,6 +4,7 @@ from ninja import NinjaAPI
 from ninja.security import APIKeyHeader
 
 from bigO.node_manager.api import router as node_manager_router
+from bigO.user_bot.api import router as user_bot_router
 
 
 class APIKeyHeaderAuth(APIKeyHeader):
@@ -25,3 +26,4 @@ header_key_auth = APIKeyHeaderAuth()
 
 api = NinjaAPI(auth=header_key_auth)
 api.add_router("/node-manager/", node_manager_router)
+api.add_router("/user-bot/", user_bot_router)
