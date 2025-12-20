@@ -10,7 +10,7 @@ class InvoiceItemInline(polymorphic.admin.StackedPolymorphicInline):
 
     @property
     def child_inlines(self):
-        from bigO.proxy_manager.models import SubscriptionPlanInvoiceItem
+        from bigO.proxy_manager.models import MemberWalletInvoiceItem, SubscriptionPlanInvoiceItem
 
         class SubscriptionPlanInvoiceItemInline(polymorphic.admin.StackedPolymorphicInline.Child):
             model = SubscriptionPlanInvoiceItem
@@ -19,12 +19,23 @@ class InvoiceItemInline(polymorphic.admin.StackedPolymorphicInline):
                 "replacement",
                 "apply_to",
                 "issued_for",
-                "issued_for",
+                "issued_to",
                 "delivered_period",
             )
             show_change_link = True
 
-        return (SubscriptionPlanInvoiceItemInline,)
+        class MemberWalletInvoiceItemInline(polymorphic.admin.StackedPolymorphicInline.Child):
+            model = MemberWalletInvoiceItem
+            autocomplete_fields = (
+                "created_by",
+                "replacement",
+                "agency_user",
+                "issued_to",
+                "delivered_credit",
+            )
+            show_change_link = True
+
+        return (SubscriptionPlanInvoiceItemInline, MemberWalletInvoiceItemInline)
 
 
 @admin.register(models.Invoice)
@@ -37,6 +48,7 @@ class InvoiceModelAdmin(polymorphic.admin.PolymorphicInlineSupportMixin, admin.M
     )
     search_fields = ("uuid",)
     inlines = (InvoiceItemInline,)
+    autocomplete_fields = ("completed_by",)
 
 
 @admin.register(models.InvoiceItem)
@@ -48,6 +60,7 @@ class InvoiceItemModelAdmin(polymorphic.admin.PolymorphicParentModelAdmin):
     )
     search_fields = ("invoice__uuid",)
     list_filter = (polymorphic.admin.PolymorphicChildModelFilter,)
+    autocomplete_fields = ("invoice", "replacement")
 
     def get_child_models(self):
         from bigO.proxy_manager.models import MemberWalletInvoiceItem, SubscriptionPlanInvoiceItem
