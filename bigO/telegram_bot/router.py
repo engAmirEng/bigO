@@ -1,4 +1,3 @@
-import os
 from typing import Any, Awaitable, Callable
 
 from redis.asyncio import Redis

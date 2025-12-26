@@ -10,7 +10,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, CopyTextButton, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder, InlineKeyboardButton
 from bigO.proxy_manager import models as proxy_manager_models
-from bigO.telegram_bot.dispatchers import AppRouter
+from bigO.telegram_bot.router import AppRouter
 from bigO.telegram_bot.models import TelegramBot, TelegramUser
 from bigO.telegram_bot.utils import thtml_render_to_string
 from django.utils.translation import gettext

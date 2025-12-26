@@ -6,7 +6,7 @@ import aiogram
 from django.core.management import BaseCommand
 from django.utils import autoreload
 
-from ... import dispatchers, models
+from ... import router, models
 
 
 class Command(BaseCommand):
@@ -52,7 +52,7 @@ class Command(BaseCommand):
                 aiobot = i.get_aiobot()
                 setattr(aiobot, HELPER_MONKEY_ATTR, i)
                 aiobots.append(aiobot)
-            dispatchers.dp.update.middleware._middlewares.insert(0, PollingNormalizerMiddleware())
-            await dispatchers.dp.start_polling(*aiobots, handle_signals=handle_signals)
+            router.dp.update.middleware._middlewares.insert(0, PollingNormalizerMiddleware())
+            await router.dp.start_polling(*aiobots, handle_signals=handle_signals)
 
         asyncio.run(main())
