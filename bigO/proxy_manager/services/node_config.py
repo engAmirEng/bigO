@@ -1047,3 +1047,32 @@ class XrayOutBound:
                 .first()
             )
             return nodeoutbound_obj
+
+DNS_KEY = "dns"
+
+@node_manager_services.process_conf.register_getter(key=DNS_KEY, satisfies={node_manager_services.HAPROXY_KEY})
+def get_dns_conf(
+    node_obj, node_work_dir: pathlib.Path, base_url: str, kwargs_list: list[dict]
+) -> tuple[str, list[node_manager_typing.FileSchema], dict[str, dict]] | None:
+    """
+    setLocal("2.14.9.1:53")
+    -- addACL("0.0.0.0/0")
+    -- addACL("5.75.66.223/34")
+    -- addACL("::/0")
+    addDOHLocal("127.0.0.1:553", nil, nil, "/abba", { reusePort=true })
+    --newServer({address="162.159.36.20:443", tls="openssl", subjectName="mlu9hbld0i.cloudflare-gateway.com", dohPath="/dns-query", validateCertificates=true})
+    newServer({address="8.8.8.8"})
+    setServerPolicy(firstAvailable)
+    """
+    return (
+        supervisor_config,
+        files,
+        {
+            node_manager_services.HAPROXY_KEY: {
+                "backends_parts": haproxy_backends_parts,
+                "80_matchers_parts": haproxy_80_matchers_parts,
+                "443_matchers_parts": haproxy_443_matchers_parts,
+            },
+            node_manager_services.NGINX_KEY: {"path_matchers_parts": nginx_path_matchers_parts},
+        },
+    )

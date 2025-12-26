@@ -63,6 +63,10 @@ class ISP(TimeStampedModel, models.Model):
         return f"{self.pk}-{self.name}"
 
 
+class DNS:
+    region = models.ForeignKey(Region, on_delete=models.PROTECT, related_name="+")
+    nodes = models.ManyToManyField("node_manager.Node")
+
 class ConnectionRuleOutbound(TimeStampedModel, models.Model):
     rule = models.ForeignKey("ConnectionRule", on_delete=models.CASCADE, related_name="rule_outbounds")
     balancer_allocation_str = models.CharField(
