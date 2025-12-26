@@ -6,7 +6,7 @@ import aiogram
 from django.core.management import BaseCommand
 from django.utils import autoreload
 
-from ... import router, models
+from ... import models, router
 
 
 class Command(BaseCommand):

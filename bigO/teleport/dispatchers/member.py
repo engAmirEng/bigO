@@ -21,6 +21,7 @@ from bigO.finance.payment_providers.providers import BankTransfer1, ProxyManager
 from bigO.proxy_manager import models as proxy_manager_models
 from bigO.proxy_manager import services as proxy_manager_services
 from bigO.proxy_manager.subscription import planproviders
+from bigO.telegram_bot import models as telegram_bot_models
 from bigO.telegram_bot.models import TelegramBot, TelegramUser
 from bigO.telegram_bot.utils import add_message, thtml_normalize_markup, thtml_render_to_string
 from bigO.users.models import User
@@ -124,7 +125,7 @@ async def member_see_toturial_content_handler(
     )
     if useragency is None:
         return message.message.edit_text(gettext("تغییری ایجاد شده، ار ابتدا اقدام کنید."))
-    if not panel_obj.toturial_content:
+    if not (panel_obj.toturial_content or panel_obj.toturial_message_id):
         return message.answer(gettext("مطلبی بارگذاری نشده"))
 
     ikbuilder = InlineKeyboardBuilder()
@@ -144,16 +145,25 @@ async def member_see_toturial_content_handler(
         )
     )
 
-    text = thtml_normalize_markup(
-        django.template.Template(panel_obj.toturial_content).render(context=django.template.Context({}))
-    )
+    k = {
+        "reply_markup": ikbuilder.as_markup(),
+        "disable_web_page_preview": True,
+        "link_preview_options": LinkPreviewOptions(is_disabled=True),
+    }
+    if panel_obj.toturial_message_id:
+        message_obj: telegram_bot_models.TelegramMessage = (
+            await telegram_bot_models.TelegramMessage.objects.filter(id=panel_obj.toturial_message_id)
+            .select_related_all_entities()
+            .afirst()
+        )
+        method_name, kw = await message_obj.to_aio_params()
+        return message.message.edit_text(**kw, **k)
+    else:
+        text = thtml_normalize_markup(
+            django.template.Template(panel_obj.toturial_content).render(context=django.template.Context({}))
+        )
 
-    return message.message.edit_text(
-        text=text,
-        reply_markup=ikbuilder.as_markup(),
-        disable_web_page_preview=True,
-        link_preview_options=LinkPreviewOptions(is_disabled=True),
-    )
+        return message.message.edit_text(text=text, **k)
 
 
 @router.callback_query(MemberAgencyCallbackData.filter(aiogram.F.action == MemberAgencyAction.WALLET_CREDIT))

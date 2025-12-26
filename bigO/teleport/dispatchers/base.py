@@ -10,8 +10,8 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, CopyTextButton, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder, InlineKeyboardButton
 from bigO.proxy_manager import models as proxy_manager_models
-from bigO.telegram_bot.router import AppRouter
 from bigO.telegram_bot.models import TelegramBot, TelegramUser
+from bigO.telegram_bot.router import AppRouter
 from bigO.telegram_bot.utils import thtml_render_to_string
 from django.utils.translation import gettext
 
@@ -173,7 +173,7 @@ async def menu_handler(
         else:
             txt = "👥 " + gettext("ظرفیت معرفی شما به پایان رسیده")
             referlink_btn = InlineKeyboardButton(text=txt, copy_text=CopyTextButton(text=txt))
-        if panel_obj.toturial_content:
+        if panel_obj.toturial_content or panel_obj.toturial_message_id:
             ikbuilder.row(
                 InlineKeyboardButton(
                     text="📚 " + gettext("نحوه اتصال"),

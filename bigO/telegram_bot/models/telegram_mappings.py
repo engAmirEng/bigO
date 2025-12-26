@@ -131,7 +131,7 @@ class TelegramMessageEntity(TimeStampedModel, models.Model):
 
 class TelegramMessageQuerySet(models.QuerySet):
     def select_related_all_entities(self):
-        return self.select_related("video", "document")
+        return self.select_related("video", "document", "voice", "audio")
 
 
 class TelegramMessageManager(models.Manager):
@@ -351,7 +351,8 @@ class TelegramDocument(TelegramFile):
         obj.file_size = tdocument.file_size
         obj.file_name = tdocument.file_name
         obj.mime_type = tdocument.mime_type
-        obj.thumbnail = await TelegramPhotoSize.from_aio(tphoto_size=tdocument.thumbnail, bot=bot)
+        if tdocument.thumbnail:
+            obj.thumbnail = await TelegramPhotoSize.from_aio(tphoto_size=tdocument.thumbnail, bot=bot)
         await obj.asave()
         return obj
 
