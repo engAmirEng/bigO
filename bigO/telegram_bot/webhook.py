@@ -46,6 +46,11 @@ def get_webhook_view(dp: Dispatcher):
                     if not value:
                         continue
                     data[key] = value
+                if files:
+                    # since telegram can't handle files in the response
+                    data = {}
+                    files = {}
+                    await method
                 for key, value in files.items():
                     raise NotImplementedError
                     # async_gen = value.read(bot)
