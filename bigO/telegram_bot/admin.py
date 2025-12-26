@@ -93,3 +93,9 @@ class TelegramUserModelAdmin(admin.ModelAdmin):
 @admin.register(models.TelegramFile)
 class TelegramFileAdmin(admin.ModelAdmin):
     list_display = ["id", "file_id", "file_unique_id"]
+
+
+@admin.register(models.TelegramMessage)
+class TelegramMessageAdmin(admin.ModelAdmin):
+    list_display = ["id", "tid", "bot"]
+    search_fields = ("text", "caption")

@@ -1,4 +1,4 @@
-from bigO.telegram_bot import dispatchers
+from bigO.telegram_bot import router
 from bigO.telegram_bot.webhook import get_webhook_view
 from bigO.utils.decorators import csrf_exempt
 from django.urls import path
@@ -10,7 +10,7 @@ app_name = "telegram_bot"
 urlpatterns = [
     path(
         f"{settings.TELEGRAM_WEBHOOK_URL_PREFIX}/<path:url_specifier>/",
-        csrf_exempt(get_webhook_view(dispatchers.dp)),
+        csrf_exempt(get_webhook_view(router.dp)),
         name="webhook",
     ),
 ]

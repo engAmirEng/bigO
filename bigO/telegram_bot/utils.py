@@ -16,6 +16,24 @@ def thtml_normalize_markup(rendered_content: str):
     return "\n".join(result_lines_list)
 
 
+def thtml_reverse_normalize_markup(normalized_html_content: str):
+    lines_list = []
+    for line in normalized_html_content.split("\n"):
+        lines_list.append(line.lstrip().rstrip())
+    result_lines_list = []
+    for line in lines_list:
+        new_line = line
+        if line.startswith(" "):
+            prefix = ""
+            for char in line:
+                if char != " ":
+                    break
+                prefix += "&nbsp;"
+            new_line = prefix + line.lstrip()
+        result_lines_list.append(new_line)
+    return "\n<br>".join(result_lines_list)
+
+
 async def thtml_render_to_string(template_name, context=None, request=None, using=None):
     rendered = await sync_to_async(render_to_string)(template_name, context=context, request=request, using=using)
     return thtml_normalize_markup(rendered_content=rendered)

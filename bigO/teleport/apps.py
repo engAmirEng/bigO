@@ -7,7 +7,7 @@ class TeleportConfig(AppConfig):
     verbose_name = _("Teleport")
 
     def ready(self):
-        from bigO.telegram_bot.dispatchers import dp
+        from bigO.telegram_bot.router import dp
 
         from .dispatchers.base import router
         from .t_middleware import CalendarMiddleware, LanguageMiddleware, TimeZoneMiddleware
