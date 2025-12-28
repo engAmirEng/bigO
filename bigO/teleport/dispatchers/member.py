@@ -978,12 +978,12 @@ async def member_referlink_handler(
         referlink_obj = (
             await proxy_manager_models.ReferLink.objects.filter(secret=link_secret, agency_user__agency=agency)
             .select_related("agency_user__user")
-            .ann_remainded_cap_count()
+            .ann_remained_cap_count()
             .afirst()
         )
         if not referlink_obj:
             return message.reply(gettext("لینک معرفی شناسایی نشد"))
-        if referlink_obj.remainded_cap_count <= 0:
+        if referlink_obj.remained_cap_count <= 0:
             return message.reply(gettext("ظرفیت لینک معرفی تمام شده است"))
 
         useragency = await sync_to_async(services.agencyuser_from_referlink)(

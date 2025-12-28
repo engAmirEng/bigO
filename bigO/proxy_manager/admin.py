@@ -128,7 +128,20 @@ class SubscriptionProfileModelAdmin(admin.ModelAdmin):
 
 @admin.register(models.ReferLink)
 class ReferLinkModelAdmin(admin.ModelAdmin):
+    list_display = ("agency_user", "used_count_display", "remained_cap_count_display", "is_active")
     search_fields = ("secret", "agency_user__user__username")
+    autocomplete_fields = ("agency_user",)
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).ann_used_count().ann_remained_cap_count()
+
+    @admin.display(ordering="used_count")
+    def used_count_display(self, obj):
+        return obj.used_count
+
+    @admin.display(ordering="remained_cap_count")
+    def remained_cap_count_display(self, obj):
+        return obj.remained_cap_count
 
 
 class ReferLinkInline(admin.StackedInline):
@@ -229,7 +242,7 @@ class SubscriptionPeriodModelAdmin(admin.ModelAdmin):
         "profile__uuid",
         "profile__xray_uuid",
     )
-    list_filter = ("selected_as_current", "plan", "plan__connection_rule")
+    list_filter = ("selected_as_current", "plan__connection_rule")
     form = forms.SubscriptionPeriodModelForm
     autocomplete_fields = ("profile",)
 

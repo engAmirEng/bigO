@@ -281,8 +281,8 @@ def handle_profile_startlink(
                 else:
                     referlink_obj = (
                         proxy_manager_models.ReferLink.objects.filter(agency_user=referred_by, is_active=True)
-                        .ann_remainded_cap_count()
-                        .filter(remainded_cap_count__gt=0)
+                        .ann_remained_cap_count()
+                        .filter(remained_cap_count__gt=0)
                         .first()
                     )
                 subscriptionprofile_obj.user = user

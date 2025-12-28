@@ -368,8 +368,8 @@ class ReferLink(TimeStampedModel, models.Model):
         def ann_used_count(self):
             return self.annotate(used_count=Count("linkreferredby_agencyuser"))
 
-        def ann_remainded_cap_count(self):
-            return self.ann_used_count().annotate(remainded_cap_count=F("capacity") - F("used_count"))
+        def ann_remained_cap_count(self):
+            return self.ann_used_count().annotate(remained_cap_count=F("capacity") - F("used_count"))
 
     secret = models.CharField(max_length=255, unique=True)
     agency_user = models.ForeignKey("AgencyUser", on_delete=models.CASCADE, related_name="agencyuser_referlinks")

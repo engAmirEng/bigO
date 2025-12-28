@@ -80,3 +80,4 @@ class PaymentProviderModelAdmin(admin.ModelAdmin):
 class PaymentModelAdmin(admin.ModelAdmin):
     list_display = ("id", "uuid", "provider", "invoice", "amount")
     search_fields = ("uuid",)
+    autocomplete_fields = ("invoice", "user", "completed_by")

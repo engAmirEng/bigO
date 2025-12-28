@@ -155,8 +155,8 @@ async def menu_handler(
 
         referlink = (
             await proxy_manager_models.ReferLink.objects.filter(agency_user=useragency, is_active=True)
-            .ann_remainded_cap_count()
-            .filter(remainded_cap_count__gt=0)
+            .ann_remained_cap_count()
+            .filter(remained_cap_count__gt=0)
             .afirst()
         )
         ikbuilder.row(
