@@ -8,7 +8,6 @@ from asgiref.sync import sync_to_async
 
 import django.template
 import django.urls.resolvers
-from bigO.utils import py_helpers
 from django.http import Http404, HttpResponse
 from django.utils import timezone
 
@@ -131,14 +130,3 @@ async def sublink_view(request, subscription_uuid: uuid.UUID):
         sublink_content = base64.b64encode(sublink_content.encode())
 
     return HttpResponse(sublink_content, content_type="text/plain; charset=utf-8")
-
-
-async def dynamic_sublink_view(request, sublink_path: str):
-    pattern = django.urls.resolvers.RoutePattern(route="change-me/todo/<uuid:subscription_uuid>")
-    match = pattern.match(path=sublink_path.rstrip("/"))
-    if match is None:
-        pattern = django.urls.resolvers.RoutePattern(route="sub/<uuid:subscription_uuid>")
-        match = pattern.match(path=sublink_path.rstrip("/"))
-        if match is None:
-            raise django.urls.Resolver404()
-    return await sublink_view(request, **match[2])

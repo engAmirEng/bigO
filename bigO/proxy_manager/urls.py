@@ -2,4 +2,7 @@ from django.urls import path
 
 from . import views
 
-sublink_view_path = path("<path:sublink_path>/", views.dynamic_sublink_view)
+urlpatterns = [
+    path("change-me/todo/<uuid:subscription_uuid>/", views.sublink_view),
+    path("sub/<uuid:subscription_uuid>/", views.sublink_view),
+]

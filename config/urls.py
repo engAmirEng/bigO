@@ -1,7 +1,6 @@
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView, TokenVerifyView
 
-import bigO.proxy_manager.urls
 from bigO.graphql.schema import schema
 from bigO.graphql.views import GraphQLView
 from bigO.utils.decorators import csrf_exempt
@@ -40,7 +39,7 @@ urlpatterns = [
         SpectacularSwaggerView.as_view(url_name="api-schema"),
         name="api-docs",
     ),
-    bigO.proxy_manager.urls.sublink_view_path,
+    path("", include("bigO.proxy_manager.urls")),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
 
