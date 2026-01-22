@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 async def sublink_view(request, subscription_uuid: uuid.UUID):
     # todo save stats
+    is_test = request.GET.get("testing")
     try:
         subscriptionprofile_obj = await models.SubscriptionProfile.objects.select_related("initial_agency").aget(
             uuid=subscription_uuid
@@ -35,8 +36,9 @@ async def sublink_view(request, subscription_uuid: uuid.UUID):
     )
     if subscriptionperiod_obj is None:
         return "todo"
-    subscriptionperiod_obj.last_sublink_at = timezone.now()
-    await subscriptionperiod_obj.asave()
+    if not is_test:
+        subscriptionperiod_obj.last_sublink_at = timezone.now()
+        await subscriptionperiod_obj.asave()
     res_lines = []
     sublink_header_content = django.template.Template(
         subscriptionprofile_obj.initial_agency.sublink_header_template
