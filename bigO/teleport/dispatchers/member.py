@@ -1134,6 +1134,67 @@ async def my_account_transfer_to_another_handler(
 
 
 @router.callback_query(
+    MemberAgencyProfileCallbackData.filter(aiogram.F.action == MemberAgencyProfileAction.SEE_PROXY_LIST)
+)
+async def member_see_toturial_content_handler(
+    message: CallbackQuery,
+    callback_data: MemberAgencyProfileCallbackData,
+    tuser: TelegramUser | None,
+    state: FSMContext,
+    aiobot: Bot,
+    bot_obj: TelegramBot,
+    panel_obj: models.Panel,
+) -> Optional[aiogram.methods.TelegramMethod]:
+    agency = panel_obj.agency
+    if tuser is None or tuser.user is None:
+        text = gettext("برای استفاده از خدمات ما از معرف خود لینک معرفی دریافت کنید.")
+        return message.answer(text, show_alert=True)
+    user = tuser.user
+    profile_id = callback_data.profile_id
+    try:
+        subscriptionprofile_obj = await proxy_manager_models.SubscriptionProfile.objects.filter(
+            user=user, initial_agency=agency
+        ).aget(id=profile_id)
+    except proxy_manager_models.SubscriptionProfile.DoesNotExist:
+        return message.answer(gettext("اکانت یافت نشد."))
+
+    subscriptionperiod_obj = (
+        await subscriptionprofile_obj.periods.filter(selected_as_current=True)
+        .select_related("plan__connection_rule")
+        .ann_expires_at()
+        .ann_up_bytes_remained()
+        .ann_dl_bytes_remained()
+        .ann_total_limit_bytes()
+        .afirst()
+    )
+    if subscriptionperiod_obj is None:
+        text = gettext("این اکانت فعال نیست")
+    else:
+        res_lines = await proxy_manager_services.get_profile_proxies(subscriptionperiod_obj=subscriptionperiod_obj)
+        text = ""
+        for line in res_lines:
+            text += f"<code>{line}</code>"
+
+    ikbuilder = InlineKeyboardBuilder()
+    ikbuilder.row(
+        InlineKeyboardButton(
+            text="🔄 Refresh",
+            callback_data=MemberAgencyProfileCallbackData(
+                profile_id=subscriptionprofile_obj.id, action=MemberAgencyProfileAction.SEE_PROXY_LIST
+            ).pack(),
+        ),
+    )
+    ikbuilder.row(
+        InlineKeyboardButton(
+            text="🔙 " + gettext("بازکشت به منو"),
+            callback_data=SimpleButtonCallbackData(button_name=SimpleButtonName.MENU).pack(),
+        )
+    )
+    await message.answer()
+    return message.message.edit_text(text=text, reply_markup=ikbuilder.as_markup())
+
+
+@router.callback_query(
     MemberAgencyProfileCallbackData.filter(aiogram.F.action == MemberAgencyProfileAction.PASS_CHANGE)
 )
 async def my_account_passchange_request_handler(

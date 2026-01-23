@@ -45,6 +45,14 @@ def ik_member_overview_layout(ikbuilder, subscriptionprofile_id: int, agency_id:
     )
     ikbuilder.row(
         InlineKeyboardButton(
+            text="📑 " + gettext("پروکسی ها"),
+            callback_data=MemberAgencyProfileCallbackData(
+                profile_id=subscriptionprofile_id, action=MemberAgencyProfileAction.SEE_PROXY_LIST
+            ).pack(),
+        ),
+    )
+    ikbuilder.row(
+        InlineKeyboardButton(
             text="🔐 " + gettext("عوض کردن رمز اتصال"),
             callback_data=MemberAgencyProfileCallbackData(
                 profile_id=subscriptionprofile_id, action=MemberAgencyProfileAction.PASS_CHANGE

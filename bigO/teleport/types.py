@@ -47,6 +47,7 @@ class MemberAgencyProfileAction(str, Enum):
     LIST_AVAILABLE_PLANS = "list_available_plans"
     PASS_CHANGE = "pass_change"
     TRANSFER_TO_ANOTHER = "transfer_to_another"
+    SEE_PROXY_LIST = "see_proxy_list"
 
 
 class MemberAgencyProfileCallbackData(CallbackData, prefix="profile"):
