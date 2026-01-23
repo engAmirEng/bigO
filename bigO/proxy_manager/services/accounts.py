@@ -79,7 +79,7 @@ async def get_profile_proxies(subscriptionperiod_obj: models.SubscriptionPeriod)
                 if config.sublink_debug:
                     res_lines.append(f"#skipping connection_rule_spec_id: {selected_rule_spec} has no inbound_type")
                 continue
-            link_template = inbound_type.link_template
+            link_template = "{% load b64 %}" + inbound_type.link_template
             combo_stat = await sync_to_async(selected_spec.get_combo_stat)()
             remark_prefix = (
                 (subscriptionperiod_obj.plan.connection_rule.inbound_remarks_prefix or "")
