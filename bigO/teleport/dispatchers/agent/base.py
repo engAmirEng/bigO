@@ -46,6 +46,7 @@ class AgentAgencyPlanCallbackData(CallbackData, prefix="agent_agency"):
 class AgentAgencyProfileAction(str, Enum):
     RENEW = "renew"
     DETAIL = "detail"
+    SEE_PROXY_LIST = "SEE_PROXY_LIST"
 
 
 class AgentAgencyProfileCallbackData(CallbackData, prefix="agent_agency"):
@@ -278,6 +279,14 @@ async def agent_manage_profile_handler(
             ).pack(),
         )
     )
+    ikbuilder.row(
+        InlineKeyboardButton(
+            text="📑 " + gettext("پروکسی ها"),
+            callback_data=AgentAgencyProfileCallbackData(
+                profile_id=subscriptionprofile_obj.id, action=AgentAgencyProfileAction.SEE_PROXY_LIST
+            ).pack(),
+        ),
+    )
     normal_sublink = await sync_to_async(subscriptionprofile_obj.get_sublink)()
     ikbuilder.row(
         InlineKeyboardButton(
@@ -326,3 +335,67 @@ async def agent_manage_profile_handler(
         return message.reply(text, reply_markup=ikbuilder.as_markup())
     else:
         return message.message.edit_text(text, reply_markup=ikbuilder.as_markup())
+
+
+@router.callback_query(
+    AgentAgencyProfileCallbackData.filter(aiogram.F.action == AgentAgencyProfileAction.SEE_PROXY_LIST)
+)
+async def member_see_toturial_content_handler(
+    message: CallbackQuery,
+    callback_data: AgentAgencyProfileCallbackData,
+    tuser: TelegramUser | None,
+    state: FSMContext,
+    aiobot: Bot,
+    bot_obj: TelegramBot,
+    panel_obj: models.Panel,
+) -> Optional[aiogram.methods.TelegramMethod]:
+    agency = panel_obj.agency
+    try:
+        agent_obj = await proxy_manager_models.Agent.objects.select_related("agency").aget(
+            user=tuser.user, agency=agency, is_active=True
+        )
+    except proxy_manager_models.Agent.DoesNotExist:
+        return
+    try:
+        subscriptionprofile_obj = await proxy_manager_services.get_agent_current_subscriptionprofiled_qs(
+            agent=agent_obj
+        ).aget(id=callback_data.profile_id)
+    except proxy_manager_models.SubscriptionProfile.DoesNotExist:
+        return message.reply(gettext("پیدا نشد."))
+
+    subscriptionperiod_obj = (
+        await subscriptionprofile_obj.periods.filter(selected_as_current=True)
+        .select_related("plan__connection_rule")
+        .ann_expires_at()
+        .ann_up_bytes_remained()
+        .ann_dl_bytes_remained()
+        .ann_total_limit_bytes()
+        .afirst()
+    )
+    if subscriptionperiod_obj is None:
+        text = gettext("این اکانت فعال نیست")
+    else:
+        res_lines = await proxy_manager_services.get_profile_proxies(subscriptionperiod_obj=subscriptionperiod_obj)
+        text = ""
+        for line in res_lines:
+            text += f"<code>{line}</code>"
+
+    ikbuilder = InlineKeyboardBuilder()
+    ikbuilder.row(
+        InlineKeyboardButton(
+            text="🔄 Refresh",
+            callback_data=AgentAgencyProfileCallbackData(
+                profile_id=subscriptionprofile_obj.id, action=AgentAgencyProfileAction.SEE_PROXY_LIST
+            ).pack(),
+        ),
+    )
+    ikbuilder.row(
+        InlineKeyboardButton(
+            text="🔙 " + gettext("بازگشت "),
+            callback_data=AgentAgencyProfileCallbackData(
+                profile_id=subscriptionprofile_obj.id, action=AgentAgencyProfileAction.DETAIL
+            ).pack(),
+        )
+    )
+    await message.answer()
+    return message.message.edit_text(text=text, reply_markup=ikbuilder.as_markup())
