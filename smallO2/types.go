@@ -7,19 +7,25 @@ type UrlSpec struct {
 	ProxyUrl string `toml:"proxy_url" json:"proxy_url"`
 	Weight   int    `toml:"weight" json:"weight"`
 }
+type ProcLogCollection struct {
+	Name   string `toml:"name" json:"name"`
+	Stderr *bool  `toml:"stderr" json:"stderr"`
+	Stdout *bool  `toml:"stdout" json:"stdout"`
+}
 type Config struct {
 	SyncURL      string    `toml:"sync_url" json:"sync_url"` // Deprecated
 	SyncURLSpecs []UrlSpec `toml:"sync_urls" json:"sync_urls"`
 	//ProxyUrl                 string    `toml:"proxy_url" json:"proxy_url"`
-	APIKey                   string  `toml:"api_key" json:"api_key"`
-	IntervalSec              int     `toml:"interval_sec" json:"interval_sec"`
-	WorkingDir               string  `toml:"working_dir" json:"working_dir"`
-	IsDev                    bool    `toml:"is_dev" json:"is_dev"`
-	SentryDsn                *string `toml:"sentry_dsn" json:"sentry_dsn"`
-	FullControlSupervisord   bool    `toml:"full_control_supervisord" json:"full_control_supervisord"`
-	SupervisorBaseConfigPath string  `toml:"supervisor_base_config_path" json:"supervisor_base_config_path"`
-	SafeStatsSize            int     `toml:"safe_stats_size" json:"safe_stats_size"`
-	EachCollectionSize       int     `toml:"each_collection_size" json:"each_collection_size"`
+	APIKey                   string               `toml:"api_key" json:"api_key"`
+	IntervalSec              int                  `toml:"interval_sec" json:"interval_sec"`
+	WorkingDir               string               `toml:"working_dir" json:"working_dir"`
+	IsDev                    bool                 `toml:"is_dev" json:"is_dev"`
+	SentryDsn                *string              `toml:"sentry_dsn" json:"sentry_dsn"`
+	FullControlSupervisord   bool                 `toml:"full_control_supervisord" json:"full_control_supervisord"`
+	SupervisorBaseConfigPath string               `toml:"supervisor_base_config_path" json:"supervisor_base_config_path"`
+	SafeStatsSize            int                  `toml:"safe_stats_size" json:"safe_stats_size"`
+	EachCollectionSize       int                  `toml:"each_collection_size" json:"each_collection_size"`
+	LogsCollection           *[]ProcLogCollection `toml:"logs_collection" json:"logs_collection"`
 }
 
 type FileSchema struct {

@@ -119,3 +119,4 @@ class ConfigSchema(pydantic.BaseModel):
     supervisor_base_config_path: str = ""
     safe_stats_size: int | None = None
     each_collection_size: int | None = None
+    logs_collection: Any = None

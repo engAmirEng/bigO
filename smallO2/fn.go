@@ -271,7 +271,26 @@ func getAPIRequest(config Config, supervisorXmlRpcClient *xmlrpc.Client) (*APIRe
 
 	return &apiRequest, StatsCommitted, nil
 }
-
+func collectLog(logsCollection *[]ProcLogCollection, name string) (stdOut bool, stdErr bool) {
+	if logsCollection == nil || len(*logsCollection) == 0 {
+		stdOut = true
+		stdErr = true
+		return
+	}
+	stdOut = false
+	stdErr = false
+	for _, item := range *logsCollection {
+		if item.Name == name {
+			if *item.Stdout {
+				stdOut = true
+			}
+			if *item.Stderr {
+				stdErr = true
+			}
+		}
+	}
+	return
+}
 func getConfigsStates(configsStates *[]ConfigStateSchema, config Config, supervisorXmlRpcClient *xmlrpc.Client) (error, func() error) {
 	SupervisorProcessInfosDummy := struct {
 		SupervisorProcessInfos []SupervisorProcessInfoSchema
@@ -308,50 +327,65 @@ ProcessInfoLoop:
 			// https://github.com/Supervisor/supervisor/issues/804
 			collectionSize = int(math.Round(float64(eachCollectionSize) * 0.1))
 		}
-		TailProcessStdoutLogResultDummy := struct {
-			TailProcessStdoutLogResult []interface{}
-		}{}
-		err = supervisorXmlRpcClient.Call("supervisor.tailProcessStdoutLog", struct {
-			DumParam1 string
-			DumParam2 int
-			DumParam3 int
-		}{
-			DumParam1: supervisorProcessInfo.Name,
-			DumParam2: 0,
-			DumParam3: collectionSize,
-		}, &TailProcessStdoutLogResultDummy)
-		if err != nil {
-			return fmt.Errorf("failed to tail process stdout: %w", err), getOnCommit(includedBackfilePaths)
+		stdErrCollect, stdOutCollect := collectLog(config.LogsCollection, supervisorProcessInfo.Name)
+		stdoutOByteSize := 0
+		stdoutContent := ""
+		stdoutOffset := 0
+		stdoutOverflow := false
+		if stdOutCollect {
+			TailProcessStdoutLogResultDummy := struct {
+				TailProcessStdoutLogResult []interface{}
+			}{}
+			err = supervisorXmlRpcClient.Call("supervisor.tailProcessStdoutLog", struct {
+				DumParam1 string
+				DumParam2 int
+				DumParam3 int
+			}{
+				DumParam1: supervisorProcessInfo.Name,
+				DumParam2: 0,
+				DumParam3: collectionSize,
+			}, &TailProcessStdoutLogResultDummy)
+			if err != nil {
+				return fmt.Errorf("failed to tail process stdout: %w", err), getOnCommit(includedBackfilePaths)
+			}
+			tailProcessStdoutLogResult := TailProcessStdoutLogResultDummy.TailProcessStdoutLogResult
+			if tailProcessStdoutLogResult[0] == nil {
+				tailProcessStdoutLogResult[0] = ""
+			}
+			stdoutContent = tailProcessStdoutLogResult[0].(string)
+			stdoutOByteSize = len(stdoutContent)
+			stdoutOffset = tailProcessStdoutLogResult[1].(int)
+			stdoutOverflow = tailProcessStdoutLogResult[2].(bool)
 		}
-		tailProcessStdoutLogResult := TailProcessStdoutLogResultDummy.TailProcessStdoutLogResult
-		if tailProcessStdoutLogResult[0] == nil {
-			tailProcessStdoutLogResult[0] = ""
+		stderrByteSize := 0
+		stderrContent := ""
+		stderrOffset := 0
+		stderrOverflow := false
+		if stdErrCollect {
+			TailProcessStderrLogResultDummy := struct {
+				TailProcessStderrLogResult []interface{}
+			}{}
+			err = supervisorXmlRpcClient.Call("supervisor.tailProcessStderrLog", struct {
+				DumParam1 string
+				DumParam2 int
+				DumParam3 int
+			}{
+				DumParam1: supervisorProcessInfo.Name,
+				DumParam2: 0,
+				DumParam3: collectionSize,
+			}, &TailProcessStderrLogResultDummy)
+			if err != nil {
+				return fmt.Errorf("failed to tail process stdout: %w", err), getOnCommit(includedBackfilePaths)
+			}
+			tailProcessStderrLogResult := TailProcessStderrLogResultDummy.TailProcessStderrLogResult
+			if tailProcessStderrLogResult[0] == nil {
+				tailProcessStderrLogResult[0] = ""
+			}
+			stderrContent = tailProcessStderrLogResult[0].(string)
+			stderrByteSize = len(stderrContent)
+			stderrOffset = tailProcessStderrLogResult[1].(int)
+			stderrOverflow = tailProcessStderrLogResult[2].(bool)
 		}
-		TailProcessStderrLogResultDummy := struct {
-			TailProcessStderrLogResult []interface{}
-		}{}
-		err = supervisorXmlRpcClient.Call("supervisor.tailProcessStderrLog", struct {
-			DumParam1 string
-			DumParam2 int
-			DumParam3 int
-		}{
-			DumParam1: supervisorProcessInfo.Name,
-			DumParam2: 0,
-			DumParam3: collectionSize,
-		}, &TailProcessStderrLogResultDummy)
-		if err != nil {
-			return fmt.Errorf("failed to tail process stdout: %w", err), getOnCommit(includedBackfilePaths)
-		}
-		tailProcessStderrLogResult := TailProcessStderrLogResultDummy.TailProcessStderrLogResult
-		if tailProcessStderrLogResult[0] == nil {
-			tailProcessStderrLogResult[0] = ""
-		}
-
-		stdoutContent := tailProcessStdoutLogResult[0].(string)
-		stdoutOByteSize := len(stdoutContent)
-		stderrContent := tailProcessStderrLogResult[0].(string)
-		stderrByteSize := len(stderrContent)
-
 		if currentByteSize+stdoutOByteSize+stderrByteSize > safeStatsSize {
 			//safeSizePassed = true
 			break ProcessInfoLoop
@@ -375,13 +409,13 @@ ProcessInfoLoop:
 			SupervisorProcessInfo: supervisorProcessInfo,
 			Stdout: SupervisorProcessTailLogSerializerSchema{
 				Bytes:    stdoutContent,
-				Offset:   tailProcessStdoutLogResult[1].(int),
-				Overflow: tailProcessStdoutLogResult[2].(bool),
+				Offset:   stdoutOffset,
+				Overflow: stdoutOverflow,
 			},
 			Stderr: SupervisorProcessTailLogSerializerSchema{
 				Bytes:    stderrContent,
-				Offset:   tailProcessStderrLogResult[1].(int),
-				Overflow: tailProcessStderrLogResult[2].(bool),
+				Offset:   stderrOffset,
+				Overflow: stderrOverflow,
 			},
 		}
 		currentConfigsStates = append(currentConfigsStates, configStateSchema)
