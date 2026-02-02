@@ -267,10 +267,14 @@ def typesimpleasyougo1_check_use_credit():
 
 @app.task
 def reality_checks():
+    result = {
+        "added": False,
+        "removed_ids": []
+    }
     config = models.Config.get_solo()
     reality_settings_raw = config.reality_settings
     if not reality_settings_raw:
-        return
+        return "no reality_settings"
     now = timezone.now()
     reality_settings = typing.RealitySettingsSchema(**reality_settings_raw)
     reality_settings.shortids.sort(key=lambda x: x.added_at, reverse=False)
@@ -285,6 +289,8 @@ def reality_checks():
             )
             if shortid_expires_at > now:
                 valid_shortids.append(shortid)
+            else:
+                result["removed_ids"].append(shortid.id)
 
     latest_shortid = reality_settings.shortids and reality_settings.shortids[-1]
     if reality_settings.shortid_append_period_sec and (
@@ -295,7 +301,9 @@ def reality_checks():
     ):
         new_shortid = typing.RealityShortidSettingsSchema(id=secrets.token_hex(8), added_at=int(now.timestamp()))
         valid_shortids.append(new_shortid)
+        result["added"] = True
 
     reality_settings.shortids = valid_shortids
     config.reality_settings = reality_settings.model_dump()
     config.save()
+    return result
