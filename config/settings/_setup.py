@@ -1,5 +1,5 @@
 from collections.abc import Iterable
-from logging import LogRecord
+import logging
 from pathlib import Path
 
 import environ
@@ -22,7 +22,7 @@ def log_ignore_modules(module_name: Iterable[str]):
     use the output as argument to django.utils.log.CallbackFilter
     """
 
-    def callback(f: LogRecord):
+    def callback(f: logging.LogRecord):
         return (f.module not in module_name) or f.levelname == "CRITICAL"
 
     return callback
@@ -30,11 +30,13 @@ def log_ignore_modules(module_name: Iterable[str]):
 
 env = environ.Env()
 
-READ_DOT_ENV_FILE = env.bool("DJANGO_READ_DOT_ENV_FILE", default=False)
+READ_DOT_ENV_FILE = env.bool("DJANGO_READ_DOT_ENV_FILE", default=True)
 if READ_DOT_ENV_FILE:
     from merge_dotenvs_in_dotenv import DOTENV_FILE, DOTENV_FILES, merge
-
-    merge(DOTENV_FILE, DOTENV_FILES)
+    try:
+        merge(DOTENV_FILE, DOTENV_FILES)
+    except FileNotFoundError:
+        logging.debug("DOTENV_FILES not exist")
     # OS environment variables take precedence over variables from .env
     env.read_env(DOTENV_FILE)
 
