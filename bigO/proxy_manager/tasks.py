@@ -286,7 +286,7 @@ def reality_checks():
             if shortid_expires_at > now:
                 valid_shortids.append(shortid)
 
-    latest_shortid = reality_settings.shortids and reality_settings.shortids[0]
+    latest_shortid = reality_settings.shortids and reality_settings.shortids[-1]
     if reality_settings.shortid_append_period_sec and (
         not latest_shortid
         or datetime.datetime.fromtimestamp(latest_shortid.added_at, tz=ZoneInfo("UTC"))
