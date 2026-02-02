@@ -716,7 +716,13 @@ def get_xray_conf_v2(
             consumers_part += consumer_obj
 
         template_context = node_manager_services.NodeTemplateContext(
-            {"node_obj": node_obj, "inbound_tag": inbound_tag, "consumers_part": consumers_part, **extra_ctx},
+            {
+                "config": proxy_manager_config,
+                "node_obj": node_obj,
+                "inbound_tag": inbound_tag,
+                "consumers_part": consumers_part,
+                **extra_ctx,
+            },
             node_work_dir=node_work_dir,
             base_url=base_url,
         )

@@ -1,13 +1,14 @@
 import datetime
 import re
+import secrets
 import zoneinfo
 from datetime import timedelta
 from decimal import Decimal
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import influxdb_client
 import sentry_sdk
-from celery import Celery
 
 from bigO.node_manager import models as node_manager_models
 from config.celery_app import app
@@ -16,7 +17,7 @@ from django.db import transaction
 from django.db.models import Count, F, Q
 from django.utils import timezone
 
-from . import models, services, subscription
+from . import models, services, subscription, typing
 
 
 @app.task
@@ -262,3 +263,39 @@ def subscription_nearly_ended_notify(remained_seconds: int, remained_bytes: int,
 def typesimpleasyougo1_check_use_credit():
     res = subscription.planproviders.TypeSimpleAsYouGO1.check_use_credit()
     return {"processed_count": len(res), "negative_count": len([i for i in res if i["wallet_credit"].amount < 0])}
+
+
+@app.task
+def reality_checks():
+    config = models.Config.get_solo()
+    reality_settings_raw = config.reality_settings
+    if not reality_settings_raw:
+        return
+    now = timezone.now()
+    reality_settings = typing.RealitySettingsSchema(**reality_settings_raw)
+    reality_settings.shortids.sort(key=lambda x: x.added_at, reverse=False)
+
+    valid_shortids: list[typing.RealityShortidSettingsSchema] = []
+    if not reality_settings.shortid_expiry_sec:
+        valid_shortids = reality_settings.shortids
+    else:
+        for shortid in reality_settings.shortids:
+            shortid_expires_at = datetime.datetime.fromtimestamp(shortid.added_at, tz=ZoneInfo("UTC")) + timedelta(
+                seconds=reality_settings.shortid_expiry_sec
+            )
+            if shortid_expires_at > now:
+                valid_shortids.append(shortid)
+
+    latest_shortid = reality_settings.shortids and reality_settings.shortids[0]
+    if reality_settings.shortid_append_period_sec and (
+        not latest_shortid
+        or datetime.datetime.fromtimestamp(latest_shortid.added_at, tz=ZoneInfo("UTC"))
+        + timedelta(seconds=reality_settings.shortid_append_period_sec)
+        < now
+    ):
+        new_shortid = typing.RealityShortidSettingsSchema(id=secrets.token_hex(8), added_at=now.timestamp())
+        valid_shortids.append(new_shortid)
+
+    reality_settings.shortids = valid_shortids
+    config.reality_settings = reality_settings.model_dump()
+    config.save()

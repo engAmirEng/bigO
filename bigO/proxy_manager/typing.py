@@ -4,7 +4,16 @@ from typing import Protocol, TypedDict
 
 import pydantic
 
-from bigO.node_manager import models as node_manager_models
+
+class RealityShortidSettingsSchema(pydantic.BaseModel):
+    id: str
+    added_at: int  # utc timestamp
+
+
+class RealitySettingsSchema(pydantic.BaseModel):
+    shortid_append_period_sec: int
+    shortid_expiry_sec: int
+    shortids: list[RealityShortidSettingsSchema]
 
 
 class ChooseRuleItemsSchema(pydantic.BaseModel):
@@ -28,6 +37,7 @@ class ComboStat(pydantic.BaseModel):
     port: int | None
     sni: str | None
     domainhostheader: str | None
+    shortid: str = ""
 
     class Config:
         arbitrary_types_allowed = True

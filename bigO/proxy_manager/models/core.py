@@ -32,6 +32,8 @@ class Config(TimeStampedModel, SingletonModel):
         blank=False,
         help_text="{{ node, inbound_parts, rule_parts, balancer_parts, outbound_parts, outbound_tags, portal_parts, bridge_parts }}",
     )
+    REALITY_SETTINGS_SCHEMA = typing.RealitySettingsSchema.model_json_schema()
+    reality_settings = django_jsonform.models.fields.JSONField(schema=REALITY_SETTINGS_SCHEMA, null=True, blank=True)
     geosite = models.ForeignKey(
         "node_manager.ProgramVersion",
         related_name="geosite_xrayconfig",
@@ -259,13 +261,13 @@ class InboundType(TimeStampedModel, models.Model):
     is_template = models.BooleanField(default=False)
     name = models.SlugField()
     inbound_template = models.TextField(
-        help_text="{{ node_obj, inbound_tag, consumers_part, combo_stat: {'address', 'port', 'sni', 'domainhostheader'} }}"
+        help_text="{{ config, node_obj, inbound_tag, consumers_part, combo_stat: {'address', 'port', 'sni', 'domainhostheader'} }}"
     )
     consumer_obj_template = models.TextField(help_text="{{ subscriptionperiod_obj }}")
     link_template = models.TextField(
         blank=True,
         null=True,
-        help_text="{{ subscriptionperiod_obj, connection_rule, combo_stat: {'address', 'port', 'sni', 'domainhostheader'}, remark_prefix }}",
+        help_text="{{ subscriptionperiod_obj, connection_rule, combo_stat: {'address', 'port', 'sni', 'domainhostheader', 'shortid'}, remark_prefix }}",
     )
     nginx_path_config = models.TextField(
         blank=True,

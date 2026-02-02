@@ -83,6 +83,15 @@ class InboundSpec(TimeStampedModel, models.Model):
             raise ValidationError(f"failed to get_combo_stat, {str(e)}")
 
     def get_combo_stat(self):
+        from .. import models
+
+        config = models.Config.get_solo()
+        reality_settings_raw = config.reality_settings
+        reality_settings = None
+        if reality_settings_raw:
+            reality_settings = typing.RealitySettingsSchema(**reality_settings_raw)
+        shortid = reality_settings.shortids[-1].id if reality_settings and reality_settings.shortids else ""
+
         if self.domain_address:
             address = self.domain_address.domain.name
         elif self.ip_address:
@@ -114,8 +123,9 @@ class InboundSpec(TimeStampedModel, models.Model):
         return typing.ComboStat(
             **{
                 "address": address,
-                "port": self.port,
+                "port": port,
                 "sni": sni,
                 "domainhostheader": domainhost_header,
+                "shortid": shortid,
             }
         )

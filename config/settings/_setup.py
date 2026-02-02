@@ -1,5 +1,5 @@
-from collections.abc import Iterable
 import logging
+from collections.abc import Iterable
 from pathlib import Path
 
 import environ
@@ -33,6 +33,7 @@ env = environ.Env()
 READ_DOT_ENV_FILE = env.bool("DJANGO_READ_DOT_ENV_FILE", default=True)
 if READ_DOT_ENV_FILE:
     from merge_dotenvs_in_dotenv import DOTENV_FILE, DOTENV_FILES, merge
+
     try:
         merge(DOTENV_FILE, DOTENV_FILES)
     except FileNotFoundError:

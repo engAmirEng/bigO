@@ -56,7 +56,7 @@ class Migration(migrations.Migration):
             model_name="historicalinboundtype",
             name="inbound_template",
             field=models.TextField(
-                help_text="{{ node_obj, inbound_tag, consumers_part, combo_stat: {'address', 'port', 'sni', 'domainhostheader'} }}"
+                help_text="{{ config, node_obj, inbound_tag, consumers_part, combo_stat: {'address', 'port', 'sni', 'domainhostheader'} }}"
             ),
         ),
         migrations.AlterField(
@@ -64,7 +64,7 @@ class Migration(migrations.Migration):
             name="link_template",
             field=models.TextField(
                 blank=True,
-                help_text="{{ subscriptionperiod_obj, connection_rule, combo_stat: {'address', 'port', 'sni', 'domainhostheader'}, remark_prefix }}",
+                help_text="{{ subscriptionperiod_obj, connection_rule, combo_stat: {'address', 'port', 'sni', 'domainhostheader', 'shortid'}, remark_prefix }}",
                 null=True,
             ),
         ),
@@ -115,7 +115,7 @@ class Migration(migrations.Migration):
             model_name="inboundtype",
             name="inbound_template",
             field=models.TextField(
-                help_text="{{ node_obj, inbound_tag, consumers_part, combo_stat: {'address', 'port', 'sni', 'domainhostheader'} }}"
+                help_text="{{ config, node_obj, inbound_tag, consumers_part, combo_stat: {'address', 'port', 'sni', 'domainhostheader'} }}"
             ),
         ),
         migrations.AlterField(
@@ -123,7 +123,7 @@ class Migration(migrations.Migration):
             name="link_template",
             field=models.TextField(
                 blank=True,
-                help_text="{{ subscriptionperiod_obj, connection_rule, combo_stat: {'address', 'port', 'sni', 'domainhostheader'}, remark_prefix }}",
+                help_text="{{ subscriptionperiod_obj, connection_rule, combo_stat: {'address', 'port', 'sni', 'domainhostheader', 'shortid'}, remark_prefix }}",
                 null=True,
             ),
         ),
