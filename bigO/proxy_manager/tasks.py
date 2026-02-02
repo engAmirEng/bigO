@@ -293,7 +293,7 @@ def reality_checks():
         + timedelta(seconds=reality_settings.shortid_append_period_sec)
         < now
     ):
-        new_shortid = typing.RealityShortidSettingsSchema(id=secrets.token_hex(8), added_at=now.timestamp())
+        new_shortid = typing.RealityShortidSettingsSchema(id=secrets.token_hex(8), added_at=int(now.timestamp()))
         valid_shortids.append(new_shortid)
 
     reality_settings.shortids = valid_shortids
