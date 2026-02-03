@@ -2,10 +2,10 @@ import json
 import random
 import string
 from enum import Enum
-from types import SimpleNamespace
 
 from asgiref.sync import async_to_sync, sync_to_async
 
+import aiogram.exceptions
 from aiogram.filters.callback_data import CallbackData
 from aiogram.types import InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -212,9 +212,13 @@ async def near_end_periods_notify(sender, periods_qs: QuerySet[proxy_manager_mod
                             "teleport/member/subscription_profile_overview.thtml",
                             context={"state": None, "subscriptionperiod": period},
                         )
-                        await aiobot.send_message(
-                            chat_id=profile_tuser.tid, text=text, reply_markup=ikbuilder.as_markup()
-                        )
+                        try:
+                            await aiobot.send_message(
+                                chat_id=profile_tuser.tid, text=text, reply_markup=ikbuilder.as_markup()
+                            )
+                        except aiogram.exceptions.TelegramForbiddenError as e:
+                            if "bot was blocked by the user" in e.message:
+                                await profile_tuser.blocked_detected()
                         cache.set(a, True, timeout=30 * 60)
                         sent_periods_ids.add(period.id)
                 admin_txt_list.append(

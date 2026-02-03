@@ -210,6 +210,7 @@ class TelegramUser(TimeStampedModel, models.Model):
     user = models.ForeignKey(
         User, related_name="telegramuserprofiles", on_delete=models.CASCADE, null=True, blank=True
     )
+    block_detected_at = models.DateTimeField(null=True, blank=True)
     tid = models.BigIntegerField(db_comment="user id in telegram")
     bot = models.ForeignKey(TelegramBot, related_name="telegramuserprofiles", on_delete=models.CASCADE)
     last_accessed_at = models.DateTimeField()
@@ -254,6 +255,10 @@ class TelegramUser(TimeStampedModel, models.Model):
             tuser_obj.tadded_to_attachment_menu = tuser.added_to_attachment_menu
             await tuser_obj.asave()
             return True, tuser_obj
+
+    async def blocked_detected(self):
+        self.block_detected_at = timezone.now()
+        await self.asave()
 
 
 class TelegramChatMemberManager(models.Manager):

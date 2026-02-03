@@ -75,12 +75,13 @@ class TelegramUserModelAdmin(admin.ModelAdmin):
         "id",
         "user",
         "bot",
+        "tid",
         "name_display",
         "tlanguage_code",
         "tis_premium",
-        "tadded_to_attachment_menu",
         "created_at",
         "last_accessed_at",
+        "block_detected_at",
     )
     search_fields = ("user__name", "user__username", "tfirst_name", "tlast_name", "tusername")
     autocomplete_fields = ("user", "bot")
