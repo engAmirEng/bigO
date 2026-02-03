@@ -874,7 +874,7 @@ async def user_startlink_handler(
         return
     data = await services.get_secret_key(secret_key=secret_key)
     if not data or not (to_user_id := data.get("user_id")):
-        return message.reply_to_message(gettext("شناسایی نشد"))
+        return message.reply(gettext("لینک منقضی شده."))
     to_user_obj = await User.objects.get(id=to_user_id)
     transfer_ownership: bool = data.get("transfer_ownership")
     referred_by = None
@@ -908,7 +908,17 @@ async def subscription_profile_startlink_handler(
         return
     data = await services.get_secret_key(secret_key=secret_key)
     if not data or not (subscription_profile_id := data.get("subscription_profile_id")):
-        return message.reply(gettext("شناسایی نشد"))
+        useragency = await proxy_manager_models.AgencyUser.objects.filter(user=user, agency=agency).afirst()
+        if useragency:
+            from .base import menu_handler
+
+            await aiobot.send_message(
+                tuser.tid, text=gettext("تغییری ایجاد نشد."), reply_to_message_id=message.message_id
+            )
+            return await menu_handler(
+                message=message, tuser=tuser, state=state, aiobot=aiobot, bot_obj=bot_obj, panel_obj=panel_obj
+            )
+        return message.reply(gettext("لینک منقضی شده."))
 
     subscriptionprofile_obj = (
         await proxy_manager_models.SubscriptionProfile.objects.filter(id=subscription_profile_id)
