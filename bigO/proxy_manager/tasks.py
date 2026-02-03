@@ -267,10 +267,7 @@ def typesimpleasyougo1_check_use_credit():
 
 @app.task
 def reality_checks():
-    result = {
-        "added": False,
-        "removed_ids": []
-    }
+    result = {"added": False, "removed_ids": []}
     config = models.Config.get_solo()
     reality_settings_raw = config.reality_settings
     if not reality_settings_raw:

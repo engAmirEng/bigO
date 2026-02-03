@@ -6,7 +6,6 @@ from types import SimpleNamespace
 
 from asgiref.sync import async_to_sync, sync_to_async
 
-from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.filters.callback_data import CallbackData
 from aiogram.types import InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -14,6 +13,7 @@ from bigO.finance import models as finance_models
 from bigO.proxy_manager import models as proxy_manager_models
 from bigO.proxy_manager import services as proxy_manager_services
 from bigO.telegram_bot import models as telegram_bot_models
+from bigO.telegram_bot.settings import AiohttpSession
 from bigO.users.models import User
 from bigO.utils import calander_type
 from django.core.cache import cache

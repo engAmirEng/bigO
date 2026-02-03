@@ -12,7 +12,6 @@ import aiogram
 import aiogram.exceptions
 import aiogram.utils.token
 from aiogram.client.default import DefaultBotProperties
-from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.client.session.base import BaseSession
 from aiogram.enums import ChatMemberStatus, ParseMode
 from bigO.users.models import User
@@ -24,6 +23,7 @@ from django.utils import timezone
 from django.utils.translation import gettext as _
 
 from .. import settings
+from ..settings import AiohttpSession
 from .telegram_mappings import TelegramChat
 
 

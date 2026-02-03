@@ -22,9 +22,9 @@ from celery import current_task
 
 import bigO.utils.logging
 import django.template
-from aiogram.client.session.aiohttp import AiohttpSession
 from bigO.core import models as core_models
 from bigO.telegram_bot import models as telegram_bot_models
+from bigO.telegram_bot.settings import AiohttpSession
 from config.celery_app import app
 from django.conf import settings
 from django.core.cache import cache
