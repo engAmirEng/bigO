@@ -1,4 +1,5 @@
 import asyncio
+import bigO.utils.models
 import logging
 from datetime import timedelta
 from functools import wraps
@@ -197,7 +198,11 @@ async def dashboard(request):
 
 
 async def users_search_callback(queryset: QuerySet[proxy_manager_models.SubscriptionProfile], q: str):
-    return queryset.filter(title__icontains=q)
+    return queryset.filter(
+        bigO.utils.models.get_search_q(
+            query=q, fields=["title", "uuid", "xray_uuid", "description", "user__name", "user__username"]
+        )
+    )
 
 
 async def users_render_record_callback(i: proxy_manager_models.SubscriptionProfile) -> utils.User:

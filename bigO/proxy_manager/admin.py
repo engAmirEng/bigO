@@ -238,6 +238,7 @@ class SubscriptionPeriodModelAdmin(admin.ModelAdmin):
     search_fields = (
         "profile__title",
         "profile__user__name",
+        "profile__user__username",
         "profile__description",
         "profile__uuid",
         "profile__xray_uuid",
