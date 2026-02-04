@@ -1,5 +1,4 @@
 import asyncio
-import bigO.utils.models
 import logging
 from datetime import timedelta
 from functools import wraps
@@ -7,6 +6,7 @@ from zoneinfo import ZoneInfo
 
 from asgiref.sync import sync_to_async
 
+import bigO.utils.models
 from bigO.proxy_manager import models as proxy_manager_models
 from bigO.proxy_manager import services as proxy_manager_services
 from bigO.utils.inertia import inertia, prop_messages
