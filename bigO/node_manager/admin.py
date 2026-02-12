@@ -25,7 +25,7 @@ from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 from django.utils.translation import gettext
 
-from . import forms, models, tasks
+from . import forms, models, services, tasks
 
 
 class NodeLatestSyncStatInline(admin.StackedInline):
@@ -152,8 +152,20 @@ class NodeModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.ModelAd
         return render(request, "node_manager/admin/basic_supervisor.html", context=context)
 
     def get_queryset(self, request):
+        self.request = request
         qs = super().get_queryset(request)
         return qs.select_related("node_nodesyncstat", "supervisorconfig").ann_is_online().ann_generic_status()
+
+    def annotate_cl(self):
+        cl = getattr(self, "cl", None)
+        if not cl:
+            cl = self.get_changelist_instance(self.request)
+            self.cl = cl
+        ids = self.cl.result_list.values_list("id", flat=True)
+        config = models.Config.get_solo()
+        if getattr(self.cl, "metrics", None) == None and config.admin_show_node_metrics:
+            metrics = services.get_node_metrics(ids=ids)
+            self.cl.metrics = metrics
 
     @admin.display(description="node display", ordering="is_revoked")
     def node_display(self, obj):
@@ -168,17 +180,35 @@ class NodeModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.ModelAd
         nodesyncstat = getattr(obj, "node_nodesyncstat", None)
         match obj.generic_status:
             case models.GenericStatusChoices.ERROR:
-                return f"🔴 {naturaltime(nodesyncstat.initiated_at)}"
+                res = f"🔴 {naturaltime(nodesyncstat.initiated_at)}"
             case models.GenericStatusChoices.OFFLINE:
-                return f"⚫️ {naturaltime(nodesyncstat.initiated_at)}"
+                res = f"⚫️ {naturaltime(nodesyncstat.initiated_at)}"
             case models.GenericStatusChoices.ATTENDED_OFFLINE:
-                return f"🔄 {naturaltime(nodesyncstat.initiated_at)}"
+                res = f"🔄 {naturaltime(nodesyncstat.initiated_at)}"
             case models.GenericStatusChoices.NEVER:
-                return "never"
+                res = "never"
             case models.GenericStatusChoices.ONLINE:
-                return f"🟢 {naturaltime(nodesyncstat.initiated_at)}"
+                res = f"🟢 {naturaltime(nodesyncstat.initiated_at)}"
             case _:
                 raise NotImplementedError
+        self.annotate_cl()
+        if not self.cl.metrics:
+            return res
+        metric = self.cl.metrics.get(str(obj.id))
+        if metric is None:
+            res += f"<br>(?%)"
+            return mark_safe(res)
+        load_percent1 = Decimal(metric["load1"] / metric["n_cpus"] * 100).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_DOWN
+        )
+        load_percent5 = Decimal(metric["load5"] / metric["n_cpus"] * 100).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_DOWN
+        )
+        load_percent15 = Decimal(metric["load15"] / metric["n_cpus"] * 100).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_DOWN
+        )
+        res += f"<br>({load_percent1} {load_percent5} {load_percent15}%)"
+        return mark_safe(res)
 
     @admin.display(ordering="node_nodesyncstat__agent_spec", description="agent spec")
     def agent_spec_display(self, obj):

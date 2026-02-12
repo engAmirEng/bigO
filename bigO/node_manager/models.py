@@ -11,6 +11,7 @@ from typing import Self, TypedDict
 import netfields
 from rest_framework_api_key.models import AbstractAPIKey
 from simple_history.models import HistoricalRecords
+from solo.models import SingletonModel
 from taggit.managers import TaggableManager
 
 import django.template.loader
@@ -25,6 +26,10 @@ from django.urls import reverse
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
+
+
+class Config(SingletonModel):
+    admin_show_node_metrics = models.BooleanField(default=False)
 
 
 class ContainerSpec(TimeStampedModel):

@@ -20,6 +20,7 @@ from asgiref.sync import sync_to_async
 import bigO.utils.py_helpers
 import django.template
 from bigO.core import models as core_models
+from bigO.core import services as core_services
 from bigO.proxy_manager import models as proxy_manager_models
 from config import settings
 from django.core.cache import cache
@@ -1325,3 +1326,39 @@ autorestart=true
 priority=10
     """
     return supervisor_config, [network_manager_program_file], None
+
+
+def get_node_metrics(ids):
+    start_time = timezone.now() - datetime.timedelta(minutes=10)
+    ids_filter = ""
+    if ids:
+        ids_filter = "|> filter(fn: (r) => {})".format(" or ".join([f'r["node_id"] == "{i}"' for i in ids]))
+    influx_client = core_services.get_influx_client()
+    if influx_client is None:
+        return
+    query = f"""
+            from(bucket: "{settings.INFLUX_BUCKET}")
+            |> range(start: {start_time.strftime('%Y-%m-%dT%H:%M:%SZ')})
+            |> filter(fn: (r) => r["_measurement"] == "system")
+            |> filter(fn: (r) => r["_field"] == "load1" or r["_field"] == "load5" or r["_field"] == "load15" or r["_field"] == "n_cpus")
+            {ids_filter}
+            |> group(columns: ["node_id", "_field"])
+            |> last()
+            |> pivot(
+                rowKey: ["node_id"],
+                columnKey: ["_field"],
+                valueColumn: "_value"
+            )
+            """
+    tables = influx_client.query_api().query(query)
+    metrics = {}
+    for table in tables:
+        for record in table.records:
+            metrics[record["node_id"]] = {
+                "node_id": record["node_id"],
+                "load1": record["load1"],
+                "load5": record["load5"],
+                "load15": record["load15"],
+                "n_cpus": record["n_cpus"],
+            }
+    return metrics

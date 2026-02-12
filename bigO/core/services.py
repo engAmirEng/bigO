@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from typing import TypedDict
 from zoneinfo import ZoneInfo
 
+import influxdb_client
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
@@ -375,3 +376,13 @@ def get_certbot_current_renew_task(certbotinfo_obj: models.CertbotInfo) -> model
         certbot_info_uuid=certbotinfo_obj.uuid,
     ).first()
     return certificatetask_obj
+
+
+def get_influx_client() -> influxdb_client.InfluxDBClient | None:
+    try:
+        settings.INFLUX_URL
+    except AttributeError:
+        return None
+    return influxdb_client.InfluxDBClient(
+        url=settings.INFLUX_URL, token=settings.INFLUX_TOKEN, org=settings.INFLUX_ORG
+    )
