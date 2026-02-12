@@ -19,8 +19,10 @@ from django.contrib.humanize.templatetags.humanize import naturaltime
 from django.db.models import Count, JSONField, Q, QuerySet
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, render
+from django.templatetags.static import static
 from django.urls import reverse
 from django.utils.html import format_html
+from django.utils.safestring import mark_safe
 from django.utils.translation import gettext
 
 from . import forms, models, tasks
@@ -73,7 +75,7 @@ class NodeModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.ModelAd
         "last_sync_duration_display",
         "collect_metrics",
         "collect_logs",
-        "view_supervisor_page_display",
+        "actions_display",
     )
     ordering = ("is_revoked", "-created_at")
     list_editable = ["downtime_attended", "collect_metrics", "collect_logs"]
@@ -195,15 +197,22 @@ class NodeModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.ModelAd
         microseconds = (nodesyncstat.respond_at - nodesyncstat.initiated_at).microseconds
         return Decimal(microseconds / 1000000).quantize(Decimal("0.01"), rounding=ROUND_HALF_DOWN)
 
-    @admin.display(description="view supervisor page")
-    def view_supervisor_page_display(self, obj):
+    @admin.display(description="Actions")
+    def actions_display(self, obj):
+        res = []
         supervisorconfig = getattr(obj, "supervisorconfig", None)
-        if supervisorconfig is None or not supervisorconfig.xml_rpc_api_expose_port:
-            return None
-        return format_html(
-            '<a href="{}" target="_blank">View Supervisor</a>',
-            reverse("admin:node_manager_node_basic_supervisor", kwargs={"node_pk": obj.id}),
-        )
+        if supervisorconfig and supervisorconfig.xml_rpc_api_expose_port:
+            res.append(
+                format_html(
+                    # language=html
+                    '<a href="{0}" target="_blank"><img src="{1}" style="height: 1.5rem"></a>',
+                    reverse("admin:node_manager_node_basic_supervisor", kwargs={"node_pk": obj.id}),
+                    static("images/supervisord.png"),
+                )
+            )
+        if not res:
+            return
+        return mark_safe("".join(res))
 
 
 @admin.register(models.NodePublicIP)
