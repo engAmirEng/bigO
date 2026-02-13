@@ -31,6 +31,8 @@ logger = logging.getLogger(__name__)
 class Config(SingletonModel):
     admin_show_node_metrics = models.BooleanField(default=False)
 
+    history = HistoricalRecords()
+
 
 class ContainerSpec(TimeStampedModel):
     ipv4 = netfields.InetAddressField(

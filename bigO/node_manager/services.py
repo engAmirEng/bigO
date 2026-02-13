@@ -1329,7 +1329,7 @@ priority=10
 
 
 def get_node_metrics(ids):
-    start_time = timezone.now() - datetime.timedelta(minutes=10)
+    start_time = timezone.now() - datetime.timedelta(minutes=15)
     ids_filter = ""
     if ids:
         ids_filter = "|> filter(fn: (r) => {})".format(" or ".join([f'r["node_id"] == "{i}"' for i in ids]))

@@ -7,6 +7,7 @@ from django_json_widget.widgets import JSONEditorWidget
 from render_block import render_block_to_string
 from rest_framework_api_key.admin import APIKeyModelAdmin
 from simple_history.admin import SimpleHistoryAdmin
+from solo.admin import SingletonModelAdmin
 
 from bigO.net_manager import models as net_manager_models
 from bigO.proxy_manager import models as proxy_manager_models
@@ -26,6 +27,14 @@ from django.utils.safestring import mark_safe
 from django.utils.translation import gettext
 
 from . import forms, models, services, tasks
+
+
+@admin.register(models.Config)
+class ConfigModelAdmin(
+    SimpleHistoryAdmin,
+    SingletonModelAdmin,
+):
+    list_display = ("__str__",)
 
 
 class NodeLatestSyncStatInline(admin.StackedInline):
@@ -163,9 +172,10 @@ class NodeModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.ModelAd
             self.cl = cl
         ids = self.cl.result_list.values_list("id", flat=True)
         config = models.Config.get_solo()
+        metrics = None
         if getattr(self.cl, "metrics", None) == None and config.admin_show_node_metrics:
             metrics = services.get_node_metrics(ids=ids)
-            self.cl.metrics = metrics
+        self.cl.metrics = metrics
 
     @admin.display(description="node display", ordering="is_revoked")
     def node_display(self, obj):
