@@ -1339,8 +1339,8 @@ def get_node_metrics(ids):
     query = f"""
             from(bucket: "{settings.INFLUX_BUCKET}")
             |> range(start: {start_time.strftime('%Y-%m-%dT%H:%M:%SZ')})
-            |> filter(fn: (r) => r["_measurement"] == "system")
-            |> filter(fn: (r) => r["_field"] == "load1" or r["_field"] == "load5" or r["_field"] == "load15" or r["_field"] == "n_cpus")
+            |> filter(fn: (r) => r["_measurement"] == "system" or r["_measurement"] == "mem")
+            |> filter(fn: (r) => r["_field"] == "load1" or r["_field"] == "load5" or r["_field"] == "load15" or r["_field"] == "n_cpus" or r["_field"] == "used_percent")
             {ids_filter}
             |> group(columns: ["node_id", "_field"])
             |> last()
@@ -1359,6 +1359,7 @@ def get_node_metrics(ids):
                 "load1": record["load1"],
                 "load5": record["load5"],
                 "load15": record["load15"],
+                "mem_used_percent": record["used_percent"],
                 "n_cpus": record["n_cpus"],
             }
     return metrics

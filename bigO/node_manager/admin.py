@@ -166,16 +166,21 @@ class NodeModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.ModelAd
         return qs.select_related("node_nodesyncstat", "supervisorconfig").ann_is_online().ann_generic_status()
 
     def annotate_cl(self):
-        cl = getattr(self, "cl", None)
+        cl = getattr(self.request, "cl", None)
         if not cl:
             cl = self.get_changelist_instance(self.request)
-            self.cl = cl
-        ids = self.cl.result_list.values_list("id", flat=True)
+            self.request.cl = cl
+
+        ids = self.request.cl.result_list.values_list("id", flat=True)
         config = models.Config.get_solo()
+
         metrics = None
-        if getattr(self.cl, "metrics", None) == None and config.admin_show_node_metrics:
-            metrics = services.get_node_metrics(ids=ids)
-        self.cl.metrics = metrics
+        if config.admin_show_node_metrics:
+            try:
+                metrics = self.request.cl.metrics
+            except AttributeError:
+                metrics = services.get_node_metrics(ids=ids)
+        self.request.cl.metrics = metrics
 
     @admin.display(description="node display", ordering="is_revoked")
     def node_display(self, obj):
@@ -202,9 +207,9 @@ class NodeModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.ModelAd
             case _:
                 raise NotImplementedError
         self.annotate_cl()
-        if not self.cl.metrics:
+        if not self.request.cl.metrics:
             return res
-        metric = self.cl.metrics.get(str(obj.id))
+        metric = self.request.cl.metrics.get(str(obj.id))
         if metric is None:
             res += f"<br>(?%)"
             return mark_safe(res)
@@ -217,7 +222,8 @@ class NodeModelAdmin(admin_extra_buttons.mixins.ExtraButtonsMixin, admin.ModelAd
         load_percent15 = Decimal(metric["load15"] / metric["n_cpus"] * 100).quantize(
             Decimal("0.01"), rounding=ROUND_HALF_DOWN
         )
-        res += f"<br>({load_percent1} {load_percent5} {load_percent15}%)"
+        mem_used_percent = Decimal(metric["mem_used_percent"]).quantize(Decimal("0.01"), rounding=ROUND_HALF_DOWN)
+        res += f"<br>({load_percent1},{load_percent5},{load_percent15}|{mem_used_percent}%)"
         return mark_safe(res)
 
     @admin.display(ordering="node_nodesyncstat__agent_spec", description="agent spec")
