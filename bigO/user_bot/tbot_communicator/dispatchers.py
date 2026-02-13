@@ -1,24 +1,17 @@
 import asyncio
 import io
-import tempfile
 
-import makefun
 import telethon
 from asgiref.sync import sync_to_async
 from qrcode import QRCode
-from telethon.sessions import StringSession
 
 import aiogram.utils.deep_linking
 from aiogram import Bot
-from aiogram.filters import CommandStart
 from aiogram.filters.callback_data import CallbackData
 from aiogram.fsm.context import FSMContext
-from aiogram.types import BufferedInputFile, CallbackQuery, CopyTextButton, Message
-from aiogram.utils.keyboard import InlineKeyboardBuilder, InlineKeyboardButton
-from bigO.proxy_manager import models as proxy_manager_models
+from aiogram.types import BufferedInputFile, CallbackQuery
 from bigO.telegram_bot.dispatchers import AppRouter
 from bigO.telegram_bot.models import TelegramBot, TelegramUser
-from bigO.telegram_bot.utils import thtml_render_to_string
 from django.utils.translation import gettext
 
 from .. import models

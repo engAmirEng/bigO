@@ -9,7 +9,7 @@ from django.shortcuts import aget_object_or_404
 
 from . import models
 
-router = Router()
+router = Router(tags=["NodeManager"])
 
 
 class NodeLatestSyncStatOutSchema(ModelSchema):

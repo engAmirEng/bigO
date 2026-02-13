@@ -24,6 +24,6 @@ class APIKeyHeaderAuth(APIKeyHeader):
 
 header_key_auth = APIKeyHeaderAuth()
 
-api = NinjaAPI(auth=header_key_auth)
+api = NinjaAPI(title="AdminAPI", auth=header_key_auth)
 api.add_router("/node-manager/", node_manager_router)
 api.add_router("/user-bot/", user_bot_router)

@@ -1,5 +1,4 @@
 import telethon.errors.rpcerrorlist
-from asgiref.sync import sync_to_async
 
 import aiogram.client.session.aiohttp
 from bigO.telegram_bot import settings

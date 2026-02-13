@@ -7,7 +7,7 @@ class UserBotConfig(AppConfig):
     verbose_name = _("User Bot")
 
     def ready(self):
-        from bigO.telegram_bot.dispatchers import dp
+        from bigO.telegram_bot.router import dp
 
         from .tbot_communicator.dispatchers import router
 

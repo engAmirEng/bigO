@@ -2,7 +2,7 @@ from ninja import Router, Schema
 
 from . import models, services
 
-router = Router()
+router = Router(tags=["UserBot"])
 
 
 class TelegramMessageSchema(Schema):
@@ -10,7 +10,7 @@ class TelegramMessageSchema(Schema):
     text: str
 
 
-@router.patch("/telegram/app/{app_id}/account/{account_id}/message")
+@router.post("/telegram/app/{app_id}/account/{account_id}/quick-message")
 async def patch_node(request, app_id: int, account_id: int, payload: TelegramMessageSchema):
     tapp = await models.TelegramApp.objects.aget(id=app_id)
     taccount = await models.TelegramAccount.objects.select_related("account_provider__telegram_bot").aget(
