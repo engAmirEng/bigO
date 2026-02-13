@@ -14,8 +14,7 @@ from bigO.telegram_bot.dispatchers import AppRouter
 from bigO.telegram_bot.models import TelegramBot, TelegramUser
 from django.utils.translation import gettext
 
-from .. import models
-from ..telegram.utils import Session
+from .. import models, telegram
 
 
 async def app_filter_callback(*args, **kwargs):
@@ -51,11 +50,8 @@ async def menu_handler(
     if callback_data.ok:
         taccount = await models.TelegramAccount.objects.filter(id=callback_data.account_id, owners=tuser.user).afirst()
         tapp = await models.TelegramApp.objects.filter(id=callback_data.app_id).afirst()
-        session, created = await models.TelegramSession.objects.aget_or_create(account=taccount, app=tapp)
-        session = Session(session=session)
-        client = telethon.TelegramClient(
-            session, tapp.api_id, tapp.api_hash, proxy=("http", "172.23.224.1", 10809, True)
-        )
+        session_obj, created = await models.TelegramSession.objects.aget_or_create(account=taccount, app=tapp)
+        client = telegram.services.get_telethon_client(session_obj)
         await client.connect()
         is_authed = await client.is_user_authorized()
         if is_authed:

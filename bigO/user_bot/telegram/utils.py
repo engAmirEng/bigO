@@ -27,3 +27,17 @@ class Session(telethon.sessions.SQLiteSession):
             final_db_bytes = f.read()
             self.session.sqlite_file.save(name=str(self.session.id), content=ContentFile(final_db_bytes))
         os.unlink(self.filename)
+
+
+class TelegramClient(telethon.TelegramClient):
+    def __init__(self, *args, proxy_resource=None, **kwargs):
+        self.proxy_resource = proxy_resource
+        proxy = None
+        if proxy_resource:
+            proxy = ("http", proxy_resource.host, proxy_resource.port, True)
+
+        super().__init__(*args, **kwargs, proxy=proxy)
+
+    def __aexit__(self, *args, **kwargs):
+        super().__aexit__(*args, **kwargs)
+        await self.proxy_resource.__aexit__()

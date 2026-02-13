@@ -4,8 +4,7 @@ import aiogram.client.session.aiohttp
 from bigO.telegram_bot import settings
 from django.utils.translation import gettext
 
-from . import models
-from .telegram.utils import Session
+from . import models, telegram
 
 
 class NoOwnerToAuthException(Exception):
@@ -17,9 +16,8 @@ class WaitToAuthException(Exception):
 
 
 async def get_telegram_session(taccount: models.TelegramAccount, tapp: models.TelegramApp) -> telethon.TelegramClient:
-    session, created = await models.TelegramSession.objects.aget_or_create(account=taccount, app=tapp)
-    session = Session(session=session)
-    client = telethon.TelegramClient(session, tapp.api_id, tapp.api_hash, proxy=("http", "172.23.224.1", 10809, True))
+    session_obj, created = await models.TelegramSession.objects.aget_or_create(account=taccount, app=tapp)
+    client = telegram.services.get_telethon_client(session_obj)
     await client.connect()
     is_authed = await client.is_user_authorized()
     if is_authed:
