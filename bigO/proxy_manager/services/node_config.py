@@ -7,6 +7,8 @@ from decimal import ROUND_HALF_DOWN, Decimal
 from hashlib import sha256
 from typing import Protocol
 
+import sentry_sdk
+
 import django.template
 from bigO.core import models as core_models
 from bigO.node_manager import models as node_manager_models
@@ -54,38 +56,6 @@ def get_proxy_manager_nginx_conf_v2(
     return nginx_config_http_result, nginx_config_stream_result, new_files
 
 
-def get_local_tunnel_port(*, connectiontunnel: models.ConnectionTunnel, dest_port_number: int):
-    start_port = 50_111
-
-    res_obj = models.LocalTunnelPort.objects.filter(
-        source_node_id=connectiontunnel.source_node_id,
-        tunnel=connectiontunnel,
-        dest_port=dest_port_number,
-    ).first()
-    if res_obj:
-        return res_obj.local_port
-
-    ocupied_ports = models.LocalTunnelPort.objects.filter(source_node_id=connectiontunnel.source_node_id).values_list(
-        "local_port", flat=True
-    )
-    local_port = None
-    while start_port < 65_535:
-        if start_port in ocupied_ports:
-            start_port += 1
-            continue
-        local_port = start_port
-        break
-    if local_port is None:
-        raise ValueError("localport not found")
-    res_obj = models.LocalTunnelPort()
-    res_obj.tunnel = connectiontunnel
-    res_obj.source_node = connectiontunnel.source_node
-    res_obj.dest_port = dest_port_number
-    res_obj.local_port = local_port
-    res_obj.save()
-    return res_obj.local_port
-
-
 def get_connection_tunnel(node_obj: node_manager_models.Node):
     inbound_parts = ""
     rule_parts = ""
@@ -99,21 +69,13 @@ def get_connection_tunnel(node_obj: node_manager_models.Node):
     bridge_second_rules_parts: list[dict] = []
     all_balancer_parts = ""
 
-    config_obj = models.Config.objects.get()
-    if not config_obj.tunnel_dest_ports:
-        return (
-            proxyusers,
-            portal_rules_parts,
-            bridge_first_rules_parts,
-            bridge_second_rules_parts,
-            xray_bridges,
-            xray_portals,
-            inbound_parts,
-            xray_outbounds,
-            all_balancer_parts,
-            rule_parts,
-        )
-    source_node_connectiontunnel_qs = models.ConnectionTunnel.objects.filter(source_node=node_obj).prefetch_related(
+    source_node_connectiontunnel_qs = models.ConnectionTunnel.objects.filter(
+        source_node=node_obj, tunnel_localtunnelports__isnull=False
+    ).prefetch_related(
+        Prefetch(
+            "tunnel_localtunnelports",
+            to_attr="localtunnelports",
+        ),
         Prefetch(
             "tunnel_outbounds",
             to_attr="direct_tunnel_outbounds_list",
@@ -128,7 +90,7 @@ def get_connection_tunnel(node_obj: node_manager_models.Node):
                 "connector__outbound_type", "connector__inbound_spec"
             ),
         ),
-    )
+    ).distinct()
     dest_node_connectiontunnel_qs = models.ConnectionTunnel.objects.filter(dest_node=node_obj).prefetch_related(
         Prefetch(
             "tunnel_outbounds",
@@ -145,16 +107,13 @@ def get_connection_tunnel(node_obj: node_manager_models.Node):
             ),
         ),
     )
-    dest_port_numbers: list[int] = [
-        int(port_number.strip()) for port_number in config_obj.tunnel_dest_ports.split(",")
-    ]
     dokodemo_template = """
         {
             "listen": "0.0.0.0",
             "port": {{ local_port }},
             "protocol": "dokodemo-door",  # "tunnel" from 25.8.3
             "settings": {
-              "address": "127.0.0.1",
+              "address": "{{ dest_addr }}",
               "port": {{ dest_port }},
               "network": "tcp"
              },
@@ -174,15 +133,31 @@ def get_connection_tunnel(node_obj: node_manager_models.Node):
         connectiontunnel: models.ConnectionTunnel
         inbound_tags = []
         balancer_tag = f"tunn_{connectiontunnel.id}"
-        for dest_port_number in dest_port_numbers:
-            local_port_number = get_local_tunnel_port(
-                connectiontunnel=connectiontunnel, dest_port_number=dest_port_number
-            )
-            inbound_tag = f"tcp_udp_in_{local_port_number}"
+        for localtunnelport in connectiontunnel.localtunnelports:
+            localtunnelport: models.LocalTunnelPort
+            inbound_tag = f"tcp_udp_in_{localtunnelport.local_port}"
             inbound_tags.append(inbound_tag)
+            if localtunnelport.dest_node:
+                dest_node_nodepublicip = (
+                    localtunnelport.dest_node.node_nodepublicips.filter(ip__ip__family=4).select_related("ip").first()
+                )
+                if dest_node_nodepublicip:
+                    dest_addr = dest_node_nodepublicip.ip.ip.ip
+                else:
+                    sentry_sdk.capture_message(
+                        f"skipping {localtunnelport.id=} of {connectiontunnel.id=} since no destip"
+                    )
+                    continue
+            else:
+                dest_addr = "127.0.0.1"
             inbound_part = django.template.Template(dokodemo_template).render(
                 django.template.Context(
-                    {"local_port": local_port_number, "dest_port": dest_port_number, "inbound_tag": inbound_tag}
+                    {
+                        "local_port": localtunnelport.local_port,
+                        "dest_port": localtunnelport.dest_port,
+                        "dest_addr": dest_addr,
+                        "inbound_tag": inbound_tag,
+                    }
                 )
             )
             if inbound_parts:

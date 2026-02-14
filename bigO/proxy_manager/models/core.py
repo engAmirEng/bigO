@@ -44,7 +44,6 @@ class Config(TimeStampedModel, SingletonModel):
     geoip = models.ForeignKey(
         "node_manager.ProgramVersion", related_name="geoip_xrayconfig", on_delete=models.PROTECT, null=True, blank=True
     )
-    tunnel_dest_ports = models.CharField(max_length=255, validators=[int_list_validator], null=True, blank=True)
     admin_panel_influx_delays = models.BooleanField(default=True)
     usage_correction_factor = models.DecimalField(max_digits=4, decimal_places=2, null=True, blank=True)
     history = HistoricalRecords()

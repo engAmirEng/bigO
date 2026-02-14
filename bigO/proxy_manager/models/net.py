@@ -5,6 +5,7 @@ from simple_history.models import HistoricalRecords
 from taggit.managers import TaggableManager
 
 from bigO.utils.models import TimeStampedModel
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import UniqueConstraint
 
@@ -175,7 +176,17 @@ class OutboundType(TimeStampedModel, models.Model):
 
 
 class LocalTunnelPort(TimeStampedModel, models.Model):
-    source_node = models.ForeignKey("node_manager.Node", on_delete=models.CASCADE, related_name="+")
-    tunnel = models.ForeignKey(ConnectionTunnel, on_delete=models.CASCADE)
+    tunnel = models.ForeignKey(ConnectionTunnel, on_delete=models.CASCADE, related_name="tunnel_localtunnelports")
     local_port = models.PositiveIntegerField()
     dest_port = models.PositiveIntegerField()
+    dest_node = models.ForeignKey(
+        "node_manager.Node", on_delete=models.CASCADE, related_name="+", null=True, blank=True
+    )
+
+    def clean(self):
+        super().clean()
+        similar_qs = LocalTunnelPort.objects.filter(tunnel=self.tunnel, local_port=self.local_port)
+        if self.id:
+            similar_qs = similar_qs.exclude(id=self.id)
+        if similar_obj := similar_qs.first():
+            raise ValidationError(f"{self.local_port} port is used in {similar_obj.tunnel_id=}")

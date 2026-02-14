@@ -627,7 +627,7 @@ class ConnectionTunnelOutboundModelAdmin(admin.ModelAdmin):
 class LocalTunnelPortInline(admin.StackedInline):
     extra = 0
     model = models.LocalTunnelPort
-    autocomplete_fields = ("source_node",)
+    autocomplete_fields = ("dest_node",)
     ordering = ("created_at",)
 
 
@@ -659,7 +659,7 @@ class ConnectionTunnelModelAdmin(SimpleHistoryAdmin, admin.ModelAdmin):
 @admin.register(models.LocalTunnelPort)
 class LocalTunnelPortModelAdmin(SimpleHistoryAdmin, admin.ModelAdmin):
     list_display = ("__str__",)
-    autocomplete_fields = ("source_node", "tunnel")
+    autocomplete_fields = ("dest_node", "tunnel")
 
 
 class InboundSpecOutboundConnectorInline(admin.StackedInline):
