@@ -23,7 +23,7 @@ async def sublink_view(request, subscription_uuid: uuid.UUID):
     except models.SubscriptionProfile.DoesNotExist:
         metrics.sublink_request_total_counter.add(
             1,
-            attributes={"user_agent": user_agent, "invalid_secret": subscription_uuid, "status": "not_found"},
+            attributes={"user_agent": user_agent, "invalid_secret": subscription_uuid.hex, "status": "not_found"},
         )
         raise Http404()
     subscriptionperiod_obj = (
