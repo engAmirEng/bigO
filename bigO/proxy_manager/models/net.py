@@ -185,7 +185,7 @@ class LocalTunnelPort(TimeStampedModel, models.Model):
 
     def clean(self):
         super().clean()
-        similar_qs = LocalTunnelPort.objects.filter(tunnel=self.tunnel, local_port=self.local_port)
+        similar_qs = LocalTunnelPort.objects.filter(tunnel_id=self.tunnel.id, local_port=self.local_port)
         if self.id:
             similar_qs = similar_qs.exclude(id=self.id)
         if similar_obj := similar_qs.first():
