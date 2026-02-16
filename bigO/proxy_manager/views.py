@@ -62,7 +62,12 @@ async def sublink_view(request, subscription_uuid: uuid.UUID):
         sublink_content = base64.b64encode(sublink_content.encode())
     metrics.sublink_request_total_counter.add(
         1,
-        attributes={"profile_id": subscriptionprofile_obj.id, "user_agent": user_agent, "status": "ok"},
+        attributes={
+            "connection_rule_id": str(subscriptionperiod_obj.plan.connection_rule_id),
+            "profile_id": subscriptionprofile_obj.id,
+            "user_agent": user_agent,
+            "status": "ok",
+        },
     )
 
     return HttpResponse(sublink_content, content_type="text/plain; charset=utf-8")

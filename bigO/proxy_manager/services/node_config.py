@@ -69,28 +69,30 @@ def get_connection_tunnel(node_obj: node_manager_models.Node):
     bridge_second_rules_parts: list[dict] = []
     all_balancer_parts = ""
 
-    source_node_connectiontunnel_qs = models.ConnectionTunnel.objects.filter(
-        source_node=node_obj, tunnel_localtunnelports__isnull=False
-    ).prefetch_related(
-        Prefetch(
-            "tunnel_localtunnelports",
-            to_attr="localtunnelports",
-        ),
-        Prefetch(
-            "tunnel_outbounds",
-            to_attr="direct_tunnel_outbounds_list",
-            queryset=models.ConnectionTunnelOutbound.objects.filter(weight__gt=0, is_reverse=False).select_related(
-                "connector__outbound_type", "connector__inbound_spec"
+    source_node_connectiontunnel_qs = (
+        models.ConnectionTunnel.objects.filter(source_node=node_obj, tunnel_localtunnelports__isnull=False)
+        .prefetch_related(
+            Prefetch(
+                "tunnel_localtunnelports",
+                to_attr="localtunnelports",
             ),
-        ),
-        Prefetch(
-            "tunnel_outbounds",
-            to_attr="portal_reverse_list",
-            queryset=models.ConnectionTunnelOutbound.objects.filter(weight__gt=0, is_reverse=True).select_related(
-                "connector__outbound_type", "connector__inbound_spec"
+            Prefetch(
+                "tunnel_outbounds",
+                to_attr="direct_tunnel_outbounds_list",
+                queryset=models.ConnectionTunnelOutbound.objects.filter(weight__gt=0, is_reverse=False).select_related(
+                    "connector__outbound_type", "connector__inbound_spec"
+                ),
             ),
-        ),
-    ).distinct()
+            Prefetch(
+                "tunnel_outbounds",
+                to_attr="portal_reverse_list",
+                queryset=models.ConnectionTunnelOutbound.objects.filter(weight__gt=0, is_reverse=True).select_related(
+                    "connector__outbound_type", "connector__inbound_spec"
+                ),
+            ),
+        )
+        .distinct()
+    )
     dest_node_connectiontunnel_qs = models.ConnectionTunnel.objects.filter(dest_node=node_obj).prefetch_related(
         Prefetch(
             "tunnel_outbounds",
