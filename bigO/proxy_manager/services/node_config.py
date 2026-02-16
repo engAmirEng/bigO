@@ -461,7 +461,7 @@ def get_xray_conf_v2(
         .distinct()
     )
     # connectionrule_outbound_qs = list(models.ConnectionRuleOutbound.objects.filter(node_outbound__node=node_obj).select_related("rule"))
-    if not connectionrule_qs:
+    if not connectionrule_qs and not tunn_outbounds and not tunn_rule_parts and not tunn_inbound_parts:
         return None
 
     all_subscriptionperiods_obj_list = (
