@@ -516,6 +516,7 @@ class ConnectionRuleModelAdmin(SimpleHistoryAdmin):
     list_display = ("__str__", "periods_count_display", "alive_periods_count_display")
     inlines = (ConnectionRuleInboundSpecInline, ConnectionRuleBalancerInline, ConnectionRuleOutboundInline)
     search_fields = ("name", "xray_rules_template")
+    autocomplete_fields = ("client_json_template",)
 
     def get_queryset(self, request):
         return super().get_queryset(request).ann_periods_count()

@@ -53,6 +53,14 @@ class Balancer(TimeStampedModel, models.Model):
     def __str__(self):
         return f"{self.id}-{self.name}"
 
+    @property
+    def max_rtt(self):
+        return None
+
+    @property
+    def baselines(self):
+        return None
+
 
 class ConnectionTunnel(TimeStampedModel, models.Model):
     source_node = models.ForeignKey("node_manager.Node", on_delete=models.CASCADE, related_name="+")

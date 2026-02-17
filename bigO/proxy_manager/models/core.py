@@ -167,6 +167,7 @@ class ConnectionRule(TimeStampedModel, models.Model):
     inbound_choose_rule = django_jsonform.models.fields.JSONField(
         schema=INBOUND_CHOOSE_RULE_SCHEMA, null=True, blank=True
     )
+    client_json_template = models.ForeignKey("node_manager.Snippet", on_delete=models.PROTECT, null=True, blank=True)
 
     history = HistoricalRecords()
 
