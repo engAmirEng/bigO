@@ -1,5 +1,7 @@
 import logging
 import random
+from collections import defaultdict
+from types import SimpleNamespace
 
 import sentry_sdk
 from asgiref.sync import sync_to_async
@@ -111,3 +113,124 @@ async def get_profile_proxies(subscriptionperiod_obj: models.SubscriptionPeriod)
                 continue
             res_lines.append(link_res)
     return res_lines
+
+
+async def get_profile_json_proxies(
+    subscriptionperiod_obj: models.SubscriptionPeriod, fp_list: list[tuple[str, int]]
+) -> list[dict]:
+    connection_rule = subscriptionperiod_obj.plan.connection_rule
+    if connection_rule.inbound_choose_rule is None:
+        return []
+    inbound_choose_rule = typing.InboundChooseRuleSchema(**connection_rule.inbound_choose_rule)
+    rule_specs = (
+        models.ConnectionRuleInboundSpec.objects.filter(rule=subscriptionperiod_obj.plan.connection_rule)
+        .select_related(
+            "spec__inbound_type",
+            "spec__domain_address__domain",
+            "spec__ip_address",
+            "spec__domain_sni",
+            "spec__domainhost_header",
+        )
+        .select_related(
+            "connector__outbound_type__to_inbound_type",
+            "connector__inbound_spec__domain_address__domain",
+            "connector__inbound_spec__ip_address",
+            "connector__inbound_spec__domain_sni",
+            "connector__inbound_spec__domainhost_header",
+        )
+    )
+    rule_specs = [i async for i in rule_specs]
+    balancers_res = defaultdict(list)
+    inbounds = {}
+
+    for in_rule in inbound_choose_rule.inbounds:
+        inbounds_res = []
+        if not in_rule.balancers_configs or not [i for i in in_rule.balancers_configs if i.weight > 0]:
+            continue
+
+        related_rule_specs = [
+            i
+            for i in rule_specs
+            if i.key == in_rule.key_name
+            if (
+                i.weight > 0
+                and i.connector
+                and i.connector.outbound_type
+                and i.connector.outbound_type.xray_outbound_template
+            )
+        ]
+        if not related_rule_specs:
+            continue
+        selected_rule_specs: list[models.ConnectionRuleInboundSpec] = random.choices(
+            related_rule_specs, weights=[i.weight for i in related_rule_specs], k=in_rule.count
+        )
+        for counter in range(in_rule.count):
+            selected_rule_spec = selected_rule_specs[counter]
+            selected_spec: models.InboundSpec | None = selected_rule_spec.connector.inbound_spec
+            if selected_spec is None:
+                continue
+            outbound_type: models.InboundType = selected_rule_spec.connector.outbound_type
+            json_outbound_template = "{% load utils %}" + outbound_type.xray_outbound_template
+            combo_stat = await sync_to_async(selected_spec.get_combo_stat)()
+            inbound_tag = f"{in_rule.key_name}-{selected_spec.id}-{counter}"
+            fp = random.choices(fp_list, weights=[i[1] for i in fp_list], k=1)[0][0]
+            inbound_json = await sync_to_async(django.template.Template(json_outbound_template).render)(
+                context=django.template.Context(
+                    {
+                        "tag": inbound_tag,
+                        "subscriptionperiod_obj": subscriptionperiod_obj,
+                        "nodeinternaluser": subscriptionperiod_obj,  # backward compatibility
+                        "combo_stat": combo_stat,
+                        "fingerprint": fp,
+                        "connection_rule": subscriptionperiod_obj.plan.connection_rule,
+                    }
+                )
+            )
+            if not inbound_json:
+                continue
+            if "templateerror" in inbound_json:
+                sentry_sdk.capture_message(f"templateerror in {selected_rule_spec.id=} and {subscriptionperiod_obj=}")
+                continue
+            inbounds_res.append({"tag": inbound_tag, "inbound_obj": inbound_json})
+            inbounds[inbound_tag] = inbound_json
+        for balancer_config in in_rule.balancers_configs:
+            balancers_res[balancer_config.balancer_key].append(
+                {"weight": balancer_config.weight, "inbounds_tags": [i["tag"] for i in inbounds_res]}
+            )
+    balancer_template = """{
+    "type": "leastLoad",
+    "settings": {
+        "costs": [
+            {{ costs_part|safe }}
+        ],
+       "baselines": [{% for i in baselines %}"{{ i }}ms"{% if not forloop.last %},{% endif %}{% endfor %}],
+       "expected": 1,
+       "maxRTT": "{{ max_rtt }}ms"
+//            "tolerance": 6
+    }
+}"""
+    from .. import services
+
+    res = []
+    for ba_rule in inbound_choose_rule.balancers:
+        balancer_res = balancers_res.get(ba_rule.key_name)
+        base_lines = ba_rule.base_lines_ms
+        max_rtt_ms = ba_rule.max_rtt_ms
+        if not base_lines or not max_rtt_ms:
+            continue
+        balancer_obj = SimpleNamespace(strategy_template=balancer_template, max_rtt=max_rtt_ms, baselines=base_lines)
+        strategy_part = services.get_strategy_part(
+            balancer_members=[{"tag": tag, "weight": i["weight"]} for i in balancer_res for tag in i["inbounds_tags"]],
+            balancer_obj=balancer_obj,
+        )
+        all_balancer_inbound_tags = [j for i in balancer_res for j in i["inbounds_tags"]]
+        r = '{{"tag": "proxy-round", "selector": [{0}], "strategy": {1}, "fallbackTag": "{2}"}}'.format(
+            ",".join([f'"{i}"' for i in all_balancer_inbound_tags]),
+            *strategy_part,
+        )
+        remark_prefix = (subscriptionperiod_obj.plan.connection_rule.inbound_remarks_prefix or "") + ba_rule.prefix
+        res.append(
+            {"outbounds": [inbounds[i] for i in all_balancer_inbound_tags], "balancer": r, "remark": remark_prefix}
+        )
+
+    return res

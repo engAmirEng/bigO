@@ -1,5 +1,6 @@
 import ipaddress
 from decimal import Decimal
+from enum import Enum
 from typing import Protocol, TypedDict
 
 import pydantic
@@ -16,15 +17,30 @@ class RealitySettingsSchema(pydantic.BaseModel):
     shortids: list[RealityShortidSettingsSchema]
 
 
+class BalancerConfigSchema(pydantic.BaseModel):
+    balancer_key: str
+    weight: int
+
+
 class ChooseRuleItemsSchema(pydantic.BaseModel):
     key_name: str
     prefix: str = ""
     count: int
+    balancers_configs: list[BalancerConfigSchema] = []
+
+
+class BalancerSchema(pydantic.BaseModel):
+    key_name: str
+    prefix: str = ""
+    base_lines_ms: list[int]
+    max_rtt_ms: int
 
 
 class InboundChooseRuleSchema(pydantic.BaseModel):
     name: str
+    prefer_json_conf: bool = False
     inbounds: list[ChooseRuleItemsSchema]
+    balancers: list[BalancerSchema] = []
 
 
 class BalancerMemberType(TypedDict):

@@ -1,6 +1,7 @@
 import json
 import logging
 import pathlib
+import random
 import re
 from collections import defaultdict
 from decimal import ROUND_HALF_DOWN, Decimal
@@ -820,6 +821,8 @@ priority=10
 
 class Balancer(Protocol):
     strategy_template: str | None
+    max_rtt: int | None
+    baselines: list[int] | None
 
 
 def get_strategy_part(
@@ -845,11 +848,29 @@ def get_strategy_part(
         ]
     )
     strategy_part = django.template.Template(strategy_template).render(
-        django.template.Context({"costs_part": costs_part, "node_count": max(1, int(0.4 * len(balancer_members)))})
+        django.template.Context(
+            {
+                "costs_part": costs_part,
+                "node_count": max(1, int(0.4 * len(balancer_members))),
+                "max_rtt": balancer_obj.max_rtt,
+                "baselines": balancer_obj.baselines,
+            }
+        )
     )
     # todo do a proper fallbacktag
     sorted_balancer_members = sorted(balancer_members, key=lambda x: x["weight"], reverse=True)
-    return strategy_part, sorted_balancer_members[0]["tag"]
+    first_weight = None
+    r = []
+    for i in sorted_balancer_members:
+        if first_weight is None:
+            first_weight = i["weight"]
+            r.append(i)
+        elif first_weight == i["weight"]:
+            r.append(i)
+        else:
+            break
+
+    return strategy_part, random.choice(r)["tag"]
 
 
 class XrayOutBound:
