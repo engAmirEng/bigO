@@ -328,6 +328,8 @@ class SubscriptionProfile(TimeStampedModel, models.Model):
     objects = SubscriptionProfileQuerySet.as_manager()
 
     def __str__(self):
+        if self.user:
+            return f"{self.pk}-{self.user.name or self.user.username}({self.title})"
         return f"{self.pk}-{self.title}"
 
     async def get_current_period(self, related: tuple["str"] = None) -> SubscriptionPeriod | None:
