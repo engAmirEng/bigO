@@ -224,6 +224,7 @@ async def get_profile_json_proxies(
         strategy_part = services.get_strategy_part(
             balancer_members=[{"tag": tag, "weight": i["weight"]} for i in balancer_res for tag in i["inbounds_tags"]],
             balancer_obj=balancer_obj,
+            rand_fallback=True,
         )
         all_balancer_inbound_tags = [j for i in balancer_res for j in i["inbounds_tags"]]
         r = '{{"tag": "proxy-round", "selector": [{0}], "strategy": {1}, "fallbackTag": "{2}"}}'.format(

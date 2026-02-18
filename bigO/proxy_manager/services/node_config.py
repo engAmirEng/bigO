@@ -826,7 +826,7 @@ class Balancer(Protocol):
 
 
 def get_strategy_part(
-    balancer_members: list[typing.BalancerMemberType], balancer_obj: Balancer | None
+    balancer_members: list[typing.BalancerMemberType], balancer_obj: Balancer | None, rand_fallback: bool = False
 ) -> tuple[str, str]:
     if balancer_obj is not None:
         strategy_template = balancer_obj.strategy_template or '{"type": "random"}'
@@ -863,6 +863,21 @@ def get_strategy_part(
     )
     # todo do a proper fallbacktag
     sorted_balancer_members = sorted(balancer_members, key=lambda x: x["weight"], reverse=True)
+
+    if rand_fallback:
+        first_weight = None
+        r = []
+        for i in sorted_balancer_members:
+            if first_weight is None:
+                first_weight = i["weight"]
+                r.append(i)
+            elif first_weight == i["weight"]:
+                r.append(i)
+            else:
+                break
+
+        return strategy_part, random.choice(r)["tag"]
+
     return strategy_part, sorted_balancer_members[0]["tag"]
 
 
