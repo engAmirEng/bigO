@@ -93,7 +93,7 @@ async def sublink_view(request, subscription_uuid: uuid.UUID):
     if not style_type:
         if not is_json_available:
             style_type = "url"
-        elif "happ" in user_agent:
+        elif "happ" in user_agent.lower():
             style_type = "json"
         else:
             style_type = "url"
