@@ -194,6 +194,8 @@ async def get_profile_json_proxies(
             inbounds_res.append({"tag": inbound_tag, "inbound_obj": inbound_json})
             inbounds[inbound_tag] = inbound_json
         for balancer_config in in_rule.balancers_configs:
+            if balancer_config.weight == 0:
+                continue
             balancers_res[balancer_config.balancer_key].append(
                 {"weight": balancer_config.weight, "inbounds_tags": [i["tag"] for i in inbounds_res]}
             )

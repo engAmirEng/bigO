@@ -191,6 +191,14 @@ class ConnectionRuleBalancer(TimeStampedModel, models.Model):
             )
         ]
 
+    @property
+    def max_rtt(self):
+        return None
+
+    @property
+    def baselines(self):
+        return None
+
 
 class ConnectionRuleInboundSpec(TimeStampedModel, models.Model):
     key = models.CharField(max_length=63)

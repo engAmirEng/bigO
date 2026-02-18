@@ -828,10 +828,14 @@ class Balancer(Protocol):
 def get_strategy_part(
     balancer_members: list[typing.BalancerMemberType], balancer_obj: Balancer | None
 ) -> tuple[str, str]:
-    if balancer_obj is not None and balancer_obj.strategy_template:
-        strategy_template = balancer_obj.strategy_template
+    if balancer_obj is not None:
+        strategy_template = balancer_obj.strategy_template or '{"type": "random"}'
+        max_rtt = balancer_obj.max_rtt
+        baselines = balancer_obj.baselines
     else:
         strategy_template = '{"type": "random"}'
+        max_rtt = None
+        baselines = None
     weight_summation = sum([i["weight"] for i in balancer_members])
     costs_part = ", ".join(
         [
@@ -852,8 +856,8 @@ def get_strategy_part(
             {
                 "costs_part": costs_part,
                 "node_count": max(1, int(0.4 * len(balancer_members))),
-                "max_rtt": balancer_obj.max_rtt,
-                "baselines": balancer_obj.baselines,
+                "max_rtt": max_rtt,
+                "baselines": baselines,
             }
         )
     )
