@@ -863,18 +863,7 @@ def get_strategy_part(
     )
     # todo do a proper fallbacktag
     sorted_balancer_members = sorted(balancer_members, key=lambda x: x["weight"], reverse=True)
-    first_weight = None
-    r = []
-    for i in sorted_balancer_members:
-        if first_weight is None:
-            first_weight = i["weight"]
-            r.append(i)
-        elif first_weight == i["weight"]:
-            r.append(i)
-        else:
-            break
-
-    return strategy_part, random.choice(r)["tag"]
+    return strategy_part, sorted_balancer_members[0]["tag"]
 
 
 class XrayOutBound:
