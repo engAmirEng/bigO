@@ -313,7 +313,7 @@ async def agent_manage_profile_handler(
         ikbuilder_all_user_accounts = InlineKeyboardBuilder()
         for i in all_user_accounts_list:
             ikbuilder_all_user_accounts.button(
-                text=("✅" if (i == subscriptionprofile_obj) else "") + str(i),
+                text=("✅" if (i == subscriptionprofile_obj) else "") + await sync_to_async(str)(i),
                 callback_data=AgentAgencyProfileCallbackData(
                     profile_id=i.id, action=AgentAgencyProfileAction.DETAIL
                 ).pack(),
