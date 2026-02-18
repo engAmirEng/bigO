@@ -1,8 +1,9 @@
 import base64
 import logging
 import random
-import re
 import uuid
+
+from packaging.version import Version
 
 import django.template
 import django.urls.resolvers
@@ -92,10 +93,16 @@ async def sublink_view(request, subscription_uuid: uuid.UUID):
         ]
     else:
         raise NotImplementedError
+
     if not style_type:
+        is_xray_json_supported = (
+            ("happ" in user_agent.lower())
+            or (("v2rayng" in user_agent.lower()) and Version(user_agent.split("/")[1]) >= Version("1.10.8"))
+            or (("v2rayn" in user_agent.lower()) and Version(user_agent.split("/")[1]) >= Version("7.17.1"))
+        )
         if not is_json_available:
             style_type = "uri"
-        elif "happ" in user_agent.lower():
+        elif is_xray_json_supported:
             style_type = "xray_json"
         else:
             style_type = "uri"
