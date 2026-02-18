@@ -2,6 +2,7 @@ import asyncio
 import datetime
 import ipaddress
 import json
+import logging
 import os
 import pathlib
 import re
@@ -35,6 +36,8 @@ from django.utils import timezone
 
 from ..telegram_bot.utils import sync_thtml_render_to_string
 from . import models, typing
+
+logger = logging.getLogger(__name__)
 
 
 @app.task
@@ -166,16 +169,19 @@ def check_node_down_processes(*, ignore_node_ids: list[int] | None = None):
 
 @app.task
 def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str, Any]):
-    from bigO.proxy_manager.models import ConnectionRuleOutbound, ConnectionTunnelOutbound
-    from bigO.proxy_manager.services import (
-        XrayOutBound,
-        set_internal_user_last_stat,
-        set_outbound_tags,
-        set_profile_last_stat,
+    from bigO.proxy_manager.models import (
+        ConnectionRuleOutbound,
+        ConnectionTunnelOutbound,
+        InternalUser,
+        SubscriptionPeriod,
     )
+    from bigO.proxy_manager.services import XrayOutBound, set_outbound_tags
 
     node_obj = models.Node.objects.get(id=node_id)
     points: list[influxdb_client.Point] = []
+    subscriptionperiods_map = {}
+    internalusers_map = {}
+    outbound_store = {}
     for line in goingto_json_lines.split("\n"):
         if not line:
             continue
@@ -222,10 +228,30 @@ def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str,
                             downlink_or_uplink = user_with_id_matches[0][3]
                         else:
                             raise AssertionError
-                        subscriptionperiod = set_profile_last_stat(
-                            sub_profile_id=profile_id, sub_profile_period_id=period_id, collect_time=collect_time
-                        )
+
                         key = f"{profile_id}.{period_id}"
+                        try:
+                            subscriptionperiod = subscriptionperiods_map[key]
+                        except KeyError:
+                            subscriptionperiod = (
+                                SubscriptionPeriod.objects.filter(id=period_id, profile_id=profile_id)
+                                .select_related("plan")
+                                .first()
+                            )
+                            if subscriptionperiod is None:
+                                logger.critical(f"no SubscriptionPeriod found with {profile_id=} and {period_id=}")
+                            subscriptionperiods_map[key] = subscriptionperiod
+
+                        if subscriptionperiod:
+                            if subscriptionperiod.first_usage_at is None:
+                                subscriptionperiod.first_usage_at = collect_time
+                            if subscriptionperiod.first_usage_at > collect_time:
+                                subscriptionperiod.first_usage_at = collect_time
+
+                            if subscriptionperiod.last_usage_at is None:
+                                subscriptionperiod.last_usage_at = collect_time
+                            if subscriptionperiod.last_usage_at < collect_time:
+                                subscriptionperiod.last_usage_at = collect_time
 
                         point = user_points.get(key)
                         if point is None:
@@ -254,10 +280,28 @@ def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str,
                         rule_id = internal_user_matches[0][0]
                         node_user_id = internal_user_matches[0][1]
                         downlink_or_uplink = internal_user_matches[0][2]
-                        set_internal_user_last_stat(
-                            rule_id=rule_id, node_user_id=node_user_id, collect_time=collect_time
-                        )
+
                         key = f"{rule_id}.{node_user_id}"
+                        try:
+                            internaluser = internalusers_map[key]
+                        except KeyError:
+                            internaluser = InternalUser.objects.filter(
+                                connection_rule_id=rule_id, node_id=node_user_id
+                            ).first()
+                            if internaluser is None:
+                                logger.critical(f"no InternalUser found with {rule_id=} and {node_user_id=}")
+                            internalusers_map[key] = internaluser
+
+                        if internaluser:
+                            if internaluser.first_usage_at is None:
+                                internaluser.first_usage_at = collect_time
+                            if internaluser.first_usage_at > collect_time:
+                                internaluser.first_usage_at = collect_time
+
+                            if internaluser.last_usage_at is None:
+                                internaluser.last_usage_at = collect_time
+                            if internaluser.last_usage_at < collect_time:
+                                internaluser.last_usage_at = collect_time
 
                         point = internal_user_points.get(key)
                         if point is None:
@@ -316,7 +360,9 @@ def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str,
                             )
                             # for tag_name, tag_value in base_labels.items():
                             #     point.tag(tag_name, tag_value)  todo bring this back
-                            ot = set_outbound_tags(point=point, node=node_obj, outbound_name=outbound_tag)
+                            ot = set_outbound_tags(
+                                point=point, node=node_obj, outbound_name=outbound_tag, store=outbound_store
+                            )
                             outbound_points[outbound_tag] = point
                             if ot and ot.is_reverse:
                                 # this monkey patch is because xray does not provide traffic info about portal tag
@@ -342,7 +388,10 @@ def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str,
                                     write_precision=influxdb_client.domain.write_precision.WritePrecision.S,
                                 )
                                 set_outbound_tags(
-                                    point=portal_point, node=ot.get_portal_node(), outbound_name=portal_outbound_tag
+                                    point=portal_point,
+                                    node=ot.get_portal_node(),
+                                    outbound_name=portal_outbound_tag,
+                                    store=outbound_store,
                                 )
                                 outbound_points[portal_outbound_tag] = portal_point
                         if downlink_or_uplink == "downlink":
@@ -377,7 +426,7 @@ def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str,
                     )
                     # for tag_name, tag_value in base_labels.items():
                     #     point.tag(tag_name, tag_value)  todo bring this
-                    set_outbound_tags(point=point, node=node_obj, outbound_name=outbound_tag)
+                    set_outbound_tags(point=point, node=node_obj, outbound_name=outbound_tag, store=outbound_store)
                     if observatory_result.delay == 99999999 or observatory_result.alive is None:
                         point.field("status", "timeout")
                         point.tag("status", "timeout")
@@ -388,6 +437,14 @@ def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str,
                             "delay", float(observatory_result.delay)
                         )  # float because already exists as type float
                     points.append(point)
+
+    subscriptionperiods = [v for k, v in subscriptionperiods_map.items() if v]
+    if subscriptionperiods:
+        SubscriptionPeriod.objects.bulk_update(subscriptionperiods)
+
+    internalusers = [v for k, v in internalusers_map.items() if v]
+    if internalusers:
+        InternalUser.objects.bulk_update(internalusers)
 
     if not points:
         return "no points!!!"
