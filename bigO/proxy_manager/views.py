@@ -20,6 +20,8 @@ async def sublink_view(request, subscription_uuid: uuid.UUID):
     user_agent: str | None = request.headers.get("user_agent")
     is_test = request.GET.get("testing")
     style_type = request.GET.get("style_type")
+    if style_type and style_type not in ("uri", "xray_json"):
+        return HttpResponse("no such style_type", status=400)
     try:
         subscriptionprofile_obj = await models.SubscriptionProfile.objects.select_related("initial_agency").aget(
             uuid=subscription_uuid
@@ -92,12 +94,12 @@ async def sublink_view(request, subscription_uuid: uuid.UUID):
         raise NotImplementedError
     if not style_type:
         if not is_json_available:
-            style_type = "url"
+            style_type = "uri"
         elif "happ" in user_agent.lower():
-            style_type = "json"
+            style_type = "xray_json"
         else:
-            style_type = "url"
-    if style_type == "url":
+            style_type = "uri"
+    if style_type == "uri":
         res_lines = []
         sublink_header_content = django.template.Template(
             subscriptionprofile_obj.initial_agency.sublink_header_template
@@ -110,7 +112,7 @@ async def sublink_view(request, subscription_uuid: uuid.UUID):
 
         if request.GET.get("base64"):
             sublink_content = base64.b64encode(sublink_content.encode())
-    elif style_type == "json":
+    elif style_type == "xray_json":
         client_json_template_snippet = subscriptionperiod_obj.plan.connection_rule.client_json_template
         if client_json_template_snippet is None:
             return "todo"
@@ -139,6 +141,7 @@ async def sublink_view(request, subscription_uuid: uuid.UUID):
         attributes={
             "connection_rule_id": str(subscriptionperiod_obj.plan.connection_rule_id),
             "profile_id": subscriptionprofile_obj.id,
+            "type": style_type,
             "user_agent": user_agent,
             "status": "ok",
         },
