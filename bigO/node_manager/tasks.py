@@ -440,11 +440,11 @@ def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str,
 
     subscriptionperiods = [v for k, v in subscriptionperiods_map.items() if v]
     if subscriptionperiods:
-        SubscriptionPeriod.objects.bulk_update(subscriptionperiods)
+        SubscriptionPeriod.objects.bulk_update(subscriptionperiods, fields=["first_usage_at", "last_usage_at"])
 
     internalusers = [v for k, v in internalusers_map.items() if v]
     if internalusers:
-        InternalUser.objects.bulk_update(internalusers)
+        InternalUser.objects.bulk_update(internalusers, fields=["first_usage_at", "last_usage_at"])
 
     if not points:
         return "no points!!!"
