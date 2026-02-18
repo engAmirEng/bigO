@@ -142,16 +142,16 @@ async def sublink_view(request, subscription_uuid: uuid.UUID):
         sublink_content = "[\n" + ",\n".join(reses) + "\n]"
     else:
         raise NotImplementedError
-
-    metrics.sublink_request_total_counter.add(
-        1,
-        attributes={
-            "connection_rule_id": str(subscriptionperiod_obj.plan.connection_rule_id),
-            "profile_id": subscriptionprofile_obj.id,
-            "type": style_type,
-            "user_agent": user_agent,
-            "status": "ok",
-        },
-    )
+    if not is_test:
+        metrics.sublink_request_total_counter.add(
+            1,
+            attributes={
+                "connection_rule_id": str(subscriptionperiod_obj.plan.connection_rule_id),
+                "profile_id": subscriptionprofile_obj.id,
+                "type": style_type,
+                "user_agent": user_agent,
+                "status": "ok",
+            },
+        )
 
     return HttpResponse(sublink_content, headers=r_headers)
