@@ -3,7 +3,7 @@ import logging
 import random
 import uuid
 
-from packaging.version import Version
+from packaging.version import InvalidVersion, Version
 
 import django.template
 import django.urls.resolvers
@@ -19,6 +19,19 @@ logger = logging.getLogger(__name__)
 
 async def sublink_view(request, subscription_uuid: uuid.UUID):
     user_agent: str | None = request.headers.get("user_agent")
+    user_agent_version = request.headers.get("X-App-Version")
+    r = user_agent.split("/")
+    if len(r) == 2:
+        try:
+            Version(r[1])
+        except InvalidVersion:
+            pass
+        else:
+            if not user_agent_version:
+                user_agent_version = r[1]
+    agent_attrs = {"user_agent": user_agent}
+    if user_agent_version:
+        agent_attrs["user_agent_version"] = user_agent_version
     is_test = request.GET.get("testing")
     style_type = request.GET.get("style_type")
     if style_type and style_type not in ("uri", "xray_json"):
@@ -30,7 +43,7 @@ async def sublink_view(request, subscription_uuid: uuid.UUID):
     except models.SubscriptionProfile.DoesNotExist:
         metrics.sublink_request_total_counter.add(
             1,
-            attributes={"user_agent": user_agent, "invalid_secret": subscription_uuid.hex, "status": "not_found"},
+            attributes={**agent_attrs, "invalid_secret": subscription_uuid.hex, "status": "not_found"},
         )
         raise Http404()
     subscriptionperiod_obj = (
@@ -46,8 +59,8 @@ async def sublink_view(request, subscription_uuid: uuid.UUID):
         metrics.sublink_request_total_counter.add(
             1,
             attributes={
+                **agent_attrs,
                 "profile_id": subscriptionprofile_obj.id,
-                "user_agent": user_agent,
                 "status": "no_active_period",
             },
         )
@@ -97,8 +110,9 @@ async def sublink_view(request, subscription_uuid: uuid.UUID):
     if not style_type:
         is_xray_json_supported = (
             ("happ" in user_agent.lower())
-            or (("v2rayng" in user_agent.lower()) and Version(user_agent.split("/")[1]) >= Version("1.10.8"))
-            or (("v2rayn" in user_agent.lower()) and Version(user_agent.split("/")[1]) >= Version("7.17.1"))
+            or (("v2rayng" in user_agent.lower()) and Version(user_agent_version) >= Version("1.10.8"))
+            or (("v2rayn" in user_agent.lower()) and Version(user_agent_version) >= Version("7.17.1"))
+            or (("v2raytun" in user_agent.lower()) and Version(user_agent_version) >= Version("5.20.66"))
         )
         if not is_json_available:
             style_type = "uri"
@@ -146,10 +160,10 @@ async def sublink_view(request, subscription_uuid: uuid.UUID):
         metrics.sublink_request_total_counter.add(
             1,
             attributes={
+                **agent_attrs,
                 "connection_rule_id": str(subscriptionperiod_obj.plan.connection_rule_id),
                 "profile_id": subscriptionprofile_obj.id,
                 "type": style_type,
-                "user_agent": user_agent,
                 "status": "ok",
             },
         )
