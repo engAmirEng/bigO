@@ -220,7 +220,7 @@ async def menu_handler(
             for subscriptionprofile in subscriptionprofiles:
                 btns.append(
                     InlineKeyboardButton(
-                        text=str(subscriptionprofile),
+                        text=await sync_to_async(str)(subscriptionprofile),
                         callback_data=MemberAgencyProfileCallbackData(
                             profile_id=subscriptionprofile.id, action=MemberAgencyProfileAction.DETAIL
                         ).pack(),
