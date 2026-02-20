@@ -1207,7 +1207,7 @@ def get_netmanager_conf(
     node_nodesyncstat = getattr(node_obj, "node_nodesyncstat", None)
     if node_nodesyncstat is None or node_nodesyncstat.ip_a is None:
         return None
-    nodepublicips_qs = node_obj.node_nodepublicips.select_related("ip").all()
+    nodepublicips_qs = node_obj.node_nodepublicips.filter(is_nat=False).select_related("ip").all()
     if not nodepublicips_qs:
         return None
     ipv4s: list[ipaddress.IPv4Interface] = []

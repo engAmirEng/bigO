@@ -383,6 +383,7 @@ class NodePublicIP(TimeStampedModel):
 
     node = models.ForeignKey(Node, on_delete=models.CASCADE, related_name="node_nodepublicips")
     ip = models.ForeignKey(PublicIP, on_delete=models.CASCADE, related_name="ip_nodepublicips")
+    is_nat = models.BooleanField(default=False)
     status = models.PositiveSmallIntegerField(choices=StatusChoices.choices, default=StatusChoices.UNKNOWN)
     last_status_check = models.DateTimeField(null=True, blank=True)
 

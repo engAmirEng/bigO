@@ -42,13 +42,13 @@ class NodeLatestSyncStatInline(admin.StackedInline):
     form = forms.NodeLatestSyncStatModelForm
 
 
-class NodePublicIPInline(admin.StackedInline):
+class NodePublicIPInline(admin.TabularInline):
     extra = 1
     model = models.NodePublicIP
     autocomplete_fields = ("ip",)
 
 
-class NodeInnerProgramInline(admin.StackedInline):
+class NodeInnerProgramInline(admin.TabularInline):
     extra = 1
     model = models.NodeInnerProgram
     autocomplete_fields = ("program_version",)
