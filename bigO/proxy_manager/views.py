@@ -76,7 +76,7 @@ async def sublink_view(request, subscription_uuid: uuid.UUID):
         f"upload={convert_SI(subscriptionperiod_obj.current_upload_bytes)}; "
         f"download={convert_SI(subscriptionperiod_obj.current_download_bytes)}; "
         f"total={convert_SI(subscriptionperiod_obj.total_limit_bytes)}; "
-        f"expire={floatformat(subscriptionperiod_obj.expires_at.timestamp, '0')}"
+        f"expire={floatformat(subscriptionperiod_obj.expires_at.timestamp(), '0')}"
     )
     is_json_available = (
         subscriptionperiod_obj.plan.connection_rule.client_json_template
