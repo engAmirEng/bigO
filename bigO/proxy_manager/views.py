@@ -71,7 +71,7 @@ async def sublink_view(request, subscription_uuid: uuid.UUID):
     r_headers = {}
     short_title = f"⚡️{subscriptionprofile_obj.title}"
     r_headers["profile-title"] = "base64:" + base64.b64encode(short_title.encode("utf-8")).decode()
-    r_headers["profile-update-interval"] = "1"
+    r_headers["profile-update-interval"] = "6"
     r_headers["subscription-userinfo"] = (
         f"upload={convert_SI(subscriptionperiod_obj.current_upload_bytes)}; "
         f"download={convert_SI(subscriptionperiod_obj.current_download_bytes)}; "
