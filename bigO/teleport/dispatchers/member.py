@@ -1181,7 +1181,9 @@ async def member_see_toturial_content_handler(
         text = gettext("این اکانت فعال نیست")
     else:
         res_lines = await proxy_manager_services.get_profile_proxies(subscriptionperiod_obj=subscriptionperiod_obj)
-        text = ""
+        text = """<strong>!!!جهت اتصال پایدار از لینک ساب استفاده کنید!!!</strong>
+این صفحه مخصوص شرایط خاص است
+        """
         for line in res_lines:
             text += f"<code>{line}</code>"
 
@@ -1300,11 +1302,11 @@ async def my_account_passchange_done_handler(
     )
     normal_sublink = await sync_to_async(subscriptionprofile_obj.get_sublink)()
     InlineKeyboardButton(
-        text="⚿ " + gettext("لینک اشتراک جدید(اندروید)"),
+        text="⚿ " + gettext("لینک ساب جدید(اندروید)"),
         copy_text=CopyTextButton(text=normal_sublink),
     ),
     InlineKeyboardButton(
-        text="⚿ " + gettext("لینک اشتراک جدید(ios)"),
+        text="⚿ " + gettext("لینک ساب جدید(ios)"),
         copy_text=CopyTextButton(text=normal_sublink + "?base64=true"),
     ),
 
