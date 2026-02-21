@@ -232,7 +232,7 @@ class SubscriptionPeriod(TimeStampedModel, models.Model):
         return f"period{self.id}.profile{self.profile_id}@love.com"
 
     @property
-    def expires_at(self) -> datetime.datetime:
+    def expires_at(self) -> datetime.datetime | None:
         return self._expires_at
 
     @expires_at.setter

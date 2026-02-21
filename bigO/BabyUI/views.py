@@ -218,7 +218,9 @@ async def users_render_record_callback(i: proxy_manager_models.SubscriptionProfi
         else "never",
         used_bytes=i.current_download_bytes + i.current_upload_bytes,
         total_limit_bytes=i.current_total_limit_bytes,
-        expires_in_seconds=int((i.current_expires_at - timezone.now()).total_seconds()),
+        expires_in_seconds=int((i.current_expires_at - timezone.now()).total_seconds())
+        if i.current_expires_at is not None
+        else None,
     )
 
 
@@ -335,7 +337,9 @@ async def dashboard_users(request):
                 last_sublink_at_repr=naturaltime(i.last_sublink_at) if i.last_sublink_at else "never",
                 used_bytes=i.current_download_bytes + i.current_upload_bytes,
                 total_limit_bytes=i.total_limit_bytes,
-                expires_in_seconds=int((i.expires_at - timezone.now()).total_seconds()),
+                expires_in_seconds=int((i.expires_at - timezone.now()).total_seconds())
+                if i.expires_at is not None
+                else None,
             )
 
         period_listpagehandler = utils.ListPageHandler[proxy_manager_models.SubscriptionPeriod, utils.User](

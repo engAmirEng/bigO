@@ -46,7 +46,7 @@ class User(pydantic.BaseModel):
     online_status: Literal["online", "offline", "never"]
     used_bytes: int
     total_limit_bytes: int
-    expires_in_seconds: int
+    expires_in_seconds: int | None
 
 
 class Period(pydantic.BaseModel):
@@ -55,7 +55,7 @@ class Period(pydantic.BaseModel):
     last_usage_at_repr: str | None
     used_bytes: int
     total_limit_bytes: int
-    expires_in_seconds: int
+    expires_in_seconds: int | None
 
 
 search_callback_type: TypeAlias = Callable[[QuerySet[InputRecordT], str], Awaitable[QuerySet[InputRecordT]]] | None

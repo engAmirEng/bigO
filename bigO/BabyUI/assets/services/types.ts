@@ -39,7 +39,7 @@ export interface UserRecord {
   online_status: 'online' | 'offline' | 'never';
   used_bytes: number;
   total_limit_bytes: number;
-  expires_in_seconds: string;
+  expires_in_seconds: number | null;
 }
 
 export interface UserRecordColumns {
@@ -55,7 +55,7 @@ export interface PeriodRecord {
   last_usage_at_repr: string | null;
   used_bytes: number;
   total_limit_bytes: number;
-  expires_in_seconds: string;
+  expires_in_seconds: number | null;
 }
 export interface PeriodRecordColumns {
   used_bytes?: Column;

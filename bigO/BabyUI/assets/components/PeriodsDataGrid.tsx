@@ -15,6 +15,7 @@ import {
   GridPaginationModel,
   GridRowsProp,
 } from '@mui/x-data-grid';
+import AllInclusiveIcon from '@mui/icons-material/AllInclusive';
 import Chip, { ChipOwnProps } from '@mui/material/Chip';
 import { filesize } from 'filesize';
 import { LinearProgressProps } from '@mui/material/LinearProgress/LinearProgress';
@@ -59,7 +60,10 @@ export default function PeriodsDataGrid({ periods_list_page }: Props) {
       flex: 1,
       minWidth: 200,
       renderCell: (params) => {
-        let seconds: number = params.value;
+        let seconds: number | null = params.value;
+        if (seconds === null) {
+          return <AllInclusiveIcon sx={{ verticalAlign: 'middle' }}/>
+        }
         let isPast = false;
         if (seconds < 0) {
           seconds *= -1;
