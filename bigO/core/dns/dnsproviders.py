@@ -185,7 +185,7 @@ class AbrArvanDNS(BaseDNSProvider):
                     raise Exception(await response.text())
                 response_dict = await response.json()
                 if response_dict["data"]:
-                    return response_dict["data"][0]["id"]
+                    return [i for i in response_dict["data"] if i["name"].lower() == name.lower()][0]["id"]
 
     async def delete_record(self, base_domain_name: str, record_id: str):
         url = f"{self.BASE_URL}/domains/{base_domain_name}/dns-records/{record_id}"
