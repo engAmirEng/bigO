@@ -201,7 +201,7 @@ class TypeSimpleAsYouGO1(BaseSubscriptionPlanProvider):
             .filter(currency=OuterRef("plan__base_currency"))
             .order_by()
             .values("agency_user")
-            .annotate(balance=Sum("credit") - Sum("debt"))
+            .annotate(balance=Coalesce(Sum("credit"), Decimal(0)) - Coalesce(Sum("debt"), Decimal(0)))
         )
         return (
             Cast("plan_args__paid_bytes", PositiveBigIntegerField())
@@ -236,7 +236,7 @@ class TypeSimpleAsYouGO1(BaseSubscriptionPlanProvider):
             .filter(currency=OuterRef("plan__base_currency"))
             .order_by()
             .values("agency_user")
-            .annotate(balance=Sum("credit") - Sum("debt"))
+            .annotate(balance=Coalesce(Sum("credit"), Decimal(0)) - Coalesce(Sum("debt"), Decimal(0)))
         )
         return Cast("plan_args__paid_bytes", PositiveBigIntegerField()) + (
             Floor(
