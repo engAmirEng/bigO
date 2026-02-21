@@ -167,7 +167,7 @@ def check_node_down_processes(*, ignore_node_ids: list[int] | None = None):
     return f"{str(problematic_supervisorprocessinfo_qs.count())} are down and {str(resolved_problematic_supervisorprocessinfo_qs.count())} are back ok"
 
 
-@app.task
+@app.task(soft_time_limit=15 * 60, time_limit=16 * 60)
 def handle_goingto(node_id: int, goingto_json_lines: str, base_labels: dict[str, Any]):
     from bigO.proxy_manager.models import (
         ConnectionRuleOutbound,
