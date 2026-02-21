@@ -6,8 +6,6 @@
 {% if not wallet_balances %}
     &nbsp;0
     <br>
-    (جهت افزایش اعتبار از دکمه "افزایش اعتبار" اقدام کنید.)
-    <br>
 {% endif %}
 {% for i in wallet_balances %}
     {% if forloop.first %}

@@ -3,6 +3,10 @@
 {% trender_messages "teleport/partials/messages.thtml" %}
 به ربات {{ agency.name }} خوش آمدید
 {% include "teleport/partials/wallet_balance.thtml" %}
+{% if not wallet_balances %}
+    (جهت افزایش اعتبار از دکمه "کیف پول" اقدام کنید.)
+    <br>
+{% endif %}
 {% for subscriptionprofile in subscriptionprofiles %}
     {% if forloop.first %}
         <br>
