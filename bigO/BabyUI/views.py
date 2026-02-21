@@ -208,7 +208,7 @@ async def users_search_callback(queryset: QuerySet[proxy_manager_models.Subscrip
 async def users_render_record_callback(i: proxy_manager_models.SubscriptionProfile) -> utils.User:
     return utils.User(
         id=str(i.id),
-        title=i.title,
+        title=f"{i.user.name or i.user.username}({i.title})" if i.user else i.title,
         last_usage_at_repr=naturaltime(i.last_usage_at),
         last_sublink_at_repr=naturaltime(i.last_sublink_at) if i.last_sublink_at else "never",
         online_status="online"
@@ -230,7 +230,11 @@ async def users_sort_callback(
     order_bys = []
     res_orderings = []
     for key, is_asc in orderings:
-        if key == "used_bytes":
+        if key == "title":
+            order_bys.append(("" if is_asc else "-") + "user__name")
+            order_bys.append(("" if is_asc else "-") + "user__username")
+            order_bys.append(("" if is_asc else "-") + "title")
+        elif key == "used_bytes":
             queryset = queryset.annotate(
                 used_bytes=Coalesce("current_download_bytes", 0) + Coalesce("current_upload_bytes", 0)
             )
@@ -302,6 +306,7 @@ async def dashboard_users(request):
         .ann_last_sublink_at()
         .ann_current_period_fields()
         .filter(current_created_at__isnull=False)
+        .select_related("user")
         .order_by("-current_created_at")
     )
 
@@ -311,7 +316,7 @@ async def dashboard_users(request):
         search_callback=users_search_callback,
         render_record_callback=users_render_record_callback,
         sort_callback=users_sort_callback,
-        sortables={"used_bytes", "last_sublink_at", "last_usage_at", "expires_at"},
+        sortables={"title", "used_bytes", "last_sublink_at", "last_usage_at", "expires_at"},
         prefix="users",
     )
     users_res = await user_listpagehandler.to_response()

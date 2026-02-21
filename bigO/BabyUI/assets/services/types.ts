@@ -43,6 +43,7 @@ export interface UserRecord {
 }
 
 export interface UserRecordColumns {
+  title?: Column;
   used_bytes?: Column;
   last_sublink_at?: Column;
   last_usage_at?: Column;

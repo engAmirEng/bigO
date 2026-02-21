@@ -52,7 +52,7 @@ export default function UsersDataGrid({ users_list_page }: Props) {
     {
       field: 'title',
       headerName: 'Title',
-      sortable: false,
+      sortable: users_list_page.columns?.title !== undefined,
       flex: 1,
       minWidth: 200,
       renderCell: (params) => {
@@ -234,6 +234,8 @@ export default function UsersDataGrid({ users_list_page }: Props) {
         sortFieldName = 'last_usage_at';
       } else if (gridSortItem.field == 'expiresInSeconds') {
         sortFieldName = 'expires_at';
+      } else if (gridSortItem.field == 'title') {
+        sortFieldName = 'title';
       } else {
         throw new Error('cannot sort for ' + gridSortItem.field);
       }
